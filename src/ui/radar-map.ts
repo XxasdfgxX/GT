@@ -64,6 +64,21 @@ export function atlasPixel(
   };
 }
 
+/** Inverse of atlasPixel. North stays up. */
+export function worldFromAtlas(
+  u: number,
+  v: number,
+  bounds: AtlasBounds,
+  size: number,
+): WorldPoint {
+  const spanX = bounds.maxX - bounds.minX;
+  const spanZ = bounds.maxZ - bounds.minZ;
+  return {
+    x: bounds.minX + (u / size) * spanX,
+    z: bounds.maxZ - (v / size) * spanZ,
+  };
+}
+
 /** Blip in radar space before the heading rotation. +Y is south. Clamped to the rim. */
 export function radarBlip(
   playerX: number,

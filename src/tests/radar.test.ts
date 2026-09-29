@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { MissionPhase } from '../game/play/mission';
-import { atlasPixel, missionBlip, northMarker, radarBlip, radarBounds } from '../ui/radar-map';
+import {
+  atlasPixel,
+  missionBlip,
+  northMarker,
+  radarBlip,
+  radarBounds,
+  worldFromAtlas,
+} from '../ui/radar-map';
 
 describe('radar map', () => {
   it('puts north above south on the baked atlas', () => {
@@ -41,5 +48,13 @@ describe('radar map', () => {
     const dropoff = missionBlip(MissionPhase.Deliver);
     expect(pickup?.z).toBeGreaterThan(dropoff?.z ?? 0);
     expect(missionBlip(MissionPhase.Done)).toBeNull();
+  });
+
+  it('round-trips a world point through the atlas', () => {
+    const bounds = radarBounds();
+    const pixel = atlasPixel(120, -40, bounds, 1024);
+    const world = worldFromAtlas(pixel.u, pixel.v, bounds, 1024);
+    expect(world.x).toBeCloseTo(120, 4);
+    expect(world.z).toBeCloseTo(-40, 4);
   });
 });
