@@ -42,7 +42,7 @@ export async function start(root: HTMLElement): Promise<void> {
     ...testMap.buildings.map((building) => building.model),
     ...city.houses.map((house) => house.model),
   ]);
-  await Promise.all([...urls].map((url) => renderer.preloadModel(url)));
+  await Promise.all([renderer.prepare(), ...[...urls].map((url) => renderer.preloadModel(url))]);
   const world = createGameWorld();
   spawnMap(ctx, city);
   spawnVehicle(ctx, world);

@@ -14,15 +14,12 @@ import {
   InstancedMesh,
   LoopOnce,
   LoopRepeat,
-  MathUtils,
   Mesh,
   MeshStandardMaterial,
   OrthographicCamera,
   PCFSoftShadowMap,
   PerspectiveCamera,
-  PMREMGenerator,
   Scene,
-  ShaderMaterial,
   SkinnedMesh,
   SRGBColorSpace,
   Vector3,
@@ -31,13 +28,14 @@ import {
   type AnimationClip,
   type Object3D,
 } from 'three';
-import { Sky } from 'three/addons/objects/Sky.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { AssetManager } from '../assets/asset-manager';
 import type { Quat, Vec3 } from '../core/math';
 import { canvasAntialias, cappedPixelRatio, DEFAULT_EXPOSURE } from './display';
+import { loadCoastEnvironment } from './environment';
 import type { ClipKey, InstanceBatchDesc, MeshDesc, ModelDesc, Renderer } from './renderer';
+import { HDRI_SUN, HORIZON_COLOR } from './sky';
 
 interface CachedModel {
   scene: Object3D;
@@ -62,23 +60,12 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
   renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio));
-  renderer.setClearColor(0x6eadd4, 1);
-  renderer.autoClear = false;
+  renderer.setClearColor(HORIZON_COLOR, 1);
 
-  const sunDirection = new Vector3();
-  sunDirection.setFromSphericalCoords(1, MathUtils.degToRad(56), MathUtils.degToRad(198));
-
-  const skyScene = new Scene();
-  const sky = new Sky();
-  sky.scale.setScalar(12000);
-  sky.frustumCulled = false;
-  tuneSky(sky, sunDirection);
-  skyScene.add(sky);
-  assets.track(sky.geometry);
-  if (sky.material instanceof ShaderMaterial) assets.track(sky.material);
+  const sunDirection = new Vector3(HDRI_SUN.x, HDRI_SUN.y, HDRI_SUN.z);
 
   const scene = new Scene();
-  scene.fog = new Fog(0x7eb4dc, 180, 1200);
+  scene.fog = new Fog(HORIZON_COLOR, 180, worldFar);
 
   const camera = new PerspectiveCamera(58, 1, 0.3, worldFar);
   const ambient = new AmbientLight(0xfff6ea, 0.16);
@@ -89,14 +76,6 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
   sun.shadow.bias = -0.00035;
   sun.shadow.normalBias = 0.04;
   scene.add(ambient, skyLight, sun, sun.target);
-
-  const pmrem = new PMREMGenerator(renderer);
-  setSunDisc(sky, 0);
-  const environment = pmrem.fromScene(skyScene, 0.04, 0.1, 30000).texture;
-  setSunDisc(sky, 1);
-  scene.environment = environment;
-  assets.track(environment);
-  pmrem.dispose();
 
   const sunFocus = new Vector3();
   const aimSun = (x: number, y: number, z: number) => {
@@ -143,6 +122,13 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
 
   return {
     domElement: canvas,
+    prepare() {
+      return loadCoastEnvironment(renderer, scene, assets).then(() => {
+        ambient.intensity = 0.04;
+        skyLight.intensity = 0.18;
+        sun.intensity = 1.85;
+      });
+    },
     setSize(width, height) {
       renderer.setSize(width, height, false);
       camera.aspect = width / Math.max(height, 1);
@@ -260,51 +246,14 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
       return calls;
     },
     render() {
-      camera.far = 25000;
-      camera.updateProjectionMatrix();
-      renderer.clear();
-      const exposure = renderer.toneMappingExposure;
-      renderer.toneMappingExposure = 0.34;
-      renderer.render(skyScene, camera);
-      renderer.toneMappingExposure = exposure;
-      renderer.clearDepth();
-      camera.far = worldFar;
-      camera.updateProjectionMatrix();
       renderer.render(scene, camera);
       calls = renderer.info.render.calls;
     },
     dispose() {
       renderer.dispose();
       scene.clear();
-      skyScene.clear();
     },
   };
-}
-
-function tuneSky(sky: Sky, direction: Vector3): void {
-  if (!(sky.material instanceof ShaderMaterial)) return;
-  setNumber(sky.material, 'turbidity', 3.1);
-  setNumber(sky.material, 'rayleigh', 1.2);
-  setNumber(sky.material, 'mieCoefficient', 0.004);
-  setNumber(sky.material, 'mieDirectionalG', 0.8);
-  setVector(sky.material, 'sunPosition', direction);
-}
-
-function setSunDisc(sky: Sky, visible: number): void {
-  if (!(sky.material instanceof ShaderMaterial)) return;
-  setNumber(sky.material, 'showSunDisc', visible);
-}
-
-function setNumber(material: ShaderMaterial, name: string, value: number): void {
-  const uniform = material.uniforms[name];
-  if (!uniform || typeof uniform.value !== 'number') return;
-  uniform.value = value;
-}
-
-function setVector(material: ShaderMaterial, name: string, value: Vector3): void {
-  const uniform = material.uniforms[name];
-  if (!uniform || !(uniform.value instanceof Vector3)) return;
-  uniform.value.copy(value);
 }
 
 function createGeometry(desc: MeshDesc) {

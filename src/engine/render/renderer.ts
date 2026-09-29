@@ -48,6 +48,7 @@ export interface Renderer extends Disposable {
   readonly domElement: HTMLCanvasElement;
   setSize(width: number, height: number): void;
   setCamera(position: Vec3, target: Vec3): void;
+  prepare(): Promise<void>;
   preloadModel(url: string): Promise<void>;
   addMesh(desc: MeshDesc): number;
   addModel(desc: ModelDesc): number;
