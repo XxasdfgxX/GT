@@ -36,6 +36,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { AssetManager } from '../assets/asset-manager';
 import type { Quat, Vec3 } from '../core/math';
+import { canvasAntialias, cappedPixelRatio, DEFAULT_EXPOSURE } from './display';
 import type { ClipKey, InstanceBatchDesc, MeshDesc, ModelDesc, Renderer } from './renderer';
 
 interface CachedModel {
@@ -54,13 +55,13 @@ interface MeshRecord {
 const worldFar = 1200;
 
 export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetManager): Renderer {
-  const renderer = new WebGLRenderer({ canvas, antialias: true });
+  const renderer = new WebGLRenderer({ canvas, antialias: canvasAntialias(false) });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = DEFAULT_EXPOSURE;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio));
   renderer.setClearColor(0x6eadd4, 1);
   renderer.autoClear = false;
 
