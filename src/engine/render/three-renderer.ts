@@ -16,13 +16,11 @@ import {
   LoopRepeat,
   Mesh,
   MeshStandardMaterial,
-  OrthographicCamera,
   PCFSoftShadowMap,
   PerspectiveCamera,
   Scene,
   SkinnedMesh,
   SRGBColorSpace,
-  Vector3,
   WebGLRenderer,
   type AnimationAction,
   type AnimationClip,
@@ -35,7 +33,8 @@ import type { Quat, Vec3 } from '../core/math';
 import { canvasAntialias, cappedPixelRatio, DEFAULT_EXPOSURE } from './display';
 import { loadCoastEnvironment } from './environment';
 import type { ClipKey, InstanceBatchDesc, MeshDesc, ModelDesc, Renderer } from './renderer';
-import { HDRI_SUN, HORIZON_COLOR } from './sky';
+import { HORIZON_COLOR } from './sky';
+import { createSunController } from './sun-controller';
 
 interface CachedModel {
   scene: Object3D;
@@ -62,8 +61,6 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
   renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio));
   renderer.setClearColor(HORIZON_COLOR, 1);
 
-  const sunDirection = new Vector3(HDRI_SUN.x, HDRI_SUN.y, HDRI_SUN.z);
-
   const scene = new Scene();
   scene.fog = new Fog(HORIZON_COLOR, 180, worldFar);
 
@@ -76,24 +73,8 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
   sun.shadow.bias = -0.00035;
   sun.shadow.normalBias = 0.04;
   scene.add(ambient, skyLight, sun, sun.target);
-
-  const sunFocus = new Vector3();
-  const aimSun = (x: number, y: number, z: number) => {
-    sunFocus.set(x, y, z);
-    sun.position.copy(sunFocus).addScaledVector(sunDirection, 90);
-    sun.target.position.copy(sunFocus);
-    sun.target.updateMatrixWorld();
-    const shadowCam = sun.shadow.camera;
-    if (!(shadowCam instanceof OrthographicCamera)) return;
-    shadowCam.left = -42;
-    shadowCam.right = 42;
-    shadowCam.top = 42;
-    shadowCam.bottom = -42;
-    shadowCam.near = 8;
-    shadowCam.far = 180;
-    shadowCam.updateProjectionMatrix();
-  };
-  aimSun(0, 0, 0);
+  const sunController = createSunController(sun);
+  sunController.aim(0, 0, 0);
 
   const meshes = new Map<number, MeshRecord>();
   const models = new Map<string, CachedModel>();
@@ -137,7 +118,10 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
     setCamera(position, target) {
       camera.position.set(position.x, position.y, position.z);
       camera.lookAt(target.x, target.y, target.z);
-      aimSun(target.x, target.y, target.z);
+      sunController.aim(target.x, target.y, target.z);
+    },
+    setTimeOfDay(time) {
+      sunController.setTimeOfDay(time);
     },
     preloadModel(url) {
       const pending = loading.get(url);
@@ -164,8 +148,9 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
         desc.surface ?? 'solid',
       );
       const mesh = new Mesh(geometry, material);
-      mesh.castShadow = desc.surface !== 'water';
-      mesh.receiveShadow = true;
+      const lit = desc.surface !== 'water';
+      mesh.castShadow = lit;
+      mesh.receiveShadow = lit;
       place(mesh, desc.position, desc.rotation);
       const parent = desc.parent ? meshes.get(desc.parent)?.object : scene;
       (parent ?? scene).add(mesh);
