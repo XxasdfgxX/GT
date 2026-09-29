@@ -1,19 +1,21 @@
 /** Top-down Costa Verde baked once, then cropped into a rotating GTA-style radar. */
 
 import type { CostaVerde } from '../content/city';
+import { islandBounds } from '../content/map/island-shape';
 import { delivery } from '../content/mission';
-import { island, streetPaint, testMap } from '../content/map';
 import { MissionPhase } from '../game/play/mission';
 
 export const RADAR_SIZE = 180;
 export const RADAR_VIEW_RADIUS = 64;
 
-const atlasSize = 2048;
+const atlasSize = 1024;
 const water = '#1787a8';
-const grass = '#3c7a44';
-const roadPaint = '#e6e9ee';
-const roadEdge = '#6a7078';
+const roadPaint = '#d5d8de';
 const block = '#f3f0e6';
+const sand = '#e7d3a4';
+const forest = '#3f7a3a';
+const rock = '#8d867c';
+const lagoonPaint = '#1a9bb8';
 
 export interface AtlasBounds {
   minX: number;
@@ -38,14 +40,13 @@ export interface WorldPoint {
 }
 
 export function radarBounds(): AtlasBounds {
-  const south = island.centerZ - island.depth / 2;
-  const north = island.centerZ + island.depth / 2;
-  const pad = 200;
+  const bounds = islandBounds();
+  const pad = 180;
   return {
-    minX: -island.width / 2 - pad,
-    maxX: island.width / 2 + pad,
-    minZ: south - pad,
-    maxZ: north + pad,
+    minX: bounds.minX - pad,
+    maxX: bounds.maxX + pad,
+    minZ: bounds.minZ - pad,
+    maxZ: bounds.maxZ + pad,
   };
 }
 
@@ -77,6 +78,38 @@ export function worldFromAtlas(
     x: bounds.minX + (u / size) * spanX,
     z: bounds.maxZ - (v / size) * spanZ,
   };
+}
+
+/** Radar offset before the heading rotation. Not clamped to the rim. */
+export function radarOffset(
+  playerX: number,
+  playerZ: number,
+  x: number,
+  z: number,
+  radiusPx: number,
+  viewRadius: number,
+): RadarPoint {
+  const scale = radiusPx / viewRadius;
+  return {
+    x: (x - playerX) * scale,
+    y: -(z - playerZ) * scale,
+  };
+}
+
+export const ROUTE_COLOR = '#7ec8e3';
+
+export function drawPin(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x, y - radius);
+  ctx.lineTo(x + radius, y);
+  ctx.lineTo(x, y + radius);
+  ctx.lineTo(x - radius, y);
+  ctx.closePath();
+  ctx.fillStyle = '#f2c14e';
+  ctx.strokeStyle = '#1a1408';
+  ctx.lineWidth = Math.max(1.5, radius * 0.2);
+  ctx.fill();
+  ctx.stroke();
 }
 
 /** Blip in radar space before the heading rotation. +Y is south. Clamped to the rim. */
@@ -128,59 +161,66 @@ export function bakeRadarMap(city: CostaVerde): RadarMap {
 
   ctx.fillStyle = water;
   ctx.fillRect(0, 0, atlasSize, atlasSize);
-  stamp(ctx, bounds, 0, island.centerZ, island.width, island.depth, 0, grass);
-
-  for (const item of city.solids) {
-    if (item.surface === 'water') continue;
-    if (item.sx < 4 || item.sz < 4) continue;
-    if (item.color === streetPaint.asphalt) continue;
-    stamp(ctx, bounds, item.x, item.z, item.sx, item.sz, 0, cssColor(item.color));
-  }
-
-  for (const batch of city.batches) {
-    if (batch.kind !== 'box' || batch.sy < 2.4 || batch.sx < 3 || batch.sz < 3) continue;
-    for (let i = 0; i < batch.count; i += 1) {
-      const o = i * 16;
-      const x = batch.matrices[o + 12];
-      const z = batch.matrices[o + 14];
-      const c = batch.matrices[o];
-      const s = batch.matrices[o + 8];
-      if (x === undefined || z === undefined || c === undefined || s === undefined) continue;
-      stamp(ctx, bounds, x, z, batch.sx, batch.sz, Math.atan2(s, c), block);
+  const step = 4;
+  for (let py = 0; py < atlasSize; py += step) {
+    for (let px = 0; px < atlasSize; px += step) {
+      const x = bounds.minX + ((px + step / 2) / atlasSize) * (bounds.maxX - bounds.minX);
+      const z = bounds.maxZ - ((py + step / 2) / atlasSize) * (bounds.maxZ - bounds.minZ);
+      const paint = landColor(city, x, z);
+      if (!paint) continue;
+      ctx.fillStyle = paint;
+      ctx.fillRect(px, py, step, step);
     }
   }
 
-  for (const house of [...testMap.buildings, ...city.houses]) {
-    stamp(ctx, bounds, house.x, house.z, house.sx, house.sz, house.yaw, block);
+  ctx.strokeStyle = roadPaint;
+  ctx.lineCap = 'round';
+  for (const edge of city.graph.edges) {
+    const a = city.graph.nodes[edge.a];
+    const b = city.graph.nodes[edge.b];
+    if (!a || !b) continue;
+    const from = atlasPixel(a.x, a.z, bounds, atlasSize);
+    const to = atlasPixel(b.x, b.z, bounds, atlasSize);
+    ctx.lineWidth = edge.kind === 'coast' ? 4 : edge.kind === 'avenue' ? 2.5 : 1.4;
+    ctx.beginPath();
+    ctx.moveTo(from.u, from.v);
+    ctx.lineTo(to.u, to.v);
+    ctx.stroke();
   }
 
-  for (const item of city.solids) {
-    if (item.color !== streetPaint.asphalt || item.sx < 4 || item.sz < 4) continue;
-    stamp(ctx, bounds, item.x, item.z, item.sx, item.sz, 0, roadPaint);
+  for (const lot of city.footprints) {
+    stamp(ctx, bounds, lot.x, lot.z, lot.sx, lot.sz, lot.yaw, block);
   }
-
-  for (const road of city.roads) {
-    const alongX = road.axis === 'x';
-    const length = road.z1 - road.z0;
-    const along = (road.z0 + road.z1) / 2;
-    const cross = road.x;
-    const x = alongX ? along : cross;
-    const z = alongX ? cross : along;
-    const wide = road.width + 2.4;
-    stamp(ctx, bounds, x, z, alongX ? length : wide, alongX ? wide : length, 0, roadEdge);
-    stamp(
-      ctx,
-      bounds,
-      x,
-      z,
-      alongX ? length : road.width,
-      alongX ? road.width : length,
-      0,
-      roadPaint,
-    );
-  }
-
   return { image, bounds };
+}
+
+function landColor(city: CostaVerde, x: number, z: number): string | undefined {
+  if (insideRing(x, z, city.lagoon)) return lagoonPaint;
+  if (!insideRing(x, z, city.outline)) return undefined;
+  const { terrain } = city;
+  const u = (x - terrain.originX) / terrain.sizeX;
+  const v = (z - terrain.originZ) / terrain.sizeZ;
+  if (u < 0 || v < 0 || u > 1 || v > 1) return forest;
+  const ix = Math.min(terrain.cols - 1, Math.floor(u * (terrain.cols - 1)));
+  const iz = Math.min(terrain.rows - 1, Math.floor(v * (terrain.rows - 1)));
+  const height = terrain.heights[iz * terrain.cols + ix] ?? 0;
+  if (height < 1.2) return sand;
+  if (height > 70) return rock;
+  if (height < 6) return '#6a6e73';
+  return forest;
+}
+
+function insideRing(x: number, z: number, ring: ReadonlyArray<readonly [number, number]>): boolean {
+  let hit = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const a = ring[i];
+    const b = ring[j];
+    if (!a || !b) continue;
+    const zi = a[1];
+    const zj = b[1];
+    if (zi > z !== zj > z && x < ((b[0] - a[0]) * (z - zi)) / (zj - zi || 1e-9) + a[0]) hit = !hit;
+  }
+  return hit;
 }
 
 export function drawRadar(
@@ -191,6 +231,8 @@ export function drawRadar(
   headingDeg: number,
   blip: WorldPoint | null,
   dpr: number,
+  route: WorldPoint[] | null = null,
+  waypoint: WorldPoint | null = null,
 ): void {
   const radius = RADAR_SIZE / 2;
   const heading = (headingDeg * Math.PI) / 180;
@@ -219,6 +261,26 @@ export function drawRadar(
   shade.addColorStop(1, 'rgb(0 0 0 / 32%)');
   ctx.fillStyle = shade;
   ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+  if (route && route.length > 1) {
+    ctx.beginPath();
+    for (let i = 0; i < route.length; i += 1) {
+      const point = route[i];
+      if (!point) continue;
+      const spot = radarOffset(playerX, playerZ, point.x, point.z, radius, RADAR_VIEW_RADIUS);
+      if (i === 0) ctx.moveTo(spot.x, spot.y);
+      else ctx.lineTo(spot.x, spot.y);
+    }
+    ctx.strokeStyle = ROUTE_COLOR;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+  if (waypoint) {
+    const spot = radarBlip(playerX, playerZ, waypoint.x, waypoint.z, radius, RADAR_VIEW_RADIUS);
+    drawPin(ctx, spot.x, spot.y, spot.clamped ? 5 : 6);
+  }
 
   if (blip) {
     const spot = radarBlip(playerX, playerZ, blip.x, blip.z, radius, RADAR_VIEW_RADIUS);
@@ -266,11 +328,4 @@ function stamp(
   ctx.fillStyle = color;
   ctx.fillRect((-sx / 2) * scaleX, (-sz / 2) * scaleZ, sx * scaleX, sz * scaleZ);
   ctx.restore();
-}
-
-function cssColor(hex: number): string {
-  const r = (hex >> 16) & 255;
-  const g = (hex >> 8) & 255;
-  const b = hex & 255;
-  return `rgb(${r} ${g} ${b})`;
 }

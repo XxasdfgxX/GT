@@ -6,6 +6,7 @@ import {
   northMarker,
   radarBlip,
   radarBounds,
+  radarOffset,
   worldFromAtlas,
 } from '../ui/radar-map';
 
@@ -16,6 +17,11 @@ describe('radar map', () => {
     const south = atlasPixel(0, bounds.minZ + 10, bounds, 100);
     expect(north.v).toBeLessThan(south.v);
     expect(north.u).toBeCloseTo(south.u, 5);
+  });
+
+  it('keeps a far route vertex outside the radar rim', () => {
+    const far = radarOffset(0, 0, 400, 0, 90, 64);
+    expect(Math.hypot(far.x, far.y)).toBeGreaterThan(76);
   });
 
   it('places a northern blip above the player and clamps a far one to the rim', () => {
