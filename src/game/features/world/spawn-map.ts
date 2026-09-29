@@ -1,6 +1,7 @@
 /** Spawns Costa Verde: island, coast roads, houses, and the original street. */
 
 import type { CostaVerde, CityCollider, CitySolid } from '../../../content/city';
+import { cityFinish } from '../../../content/city';
 import { island, testMap } from '../../../content/map';
 import type { MapContent } from '../../../content/schemas';
 import type { GameContext } from '../../../engine/core/context';
@@ -22,6 +23,7 @@ export function spawnMap(ctx: GameContext, city: CostaVerde): void {
     position: groundPos,
     roughness: 0.97,
     metalness: 0,
+    finish: 'grass',
   });
 
   for (const item of city.solids) spawnSolid(ctx, item);
@@ -37,6 +39,7 @@ export function spawnMap(ctx: GameContext, city: CostaVerde): void {
       metalness: batch.metalness,
       emissive: batch.emissive,
       castShadow: batch.castShadow,
+      ...optionalFinish(cityFinish(batch.color)),
     });
   }
   for (const box of city.colliders) spawnCollider(ctx, box);
@@ -65,6 +68,7 @@ function spawnSolid(ctx: GameContext, item: CitySolid): void {
     roughness: item.roughness,
     metalness: item.metalness,
     surface: item.surface,
+    ...optionalFinish(item.surface === 'water' ? undefined : cityFinish(item.color)),
   });
   if (!item.collide) return;
   spawnCollider(ctx, {
@@ -96,6 +100,7 @@ function spawnRoad(ctx: GameContext, road: MapContent['road']): void {
       position: { x: item.x, y: item.y, z: item.z },
       roughness: item.role === 'asphalt' ? 0.94 : 0.82,
       metalness: 0,
+      finish: roadFinish(item.role),
     });
     if (!item.collide) continue;
     ctx.physics.createStaticBox({
@@ -117,5 +122,20 @@ function spawnRoad(ctx: GameContext, road: MapContent['road']): void {
     roughness: 0.55,
     metalness: 0,
     castShadow: false,
+    finish: 'lane',
   });
+}
+
+function roadFinish(
+  role: 'asphalt' | 'sidewalk' | 'curb' | 'lane',
+): 'asphalt' | 'concrete' | 'lane' {
+  if (role === 'asphalt') return 'asphalt';
+  if (role === 'lane') return 'lane';
+  return 'concrete';
+}
+
+function optionalFinish(
+  finish: 'sand' | 'grass' | 'paint' | undefined,
+): { finish: 'sand' | 'grass' | 'paint' } | Record<string, never> {
+  return finish ? { finish } : {};
 }

@@ -5,6 +5,8 @@ import type { Quat, Vec3 } from '../core/math';
 
 export type MeshKind = 'box' | 'capsule' | 'cylinder';
 
+export type SurfaceFinish = 'asphalt' | 'concrete' | 'sand' | 'grass' | 'paint' | 'lane';
+
 export interface MeshDesc {
   kind: MeshKind;
   /** Box: full size. Capsule: x radius, y cylinder length. Cylinder: x radius, y length. */
@@ -17,6 +19,7 @@ export interface MeshDesc {
   metalness?: number;
   emissive?: number;
   surface?: 'solid' | 'water';
+  finish?: SurfaceFinish;
 }
 
 export interface InstanceBatchDesc {
@@ -29,6 +32,7 @@ export interface InstanceBatchDesc {
   metalness?: number;
   emissive?: number;
   castShadow?: boolean;
+  finish?: SurfaceFinish;
 }
 
 export type ClipKey = 'idle' | 'walk' | 'run' | 'punch' | 'jump';

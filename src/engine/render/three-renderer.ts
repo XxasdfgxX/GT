@@ -24,6 +24,7 @@ import {
   WebGLRenderer,
   type AnimationAction,
   type AnimationClip,
+  type Material,
   type Object3D,
 } from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -32,7 +33,16 @@ import type { AssetManager } from '../assets/asset-manager';
 import type { Quat, Vec3 } from '../core/math';
 import { canvasAntialias, cappedPixelRatio, DEFAULT_EXPOSURE } from './display';
 import { loadCoastEnvironment } from './environment';
-import type { ClipKey, InstanceBatchDesc, MeshDesc, ModelDesc, Renderer } from './renderer';
+import { dressCar } from './materials/car-paint';
+import { MaterialLibrary, TILE_METERS, tileBoxUvs } from './materials/material-library';
+import type {
+  ClipKey,
+  InstanceBatchDesc,
+  MeshDesc,
+  ModelDesc,
+  Renderer,
+  SurfaceFinish,
+} from './renderer';
 import { HORIZON_COLOR } from './sky';
 import { createSunController } from './sun-controller';
 
@@ -75,6 +85,8 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
   scene.add(ambient, skyLight, sun, sun.target);
   const sunController = createSunController(sun);
   sunController.aim(0, 0, 0);
+  const materials = new MaterialLibrary(assets, renderer.capabilities.getMaxAnisotropy());
+  const carMaterials = new Map<string, Material>();
 
   const meshes = new Map<number, MeshRecord>();
   const models = new Map<string, CachedModel>();
@@ -101,14 +113,41 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
       }),
     );
 
+  const surfaceMaterial = (
+    desc: MeshDesc | InstanceBatchDesc,
+    geometry: BoxGeometry | CapsuleGeometry | CylinderGeometry,
+  ) => {
+    if (desc.finish && geometry instanceof BoxGeometry) {
+      const material = materials.resolve(desc.finish, desc.color);
+      tileBoxUvs(
+        geometry,
+        desc.size.x,
+        desc.size.y,
+        desc.size.z,
+        TILE_METERS[desc.finish],
+        material.aoMap !== null,
+      );
+      return material;
+    }
+    return addMaterial(
+      desc.color,
+      desc.roughness ?? 0.86,
+      desc.metalness ?? 0.02,
+      desc.emissive ?? 0,
+      'surface' in desc ? (desc.surface ?? 'solid') : 'solid',
+    );
+  };
+
   return {
     domElement: canvas,
     prepare() {
-      return loadCoastEnvironment(renderer, scene, assets).then(() => {
-        ambient.intensity = 0.04;
-        skyLight.intensity = 0.18;
-        sun.intensity = 1.85;
-      });
+      return Promise.all([loadCoastEnvironment(renderer, scene, assets), materials.load()]).then(
+        () => {
+          ambient.intensity = 0.04;
+          skyLight.intensity = 0.18;
+          sun.intensity = 1.85;
+        },
+      );
     },
     setSize(width, height) {
       renderer.setSize(width, height, false);
@@ -140,17 +179,11 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
     },
     addMesh(desc) {
       const geometry = assets.track(createGeometry(desc));
-      const material = addMaterial(
-        desc.color,
-        desc.roughness ?? 0.86,
-        desc.metalness ?? 0.02,
-        desc.emissive ?? 0,
-        desc.surface ?? 'solid',
-      );
+      const material = surfaceMaterial(desc, geometry);
       const mesh = new Mesh(geometry, material);
-      const lit = desc.surface !== 'water';
-      mesh.castShadow = lit;
-      mesh.receiveShadow = lit;
+      const receives = desc.surface !== 'water';
+      mesh.castShadow = receives && !isGround(desc.finish);
+      mesh.receiveShadow = receives;
       place(mesh, desc.position, desc.rotation);
       const parent = desc.parent ? meshes.get(desc.parent)?.object : scene;
       (parent ?? scene).add(mesh);
@@ -164,6 +197,7 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
       if (!cached) throw new Error(`Modelo não carregado: ${desc.url}`);
       const model = cloneSkinned(cached.scene);
       shade(model);
+      if (desc.url.endsWith('car.glb')) dressCar(model, assets, carMaterials);
       const pivot = new Group();
       pivot.add(model);
       if (desc.offset) pivot.position.set(desc.offset.x, desc.offset.y, desc.offset.z);
@@ -182,14 +216,9 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
     },
     addInstances(desc) {
       const geometry = assets.track(instanceGeometry(desc));
-      const material = addMaterial(
-        desc.color,
-        desc.roughness ?? 0.86,
-        desc.metalness ?? 0.02,
-        desc.emissive ?? 0,
-      );
+      const material = surfaceMaterial(desc, geometry);
       const mesh = new InstancedMesh(geometry, material, desc.count);
-      mesh.castShadow = desc.castShadow !== false;
+      mesh.castShadow = desc.castShadow !== false && !isGround(desc.finish);
       mesh.receiveShadow = true;
       const array = mesh.instanceMatrix.array;
       if (array instanceof Float32Array) array.set(desc.matrices.subarray(0, desc.count * 16));
@@ -239,6 +268,16 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
       scene.clear();
     },
   };
+}
+
+function isGround(finish: SurfaceFinish | undefined): boolean {
+  return (
+    finish === 'asphalt' ||
+    finish === 'concrete' ||
+    finish === 'sand' ||
+    finish === 'grass' ||
+    finish === 'lane'
+  );
 }
 
 function createGeometry(desc: MeshDesc) {

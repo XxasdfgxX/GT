@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCostaVerde } from '../content/city';
+import { buildCostaVerde, cityFinish } from '../content/city';
 import { island, testMap } from '../content/map';
 import { roadPieces } from '../game/features/world/road';
 
@@ -50,5 +50,13 @@ describe('Costa Verde', () => {
     for (const curb of curbs) {
       expect(Math.abs(curb.z - asphalt.z)).toBeGreaterThan(asphalt.sz / 2);
     }
+  });
+
+  it('marks the beach as sand and the hill as grass', () => {
+    const beach = city.solids.find((item) => item.color === 0xe7d3a4);
+    const hill = city.solids.find((item) => item.color === 0x4a8a4c);
+    expect(beach && cityFinish(beach.color)).toBe('sand');
+    expect(hill && cityFinish(hill.color)).toBe('grass');
+    expect(cityFinish(0x0e8fbe)).toBeUndefined();
   });
 });

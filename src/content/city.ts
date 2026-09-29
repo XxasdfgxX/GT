@@ -101,6 +101,17 @@ const towerColors = [0xf3f0e8, 0xd5dde4, 0xe7d7c3, 0xc9d4dc];
 const towerHeights = [10, 14, 18, 24, 32, 42];
 const umbrellaColors = [0xe23d3d, 0xf2c14e, 0x1f7a6b, 0x2f6fed, 0xf7f4ef];
 
+export type CityFinish = 'sand' | 'grass' | 'paint';
+
+export function cityFinish(color: number): CityFinish | undefined {
+  if (color === paint.sand) return 'sand';
+  if (color === paint.hill || color === paint.pitch) return 'grass';
+  if (color === paint.church || casaColors.includes(color) || towerColors.includes(color)) {
+    return 'paint';
+  }
+  return undefined;
+}
+
 export function buildCostaVerde(): CostaVerde {
   const solids: CitySolid[] = [];
   const colliders: CityCollider[] = [];
