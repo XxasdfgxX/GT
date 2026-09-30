@@ -14,6 +14,7 @@ import {
   Wheel,
   Traffic,
   Pedestrian,
+  Pickup,
 } from './components';
 
 export function players(world: World): QueryResult {
@@ -34,6 +35,10 @@ export function traffic(world: World): QueryResult {
 
 export function pedestrians(world: World): QueryResult {
   return query(world, [Pedestrian, Transform, RenderRef]);
+}
+
+export function pickups(world: World): QueryResult {
+  return query(world, [Pickup, Transform, RenderRef]);
 }
 
 export function wheels(world: World): QueryResult {

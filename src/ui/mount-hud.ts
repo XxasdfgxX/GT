@@ -1,19 +1,33 @@
 /** DOM readout. Gameplay never touches document nodes directly. */
 
-import type { DebugState } from '../engine/core/context';
+import { sim } from '../content/sim';
+import type { DebugState, NetPlayer, NetRosterEntry } from '../engine/core/context';
+import type { Vec3 } from '../engine/core/math';
 import type { HudModel } from '../game/play/read-hud';
+import { formatCash } from '../game/play/wallet';
 import { MissionPhase } from '../game/play/mission';
 import { PromptCode } from '../game/play/prompt';
-import type { RadarMap } from './radar-map';
+import type { RadarMap, WorldPoint } from './radar-map';
 import { drawRadar, missionBlip, northMarker, RADAR_SIZE } from './radar-map';
 import { routeOnStreets, type StreetIndex } from './street-route';
+import { scoreLine } from './score-line';
 import type { Waypoint } from './waypoint';
+
+const HEAD_LIFT = sim.playerHalfHeight + sim.playerRadius + 0.35;
+
+export interface Presence {
+  selfId: number;
+  roster: readonly NetRosterEntry[];
+  peers: readonly NetPlayer[];
+  project: (point: Vec3) => { x: number; y: number; behind: boolean };
+}
 
 export interface Hud {
   toggle(): void;
   setStats(draws: number, bodies: number): void;
   setLocked(locked: boolean): void;
-  setPlay(model: HudModel): void;
+  setPlay(model: HudModel, peers?: readonly WorldPoint[]): void;
+  setPresence(presence: Presence | null): void;
   updateFps(dt: number): void;
   remove(): void;
 }
@@ -23,7 +37,6 @@ export function mountHud(
   map: RadarMap,
   streets: StreetIndex,
   waypoint: Waypoint,
-  onMenu: () => void,
   debug: DebugState,
 ): Hud {
   const hint = document.createElement('p');
@@ -54,6 +67,17 @@ export function mountHud(
   healthFill.className = 'health-fill';
   healthTrack.append(healthFill);
   vitals.append(healthLabel, healthTrack);
+
+  const cash = document.createElement('p');
+  cash.className = 'cash';
+  cash.textContent = formatCash(0);
+
+  const board = document.createElement('div');
+  board.className = 'scoreboard';
+  board.hidden = true;
+
+  const tags = document.createElement('div');
+  tags.className = 'nametags';
 
   const mission = document.createElement('p');
   mission.className = 'mission';
@@ -103,17 +127,8 @@ export function mountHud(
   hintKeys.textContent = 'F3 painel · F4 ruas e navmesh';
   panel.append(fps, draws, bodies, agents, trafficLabel, pedLabel, hintKeys);
 
-  const menuButton = document.createElement('button');
-  menuButton.type = 'button';
-  menuButton.className = 'menu-toggle';
-  menuButton.textContent = 'Menu';
-  menuButton.addEventListener('click', (event) => {
-    event.stopPropagation();
-    onMenu();
-  });
-
-  const nodes = [radar, vitals, hint, mission, prompt, speed, panel, menuButton];
-  root.append(radar, vitals, hint, mission, prompt, speed, panel, menuButton);
+  const nodes = [radar, vitals, cash, board, tags, hint, mission, prompt, speed, panel];
+  root.append(radar, vitals, cash, board, tags, hint, mission, prompt, speed, panel);
 
   let frames = 0;
   let accumulated = 0;
@@ -130,7 +145,7 @@ export function mountHud(
     setLocked(locked) {
       hint.hidden = locked;
     },
-    setPlay(model) {
+    setPlay(model, peers = []) {
       prompt.textContent = promptLabel(model.prompt);
       speed.textContent = model.driving ? `${model.speedKmh} km/h` : '';
       mission.textContent = model.hasMission
@@ -150,6 +165,7 @@ export function mountHud(
           radarScale,
           route,
           pin,
+          peers,
         );
       }
       const mark = northMarker(model.heading, RADAR_SIZE / 2, RADAR_SIZE / 2, RADAR_SIZE / 2);
@@ -158,6 +174,36 @@ export function mountHud(
       const health = Math.max(0, Math.min(1, model.health / 10));
       healthFill.style.width = `${health * 100}%`;
       healthFill.dataset.level = health < 0.25 ? 'low' : health < 0.55 ? 'mid' : 'high';
+      cash.textContent = formatCash(model.cash);
+    },
+    setPresence(presence) {
+      board.hidden = presence === null;
+      if (!presence) {
+        board.replaceChildren();
+        tags.replaceChildren();
+        return;
+      }
+      fillRoster(board, presence.roster, presence.selfId);
+      const width = root.clientWidth;
+      const height = root.clientHeight;
+      while (tags.childElementCount > presence.peers.length) tags.lastElementChild?.remove();
+      for (let index = 0; index < presence.peers.length; index += 1) {
+        const peer = presence.peers[index];
+        if (!peer) continue;
+        let label = tags.children[index] as HTMLElement | undefined;
+        if (!label) {
+          label = document.createElement('p');
+          label.className = 'name-tag';
+          tags.append(label);
+        }
+        label.textContent = peer.name;
+        const spot = presence.project({ x: peer.x, y: peer.y + HEAD_LIFT, z: peer.z });
+        const outside =
+          spot.behind || spot.x < 0 || spot.y < 0 || spot.x > width || spot.y > height;
+        label.hidden = outside;
+        label.style.left = `${spot.x}px`;
+        label.style.top = `${spot.y}px`;
+      }
     },
     updateFps(dt) {
       frames += 1;
@@ -171,6 +217,21 @@ export function mountHud(
       for (const node of nodes) node.remove();
     },
   };
+}
+
+function fillRoster(board: HTMLElement, roster: readonly NetRosterEntry[], selfId: number): void {
+  while (board.childElementCount > roster.length) board.lastElementChild?.remove();
+  for (let index = 0; index < roster.length; index += 1) {
+    const entry = roster[index];
+    if (!entry) continue;
+    let row = board.children[index] as HTMLElement | undefined;
+    if (!row) {
+      row = document.createElement('p');
+      board.append(row);
+    }
+    row.className = entry.id === selfId ? 'score-row score-self' : 'score-row';
+    row.textContent = scoreLine(entry.name, entry.kills, entry.deaths);
+  }
 }
 
 function promptLabel(code: number): string {

@@ -2,13 +2,35 @@ import { describe, expect, it } from 'vitest';
 import { MissionPhase } from '../game/play/mission';
 import {
   atlasPixel,
+  drawRadar,
   missionBlip,
   northMarker,
   radarBlip,
   radarBounds,
   radarOffset,
   worldFromAtlas,
+  type RadarMap,
 } from '../ui/radar-map';
+
+function recordRadar(): { ctx: CanvasRenderingContext2D; fills: string[] } {
+  const fills: string[] = [];
+  const bag: Record<string, unknown> = {};
+  const ctx = new Proxy(bag, {
+    get(target, prop) {
+      if (prop === 'createRadialGradient') {
+        return () => ({ addColorStop() {} });
+      }
+      if (prop in target) return target[prop as string];
+      return () => {};
+    },
+    set(target, prop, value) {
+      if (prop === 'fillStyle' && typeof value === 'string') fills.push(value);
+      target[prop as string] = value;
+      return true;
+    },
+  });
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, fills };
+}
 
 describe('radar map', () => {
   it('puts north above south on the baked atlas', () => {
@@ -54,6 +76,20 @@ describe('radar map', () => {
     const dropoff = missionBlip(MissionPhase.Deliver);
     expect(pickup?.z).toBeGreaterThan(dropoff?.z ?? 0);
     expect(missionBlip(MissionPhase.Done)).toBeNull();
+  });
+
+  it('draws a red peer dot and skips it when the list is empty', () => {
+    const map: RadarMap = {
+      image: {} as HTMLCanvasElement,
+      bounds: { minX: -400, maxX: 400, minZ: -400, maxZ: 400 },
+    };
+    const empty = recordRadar();
+    drawRadar(empty.ctx, map, 0, 0, 0, null, 1, null, null, []);
+    expect(empty.fills).not.toContain('#e23b3b');
+
+    const marked = recordRadar();
+    drawRadar(marked.ctx, map, 0, 0, 0, null, 1, null, null, [{ x: 20, z: 20 }]);
+    expect(marked.fills).toContain('#e23b3b');
   });
 
   it('round-trips a world point through the atlas', () => {

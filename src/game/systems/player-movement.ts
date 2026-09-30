@@ -105,6 +105,12 @@ export function playerMovementSystem(ctx: GameContext, world: World): void {
   for (const eid of players(world)) {
     const body = PhysicsRef.body[eid] ?? 0;
     if (body === 0) continue;
+    if ((Player.health[eid] ?? 0) <= 0) {
+      Velocity.x[eid] = 0;
+      Velocity.y[eid] = 0;
+      Velocity.z[eid] = 0;
+      continue;
+    }
     applyLocomotion(
       world,
       eid,

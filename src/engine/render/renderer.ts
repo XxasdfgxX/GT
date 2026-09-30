@@ -72,6 +72,8 @@ export interface Renderer extends Disposable {
   setSize(width: number, height: number): void;
   setGraphics(quality: { shadows: ShadowQuality; sharpness: Sharpness }): void;
   setCamera(position: Vec3, target: Vec3): void;
+  /** Pixel position on the canvas. `behind` is true when the point is behind the camera. */
+  project(point: Vec3): { x: number; y: number; behind: boolean };
   setTimeOfDay(time: number): void;
   timeOfDay(): number;
   prepare(): Promise<void>;

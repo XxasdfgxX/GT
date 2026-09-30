@@ -234,6 +234,7 @@ export function drawRadar(
   dpr: number,
   route: WorldPoint[] | null = null,
   waypoint: WorldPoint | null = null,
+  peers: readonly WorldPoint[] = [],
 ): void {
   const radius = RADAR_SIZE / 2;
   const heading = (headingDeg * Math.PI) / 180;
@@ -286,6 +287,16 @@ export function drawRadar(
   if (blip) {
     const spot = radarBlip(playerX, playerZ, blip.x, blip.z, radius, RADAR_VIEW_RADIUS);
     ctx.fillStyle = '#f2c14e';
+    ctx.strokeStyle = '#1a1408';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(spot.x, spot.y, spot.clamped ? 4 : 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  for (const peer of peers) {
+    const spot = radarBlip(playerX, playerZ, peer.x, peer.z, radius, RADAR_VIEW_RADIUS);
+    ctx.fillStyle = '#e23b3b';
     ctx.strokeStyle = '#1a1408';
     ctx.lineWidth = 1.5;
     ctx.beginPath();

@@ -5,6 +5,7 @@ import type { GameContext } from '../engine/core/context';
 import { animatePlayer } from './systems/animate-player';
 import { updateCameraLook, placeCamera } from './systems/camera-follow';
 import { interactionSystem } from './systems/interaction';
+import { netRideSystem } from './systems/net-ride';
 import { missionSystem } from './systems/mission';
 import { applyPlayerFacing, playerMovementSystem } from './systems/player-movement';
 import { sampleInputSystem } from './systems/sample-input';
@@ -14,6 +15,9 @@ import { streamCitySystem } from './systems/stream-city';
 import { syncDebugView } from './features/world/debug-graph';
 import { pedestrianSystem, pedestrianVisual } from './systems/pedestrians';
 import { trafficSystem } from './systems/traffic';
+import { applyNetState, publishNet } from './systems/net';
+import { cashSystem } from './systems/cash';
+import { syncRemotes } from './features/net/remotes';
 
 export function sampleInput(ctx: GameContext, world: World): void {
   sampleInputSystem(ctx, world);
@@ -24,12 +28,19 @@ export function updateLook(ctx: GameContext, world: World): void {
 }
 
 export function fixedStep(ctx: GameContext, world: World): void {
+  applyNetState(ctx, world);
   streamCitySystem(ctx, world);
-  interactionSystem(ctx, world);
+  if (ctx.net) netRideSystem(ctx, world);
+  else interactionSystem(ctx, world);
   playerMovementSystem(ctx, world);
   vehicleDriveSystem(ctx, world);
-  trafficSystem(ctx, world);
-  pedestrianSystem(ctx, world);
+  if (ctx.net) {
+    publishNet(ctx, world);
+  } else {
+    trafficSystem(ctx, world);
+    pedestrianSystem(ctx, world);
+    cashSystem(ctx, world);
+  }
   ctx.physics.step(ctx.time.fixedDt);
   syncTransforms(ctx, world);
   syncWheels(ctx, world);
@@ -38,6 +49,8 @@ export function fixedStep(ctx: GameContext, world: World): void {
 }
 
 export function renderScene(ctx: GameContext, world: World, frameDt: number): void {
+  const state = ctx.net?.state();
+  if (state) syncRemotes(ctx, state.players, state.npcs, state.cars, state.pickups, frameDt);
   pedestrianVisual(ctx, world);
   syncDebugView(ctx);
   pushInterpolatedTransforms(ctx, world);

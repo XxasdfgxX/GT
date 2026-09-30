@@ -22,6 +22,7 @@ import {
   PCFSoftShadowMap,
   PerspectiveCamera,
   Scene,
+  Vector3,
   SkinnedMesh,
   SRGBColorSpace,
   WebGLRenderer,
@@ -88,6 +89,8 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
   scene.fog = new Fog(HORIZON_COLOR, 520, 2400);
 
   const camera = new PerspectiveCamera(58, 1, 0.3, worldFar);
+  const projected = new Vector3();
+  const cameraSpace = new Vector3();
   const ambient = new AmbientLight(0xfff6ea, 0.16);
   const skyLight = new HemisphereLight(0x9fd0ef, 0x3d6a38, 0.55);
   const sun = new DirectionalLight(0xfff0d0, 2.85);
@@ -239,6 +242,20 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
       camera.position.set(position.x, position.y, position.z);
       camera.lookAt(target.x, target.y, target.z);
       sunController.aim(target.x, target.y, target.z);
+    },
+    project(point) {
+      camera.updateMatrixWorld();
+      cameraSpace.set(point.x, point.y, point.z);
+      cameraSpace.applyMatrix4(camera.matrixWorldInverse);
+      const behind = cameraSpace.z > 0;
+      projected.set(point.x, point.y, point.z).project(camera);
+      const width = canvas.clientWidth || canvas.width;
+      const height = canvas.clientHeight || canvas.height;
+      return {
+        x: (projected.x * 0.5 + 0.5) * width,
+        y: (-projected.y * 0.5 + 0.5) * height,
+        behind,
+      };
     },
     setTimeOfDay(time) {
       dayTime = time;

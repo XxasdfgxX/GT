@@ -8,7 +8,10 @@ import { createThreeRenderer } from '../engine/render/three-renderer';
 import { buildCostaVerde } from '../content/city';
 import { carModel, characterModel, citizens } from '../content/models';
 import { sim } from '../content/sim';
+import { soloSpawn } from '../content/spawns';
 import { spawnMission } from '../game/features/mission/spawn-mission';
+import { resetRemotes } from '../game/features/net/remotes';
+import { resetNetRide } from '../game/systems/net-ride';
 import { spawnPlayer } from '../game/features/player/spawn-player';
 import { spawnPedCrowd } from '../game/features/pedestrians/crowd';
 import { spawnTrafficPool } from '../game/features/traffic/pool';
@@ -19,6 +22,7 @@ import { createGameWorld } from '../game/ecs/world';
 import { bakeRadarMap } from '../ui/radar-map';
 import { indexStreets } from '../ui/street-route';
 import { mountStartMenu, type LaunchChoice, type StartMenu } from '../ui/start-menu';
+import { connectRoom } from '../net/session';
 import { createWaypoint } from '../ui/waypoint';
 import { lookSensitivity, type GameSettings } from '../ui/settings';
 import { fixedStep, renderScene, sampleInput, updateLook } from '../game/simulate';
@@ -32,6 +36,8 @@ let session: { stop: () => void } | null = null;
 
 export async function start(root: HTMLElement, launch: LaunchChoice): Promise<void> {
   session?.stop();
+  resetRemotes();
+  resetNetRide();
   let running = true;
   const cleanups: Array<() => void> = [];
   const stop = () => {
@@ -44,6 +50,23 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
   session = handle;
 
   try {
+    let connected: Awaited<ReturnType<typeof connectRoom>> | null = null;
+    if (launch.mode === 'multiplayer') {
+      if (!launch.roomId) throw new Error('Sala ausente');
+      connected = await connectRoom(launch.roomId, launch.playerName);
+      cleanups.push(() => {
+        connected?.link.close();
+      });
+    }
+    const at = connected
+      ? {
+          name: 'sala',
+          x: connected.welcome.x,
+          y: connected.welcome.y,
+          z: connected.welcome.z,
+        }
+      : soloSpawn();
+
     const canvas = document.createElement('canvas');
     root.append(canvas);
     cleanups.push(() => {
@@ -87,18 +110,21 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       audio,
       assets,
       mouseSensitivity: lookSensitivity(launch.settings),
+      net: connected?.link ?? null,
     });
     const urls = [characterModel, carModel, ...citizens.map((person) => person.url)];
     await Promise.all([renderer.prepare(), ...[...urls].map((url) => renderer.preloadModel(url))]);
     const world = createGameWorld();
     spawnMap(ctx, city);
-    for (let guard = 0; guard < 80 && streamAround(ctx, 0, 12, 4) > 0; guard += 1) {
+    for (let guard = 0; guard < 80 && streamAround(ctx, at.x, at.z, 4) > 0; guard += 1) {
       /* fill the blocks around the spawn before the first frame */
     }
-    spawnVehicle(ctx, world);
-    spawnTrafficPool(ctx, world);
-    spawnPedCrowd(ctx, world);
-    spawnPlayer(ctx, world);
+    if (!connected) {
+      spawnVehicle(ctx, world);
+      spawnTrafficPool(ctx, world);
+      spawnPedCrowd(ctx, world);
+    }
+    spawnPlayer(ctx, world, at, connected?.welcome.placeSerial ?? 0);
     if (launch.mode === 'mission') spawnMission(ctx, world);
 
     const radarMap = bakeRadarMap(city);
@@ -161,7 +187,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       window.removeEventListener('keydown', onMenuKey);
     });
 
-    const hud = mountHud(root, radarMap, streets, waypoint, openMenu, ctx.debug);
+    const hud = mountHud(root, radarMap, streets, waypoint, ctx.debug);
     cleanups.push(() => {
       hud.remove();
     });
@@ -185,7 +211,18 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
           hud.updateFps(dt);
           hud.setStats(context.renderer.drawCalls(), context.physics.bodyCount());
           hud.setLocked(context.input.pointerLocked);
-          hud.setPlay(readHud(world));
+          const state = context.net?.state() ?? null;
+          hud.setPlay(readHud(world), state?.players ?? []);
+          hud.setPresence(
+            state && context.net
+              ? {
+                  selfId: context.net.selfId,
+                  roster: state.roster,
+                  peers: state.players,
+                  project: (point) => context.renderer.project(point),
+                }
+              : null,
+          );
           if (context.input.snapshot().debugToggle) hud.toggle();
           if (context.input.snapshot().debugOverlay) {
             context.debug.showGraph = !context.debug.showGraph;

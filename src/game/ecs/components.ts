@@ -42,6 +42,12 @@ export const Player = {
   punchWindow: new Float32Array(CAP),
   /** 1 on the frame a punch connects. */
   strike: new Uint8Array(CAP),
+  cash: new Float32Array(CAP),
+  /** Seconds left on a solo respawn. 0 means the body is not waiting. */
+  life: new Float32Array(CAP),
+  placeSerial: new Uint16Array(CAP),
+  /** 1 while the mesh and body are hidden after death. */
+  hidden: new Uint8Array(CAP),
 };
 
 export const InputState = {
@@ -120,6 +126,10 @@ export const Pedestrian = {
   /** Seconds left on the punch clip. */
   swing: new Float32Array(CAP),
   swingId: new Uint16Array(CAP),
+};
+
+export const Pickup = {
+  amount: new Float32Array(CAP),
 };
 
 export const CameraRig = {

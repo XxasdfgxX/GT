@@ -5,6 +5,7 @@ import {
   laneOffset,
   lightOpen,
   mustYield,
+  yieldToPedestrian,
 } from '../game/systems/traffic-ai';
 
 describe('traffic lanes', () => {
@@ -24,6 +25,16 @@ describe('traffic lanes', () => {
     expect(lightOpen(10, 0, 'avenue', 1)).toBe(true);
     expect(mustYield('street', true)).toBe(true);
     expect(mustYield('avenue', true)).toBe(false);
+  });
+
+  it('stops for someone standing in the lane ahead', () => {
+    expect(yieldToPedestrian(0, 0, 0, 1, 0, 4, 0.9, 12)).toBe(0);
+    expect(yieldToPedestrian(0, 0, 0, 1, 0, 0.5, 0.9, 12)).toBe(0);
+    expect(yieldToPedestrian(0, 0, 0, 1, 0, 30, 0.9, 12)).toBe(12);
+    expect(yieldToPedestrian(0, 0, 0, 1, 0, -4, 0.9, 12)).toBe(12);
+    expect(yieldToPedestrian(0, 0, 0, 1, 5, 4, 0.9, 12)).toBe(12);
+    const eased = yieldToPedestrian(0, 0, 0, 1, 0, 12, 0.9, 12);
+    expect(eased).toBeCloseTo(12 * (5 / 11));
   });
 
   it('keeps car boxes from occupying the same patch of street', () => {
