@@ -12,6 +12,8 @@ export interface LaunchChoice {
   settings: GameSettings;
   roomId?: string;
   playerName?: string;
+  /** Bairro name. Present only while admin mode is on. */
+  spawn?: GameSettings['spawn'];
 }
 
 export interface MenuOptions {
@@ -137,6 +139,7 @@ export function mountStartMenu(
     const choice: LaunchChoice = { mode, settings: { ...settings } };
     if (roomId) choice.roomId = roomId;
     if (mode === 'multiplayer') choice.playerName = nameInput.value;
+    if (settings.admin) choice.spawn = settings.spawn;
     void play(choice)
       .then(() => {
         gone = true;
@@ -176,7 +179,25 @@ export function mountStartMenu(
     options?.resume?.();
   });
 
-  home.append(resume, mission, free, openMap, multi, status);
+  const adminInput = document.createElement('input');
+  adminInput.type = 'checkbox';
+  adminInput.checked = settings.admin;
+  const adminField = document.createElement('label');
+  adminField.className = 'menu-field menu-check';
+  const adminCaption = document.createElement('span');
+  adminCaption.textContent = 'Modo admin';
+  adminField.append(adminCaption, adminInput);
+
+  const bairro = selectField('Bairro', settings.spawn, [
+    ['centro', 'Centro'],
+    ['jurere', 'Jurerê'],
+    ['norte', 'Norte'],
+    ['leste', 'Leste'],
+    ['sul', 'Sul'],
+  ]);
+  bairro.field.hidden = !settings.admin;
+
+  home.append(resume, mission, free, openMap, multi, adminField, bairro.field, status);
 
   const mapPanel = mapView ? mountMapPanel(mapView) : null;
   const mapBack = document.createElement('button');
@@ -232,6 +253,16 @@ export function mountStartMenu(
   volume.input.addEventListener('input', persist);
   shadows.input.addEventListener('change', persist);
   sharpness.input.addEventListener('change', persist);
+
+  const persistSpawn = () => {
+    settings.admin = adminInput.checked;
+    settings.spawn = bairro.input.value as GameSettings['spawn'];
+    bairro.field.hidden = !settings.admin;
+    saveSettings(settings, options?.store);
+    options?.onSettings?.({ ...settings });
+  };
+  adminInput.addEventListener('change', persistSpawn);
+  bairro.input.addEventListener('change', persistSpawn);
 
   const back = document.createElement('button');
   back.type = 'button';

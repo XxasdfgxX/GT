@@ -42,6 +42,9 @@ export function spawnPlayer(
   const z = at.z;
   const y = at.y;
   writePose(eid, x, y, z);
+  Player.homeX[eid] = x;
+  Player.homeY[eid] = y;
+  Player.homeZ[eid] = z;
   Player.mode[eid] = Mode.OnFoot;
   Player.speed[eid] = sim.walkSpeed;
   Player.sprintSpeed[eid] = sim.sprintSpeed;

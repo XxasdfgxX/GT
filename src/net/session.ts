@@ -8,10 +8,17 @@ export interface Connected {
   welcome: WelcomeMsg;
 }
 
-export function connectRoom(roomId: string, playerName = ''): Promise<Connected> {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+export function roomSocketQuery(roomId: string, playerName = '', spawnName = ''): string {
   const query = new URLSearchParams({ room: roomId, name: playerName });
-  const socket = new WebSocket(`${protocol}//${location.host}/ws?${query}`);
+  if (spawnName.length > 0) query.set('spawn', spawnName);
+  return query.toString();
+}
+
+export function connectRoom(roomId: string, playerName = '', spawnName = ''): Promise<Connected> {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const socket = new WebSocket(
+    `${protocol}//${location.host}/ws?${roomSocketQuery(roomId, playerName, spawnName)}`,
+  );
   let latest: StateMsg | null = null;
   let settled = false;
 

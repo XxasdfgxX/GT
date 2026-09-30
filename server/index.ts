@@ -74,7 +74,11 @@ sockets.on('connection', (socket, request) => {
     socket.close();
     return;
   }
-  const id = join(room.sim, url.searchParams.get('name') ?? '');
+  const id = join(
+    room.sim,
+    url.searchParams.get('name') ?? '',
+    url.searchParams.get('spawn') ?? '',
+  );
   if (id === null) {
     send(socket, { type: 'error', message: 'Sala cheia' });
     socket.close();

@@ -11,11 +11,17 @@ import {
 
 export const SETTINGS_KEY = 'bairro-settings';
 
+export const spawnNames = ['centro', 'jurere', 'norte', 'leste', 'sul'] as const;
+
+export type SpawnName = (typeof spawnNames)[number];
+
 export interface GameSettings {
   mouseScale: number;
   volume: number;
   shadows: ShadowQuality;
   sharpness: Sharpness;
+  admin: boolean;
+  spawn: SpawnName;
 }
 
 export const defaultSettings: GameSettings = {
@@ -23,6 +29,8 @@ export const defaultSettings: GameSettings = {
   volume: 1,
   shadows: 'high',
   sharpness: 'high',
+  admin: true,
+  spawn: 'centro',
 };
 
 const settingsSchema = z.object({
@@ -30,6 +38,8 @@ const settingsSchema = z.object({
   volume: z.number().min(0).max(1),
   shadows: z.enum(shadowQualities),
   sharpness: z.enum(sharpnessLevels),
+  admin: z.boolean().default(true),
+  spawn: z.enum(spawnNames).default('centro'),
 });
 
 export interface SettingsStore {
