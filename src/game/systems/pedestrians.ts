@@ -28,6 +28,7 @@ import {
   Velocity,
 } from '../ecs/components';
 import { syncCrowd } from '../features/pedestrians/crowd';
+import { playerFocus } from '../play/player-focus';
 import { pedestrians, players, traffic } from '../ecs/queries';
 import {
   COUNTER_DAMAGE,
@@ -127,16 +128,13 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
 }
 
 export function pedestrianVisual(ctx: GameContext, world: World): void {
-  let px = 0;
-  let pz = 12;
+  const focus = playerFocus(world);
   let yaw = Math.PI;
   for (const eid of players(world)) {
-    px = Transform.px[eid] ?? 0;
-    pz = Transform.pz[eid] ?? 0;
     yaw = CameraRig.yaw[eid] ?? yaw;
     break;
   }
-  syncCrowd(ctx, world, px, pz, yaw);
+  syncCrowd(ctx, world, focus.x, focus.z, yaw);
 }
 
 function step(
