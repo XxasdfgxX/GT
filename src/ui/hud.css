@@ -267,6 +267,26 @@ canvas {
   border-color: rgb(242 193 78 / 70%);
 }
 
+.menu-servers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-server {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.menu-count {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
+
 .menu-soon {
   position: relative;
   display: flex;
@@ -359,7 +379,8 @@ canvas {
   accent-color: #f2c14e;
 }
 
-.menu-field select {
+.menu-field select,
+.menu-field input[type='text'] {
   padding: 9px 10px;
   border: 1px solid rgb(242 193 78 / 40%);
   border-radius: 8px;
@@ -374,26 +395,6 @@ canvas {
   color: #ffb4a8;
   font-size: 14px;
   text-align: center;
-}
-
-.menu-toggle {
-  position: absolute;
-  z-index: 4;
-  top: 16px;
-  right: 16px;
-  padding: 8px 14px;
-  border: 1px solid rgb(242 193 78 / 70%);
-  background: rgb(8 28 24 / 82%);
-  color: #f7f3e8;
-  font:
-    700 14px/1 'Segoe UI',
-    system-ui,
-    sans-serif;
-  cursor: pointer;
-}
-
-.menu-toggle:hover {
-  background: rgb(242 193 78 / 18%);
 }
 
 .radar {
@@ -438,6 +439,73 @@ canvas {
   top: 16px;
   left: 16px;
   width: 168px;
+  pointer-events: none;
+}
+
+.scoreboard {
+  position: absolute;
+  top: 64px;
+  left: 16px;
+  box-sizing: border-box;
+  width: 220px;
+  height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 2px solid rgb(255 255 255 / 72%);
+  border-radius: 8px;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font:
+    700 13px/1.4 system-ui,
+    sans-serif;
+}
+
+.score-row {
+  margin: 0 0 6px;
+}
+
+.score-row:last-child {
+  margin-bottom: 0;
+}
+
+.score-self {
+  color: #f2c14e;
+}
+
+.nametags {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.name-tag {
+  position: absolute;
+  margin: 0;
+  color: #fff;
+  font:
+    700 14px/1 system-ui,
+    sans-serif;
+  text-shadow:
+    0 1px 2px #000,
+    0 0 4px rgb(0 0 0 / 80%);
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+
+.cash {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  margin: 0;
+  color: #fff;
+  font:
+    700 22px/1 system-ui,
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
   pointer-events: none;
 }
 

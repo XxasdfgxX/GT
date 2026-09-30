@@ -92,3 +92,40 @@ export function followSpeed(limit: number, gap: number, top: number): number {
   if (gap < 14) return cap * ((gap - 6) / 8);
   return cap;
 }
+
+const YIELD_BODY = 2.4;
+const YIELD_STOP = 7;
+const YIELD_LOOK = 18;
+const PANIC_BRAKE = 28;
+
+/**
+ * Speed cap when a person is in the lane ahead.
+ * Full stop up close, ease off farther out, ignore sidewalk and anyone behind.
+ */
+export function yieldToPedestrian(
+  carX: number,
+  carZ: number,
+  forwardX: number,
+  forwardZ: number,
+  personX: number,
+  personZ: number,
+  halfWidth: number,
+  limit: number,
+): number {
+  const dx = personX - carX;
+  const dz = personZ - carZ;
+  const ahead = dx * forwardX + dz * forwardZ;
+  const lateral = Math.abs(dx * forwardZ - dz * forwardX);
+  if (ahead < -0.3) return limit;
+  if (dx * dx + dz * dz < YIELD_BODY * YIELD_BODY) return 0;
+  if (ahead > YIELD_LOOK) return limit;
+  if (lateral > halfWidth + 0.7) return limit;
+  if (ahead < YIELD_STOP) return 0;
+  return Math.min(limit, limit * ((ahead - YIELD_STOP) / (YIELD_LOOK - YIELD_STOP)));
+}
+
+/** Ease toward a cap, or slam the brakes when a person is blocking the lane. */
+export function approachSpeed(speed: number, limit: number, dt: number, panic: boolean): number {
+  if (panic) return Math.max(0, speed - PANIC_BRAKE * dt);
+  return Math.max(0, speed + Math.max(-18, Math.min(8, limit - speed)) * dt * 2);
+}

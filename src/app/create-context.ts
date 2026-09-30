@@ -3,7 +3,7 @@
 import type { AssetManager } from '../engine/assets/asset-manager';
 import type { AudioBus } from '../engine/audio/audio-bus';
 import { EventBus } from '../engine/core/event-bus';
-import type { GameContext, GameEvents } from '../engine/core/context';
+import type { GameContext, GameEvents, NetLink } from '../engine/core/context';
 import { createConsoleLogger } from '../engine/core/logger';
 import { createClock } from '../engine/core/time';
 import type { Input } from '../engine/input/input';
@@ -20,6 +20,7 @@ export interface Services {
   audio: AudioBus;
   assets: AssetManager;
   mouseSensitivity: number;
+  net: NetLink | null;
 }
 
 export function createContext(services: Services): GameContext {
@@ -34,6 +35,7 @@ export function createContext(services: Services): GameContext {
     audio: services.audio,
     assets: services.assets,
     look: { mouseSensitivity: services.mouseSensitivity },
+    net: services.net,
     debug: {
       trafficDensity: 1,
       pedDensity: 1,

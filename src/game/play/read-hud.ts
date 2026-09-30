@@ -17,6 +17,7 @@ export interface HudModel {
   hasMission: boolean;
   heading: number;
   health: number;
+  cash: number;
   x: number;
   z: number;
 }
@@ -27,11 +28,13 @@ export function readHud(world: World): HudModel {
   let speed = 0;
   let heading = 180;
   let health = 10;
+  let cash = 0;
   let x = 0;
   let z = 0;
   for (const eid of players(world)) {
     prompt = Player.prompt[eid] ?? 0;
     health = Player.health[eid] ?? 10;
+    cash = Player.cash[eid] ?? 0;
     heading = compassHeading(CameraRig.yaw[eid] ?? 0);
     driving = Player.mode[eid] === Mode.Driving;
     const target = driving ? (Player.vehicle[eid] ?? eid) : eid;
@@ -57,6 +60,7 @@ export function readHud(world: World): HudModel {
     hasMission,
     heading,
     health,
+    cash,
     x,
     z,
   };

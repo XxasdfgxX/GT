@@ -3,12 +3,15 @@
 import type { PauseMap } from './map-panel';
 import { mountMapPanel } from './map-panel';
 import { loadSettings, saveSettings, type GameSettings, type SettingsStore } from './settings';
+import { parseRoomList, type RoomInfo } from '../net/protocol';
 
-export type PlayMode = 'mission' | 'free';
+export type PlayMode = 'mission' | 'free' | 'multiplayer';
 
 export interface LaunchChoice {
   mode: PlayMode;
   settings: GameSettings;
+  roomId?: string;
+  playerName?: string;
 }
 
 export interface MenuOptions {
@@ -69,16 +72,8 @@ export function mountStartMenu(
   resume.className = 'menu-play';
   resume.textContent = 'Continuar';
   resume.hidden = !inGame;
-  const soon = document.createElement('button');
-  soon.type = 'button';
-  soon.className = 'menu-play menu-soon';
-  soon.disabled = true;
-  const soonLabel = document.createElement('span');
-  soonLabel.textContent = 'Multijogador';
-  const badge = document.createElement('span');
-  badge.className = 'menu-badge';
-  badge.textContent = 'Em breve';
-  soon.append(soonLabel, badge);
+  const multi = modeButton('Multijogador', false);
+  multi.hidden = inGame;
 
   const mapView = options?.map;
   const openMap = document.createElement('button');
@@ -94,27 +89,55 @@ export function mountStartMenu(
   openSettings.setAttribute('aria-label', 'Configurações');
   openSettings.innerHTML = GEAR_ICON;
 
-  const playable = [mission, free, resume];
+  const playable = [mission, free, resume, multi];
   let busy = false;
   let gone = false;
+  let poll = 0;
+
+  const serversPanel = document.createElement('div');
+  serversPanel.className = 'menu-panel';
+  serversPanel.hidden = true;
+  const serverList = document.createElement('div');
+  serverList.className = 'menu-servers';
+  const serverStatus = document.createElement('p');
+  serverStatus.className = 'menu-status';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.maxLength = 16;
+  nameInput.setAttribute('autocomplete', 'nickname');
+  nameInput.spellcheck = false;
+  nameInput.placeholder = 'opcional';
+
+  const stopPoll = () => {
+    if (poll === 0) return;
+    window.clearInterval(poll);
+    poll = 0;
+  };
 
   const close = () => {
     if (busy || gone) return false;
     gone = true;
+    stopPoll();
     menu.remove();
     return true;
   };
 
-  const launch = (mode: PlayMode) => {
+  const launch = (mode: PlayMode, roomId?: string) => {
     if (busy) return;
     busy = true;
+    stopPoll();
     for (const button of playable) button.disabled = true;
+    for (const button of serverList.querySelectorAll('button')) button.disabled = true;
     openSettings.disabled = true;
     openMap.disabled = true;
     mission.textContent = mode === 'mission' ? 'Abrindo a cidade...' : 'Com missão';
     free.textContent = mode === 'free' ? 'Abrindo a cidade...' : 'Sem missão';
+    multi.textContent = mode === 'multiplayer' ? 'Entrando...' : 'Multijogador';
     status.textContent = '';
-    void play({ mode, settings: { ...settings } })
+    const choice: LaunchChoice = { mode, settings: { ...settings } };
+    if (roomId) choice.roomId = roomId;
+    if (mode === 'multiplayer') choice.playerName = nameInput.value;
+    void play(choice)
       .then(() => {
         gone = true;
         menu.remove();
@@ -124,11 +147,21 @@ export function mountStartMenu(
         mission.disabled = false;
         free.disabled = false;
         resume.disabled = false;
+        multi.disabled = false;
         openSettings.disabled = false;
         openMap.disabled = false;
         mission.textContent = 'Com missão';
         free.textContent = 'Sem missão';
+        multi.textContent = 'Multijogador';
         status.textContent = error instanceof Error ? error.message : 'Falha ao iniciar';
+        serverStatus.textContent = status.textContent;
+        if (!serversPanel.hidden) {
+          void refreshServers();
+          stopPoll();
+          poll = window.setInterval(() => {
+            void refreshServers();
+          }, 2000);
+        }
       });
   };
 
@@ -143,7 +176,7 @@ export function mountStartMenu(
     options?.resume?.();
   });
 
-  home.append(resume, mission, free, openMap, soon, status);
+  home.append(resume, mission, free, openMap, multi, status);
 
   const mapPanel = mapView ? mountMapPanel(mapView) : null;
   const mapBack = document.createElement('button');
@@ -162,8 +195,10 @@ export function mountStartMenu(
 
   openMap.addEventListener('click', () => {
     if (!mapPanel) return;
+    stopPoll();
     home.hidden = true;
     settingsPanel.hidden = true;
+    serversPanel.hidden = true;
     mapPanel.hidden = false;
     openSettings.hidden = true;
     mapBack.focus();
@@ -211,8 +246,10 @@ export function mountStartMenu(
   });
 
   openSettings.addEventListener('click', () => {
+    stopPoll();
     home.hidden = true;
     settingsPanel.hidden = false;
+    serversPanel.hidden = true;
     if (mapPanel) mapPanel.hidden = true;
     openSettings.hidden = true;
     sensitivity.input.focus();
@@ -231,13 +268,82 @@ export function mountStartMenu(
     back,
   );
 
+  const serverTitle = document.createElement('p');
+  serverTitle.className = 'menu-section';
+  serverTitle.textContent = 'Servidores';
+  const nameLabel = document.createElement('label');
+  nameLabel.className = 'menu-field';
+  const nameCaption = document.createElement('span');
+  nameCaption.textContent = 'Nome';
+  nameLabel.append(nameCaption, nameInput);
+  const serverBack = document.createElement('button');
+  serverBack.type = 'button';
+  serverBack.className = 'menu-play menu-secondary';
+  serverBack.textContent = 'Voltar';
+  serverBack.addEventListener('click', () => {
+    stopPoll();
+    serversPanel.hidden = true;
+    home.hidden = false;
+    openSettings.hidden = false;
+    mission.focus();
+  });
+  serversPanel.append(serverTitle, nameLabel, serverList, serverStatus, serverBack);
+  multi.addEventListener('click', () => {
+    home.hidden = true;
+    settingsPanel.hidden = true;
+    if (mapPanel) mapPanel.hidden = true;
+    serversPanel.hidden = false;
+    openSettings.hidden = true;
+    void refreshServers();
+    stopPoll();
+    poll = window.setInterval(() => {
+      void refreshServers();
+    }, 2000);
+    serverBack.focus();
+  });
+
   card.append(kicker, title, lead, home);
   if (mapPanel) card.append(mapPanel);
-  card.append(settingsPanel, openSettings);
+  card.append(serversPanel, settingsPanel, openSettings);
   menu.append(card);
   root.append(menu);
   if (inGame) resume.focus();
   else mission.focus();
+
+  async function refreshServers(): Promise<void> {
+    try {
+      const response = await fetch('/rooms');
+      if (!response.ok) throw new Error('offline');
+      const rooms = parseRoomList(await response.json());
+      if (rooms.length === 0) throw new Error('empty');
+      serverList.replaceChildren(...rooms.map((room) => serverButton(room)));
+      serverStatus.textContent = '';
+    } catch {
+      serverStatus.textContent = 'Não foi possível ver os servidores';
+    }
+  }
+
+  function serverButton(room: RoomInfo): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'menu-play menu-secondary menu-server';
+    const name = document.createElement('span');
+    name.textContent = room.name;
+    const count = document.createElement('span');
+    count.className = 'menu-count';
+    const full = room.players >= room.max;
+    count.textContent = full
+      ? 'Sala cheia'
+      : room.players === 1
+        ? '1 pessoa'
+        : `${room.players} pessoas`;
+    button.append(name, count);
+    button.disabled = full || busy;
+    button.addEventListener('click', () => {
+      launch('multiplayer', room.id);
+    });
+    return button;
+  }
 
   function modeButton(label: string, primary: boolean): HTMLButtonElement {
     const button = document.createElement('button');

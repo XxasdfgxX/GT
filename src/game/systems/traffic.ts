@@ -23,7 +23,15 @@ import { enginePlayback } from '../play/feel';
 import { attachDriver, ejectDriver, releaseDriver, seatDriver } from './pedestrians';
 import { TRAFFIC_POOL } from '../features/traffic/pool';
 import { Mode } from './player-movement';
-import { carBoxesOverlap, followSpeed, laneOffset, lightOpen, mustYield } from './traffic-ai';
+import {
+  approachSpeed,
+  carBoxesOverlap,
+  followSpeed,
+  laneOffset,
+  lightOpen,
+  mustYield,
+  yieldToPedestrian,
+} from './traffic-ai';
 
 const rot = { x: 0, y: 0, z: 0, w: 1 };
 const pos = { x: 0, y: 0, z: 0 };
@@ -46,10 +54,12 @@ export function trafficSystem(ctx: GameContext, world: World): void {
   let playerX = 0;
   let playerZ = 0;
   let driving = false;
+  let onFoot = false;
   for (const eid of players(world)) {
     px = Transform.px[eid] ?? 0;
     pz = Transform.pz[eid] ?? 0;
     camYaw = CameraRig.yaw[eid] ?? 0;
+    onFoot = Player.mode[eid] !== Mode.Driving;
     if (Player.mode[eid] === Mode.Driving) {
       driving = true;
       const vehicleEid = Player.vehicle[eid] ?? 0;
@@ -86,7 +96,7 @@ export function trafficSystem(ctx: GameContext, world: World): void {
       park(ctx, world, eid);
       continue;
     }
-    drive(ctx, world, graph, eid, dt, phase);
+    drive(ctx, world, graph, eid, dt, phase, onFoot ? { x: px, z: pz } : undefined);
     if (driving) hitPlayer(ctx, world, eid, playerX, playerZ, playerSpeed);
     active += 1;
   }
@@ -110,6 +120,7 @@ function drive(
   eid: number,
   dt: number,
   phase: number,
+  onFoot?: { x: number; z: number },
 ): void {
   const edge = graph.edges[Traffic.edge[eid] ?? 0];
   if (!edge) return;
@@ -137,9 +148,30 @@ function drive(
       }
     }
   }
+  let panic = false;
+  if (onFoot) {
+    const nodeA = graph.nodes[edge.a];
+    const nodeB = graph.nodes[edge.b];
+    if (nodeA && nodeB) {
+      const fx = (nodeB.x - nodeA.x) / edge.length;
+      const fz = (nodeB.z - nodeA.z) / edge.length;
+      const dir = Traffic.dir[eid] ?? 0;
+      const personCap = yieldToPedestrian(
+        Transform.px[eid] ?? 0,
+        Transform.pz[eid] ?? 0,
+        dir === 0 ? fx : -fx,
+        dir === 0 ? fz : -fz,
+        onFoot.x,
+        onFoot.z,
+        spec.width / 2,
+        spec.topSpeed,
+      );
+      panic = personCap === 0;
+      limit = Math.min(limit, personCap);
+    }
+  }
   const speed = Traffic.speed[eid] ?? 0;
-  const next = speed + Math.max(-18, Math.min(8, limit - speed)) * dt * 2;
-  Traffic.speed[eid] = Math.max(0, next);
+  Traffic.speed[eid] = approachSpeed(speed, limit, dt, panic);
   Traffic.along[eid] = (Traffic.along[eid] ?? 0) + (Traffic.speed[eid] ?? 0) * dt;
   if ((Traffic.along[eid] ?? 0) >= edge.length - 0.4) {
     const picked = pickNext(graph, edge, Traffic.dir[eid] ?? 0);

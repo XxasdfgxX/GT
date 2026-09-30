@@ -194,6 +194,7 @@ class RapierPhysics implements PhysicsWorld {
     this.linvel.y = 0;
     this.linvel.z = 0;
     record.body.setLinvel(this.linvel, true);
+    record.body.setAngvel(this.linvel, true);
     if (record.body.isKinematic()) record.body.setNextKinematicTranslation(this.translation);
   }
 

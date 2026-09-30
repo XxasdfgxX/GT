@@ -31,6 +31,82 @@ export interface LookTuning {
   mouseSensitivity: number;
 }
 
+export interface NetPose {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+}
+
+export interface NetPunch extends NetPose {
+  serial: number;
+  heavy: boolean;
+}
+
+export interface NetPlayer extends NetPose {
+  id: number;
+  name: string;
+  swing: number;
+  car: number;
+}
+
+export interface NetRosterEntry {
+  id: number;
+  name: string;
+  kills: number;
+  deaths: number;
+  alive: boolean;
+}
+
+export interface NetNpc extends NetPose {
+  id: number;
+  health: number;
+}
+
+export interface NetPickup {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  amount: number;
+}
+
+export interface NetCar extends NetPose {
+  id: number;
+  variant: number;
+  driver: number;
+}
+
+export interface NetSnapshot {
+  self: {
+    health: number;
+    cash: number;
+    alive: boolean;
+    placeSerial: number;
+    place: { x: number; y: number; z: number };
+    name: string;
+    kills: number;
+    deaths: number;
+    car: number;
+  };
+  players: readonly NetPlayer[];
+  npcs: readonly NetNpc[];
+  cars: readonly NetCar[];
+  pickups: readonly NetPickup[];
+  roster: readonly NetRosterEntry[];
+}
+
+export interface NetLink {
+  readonly selfId: number;
+  sendPose(pose: NetPose): void;
+  sendPunch(punch: NetPunch): void;
+  sendPickup(id: number): void;
+  sendEnter(id: number): void;
+  sendExit(): void;
+  state(): NetSnapshot | null;
+  close(): void;
+}
+
 export interface GameContext {
   readonly time: Clock;
   readonly events: EventBus<GameEvents>;
@@ -43,4 +119,5 @@ export interface GameContext {
   readonly assets: AssetManager;
   readonly look: LookTuning;
   readonly debug: DebugState;
+  readonly net: NetLink | null;
 }

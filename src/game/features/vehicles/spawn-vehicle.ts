@@ -9,19 +9,23 @@ import type { GameContext } from '../../../engine/core/context';
 import { quatFromYaw } from '../../../engine/core/math';
 import { PhysicsRef, RenderRef, Transform, Vehicle, writePose } from '../../ecs/components';
 
-export function spawnVehicle(ctx: GameContext, world: World): number {
+export function spawnVehicle(
+  ctx: GameContext,
+  world: World,
+  at?: { x: number; y: number; z: number; yaw: number },
+): number {
   const eid = addEntity(world);
   addComponent(world, eid, Vehicle);
   addComponent(world, eid, Transform);
   addComponent(world, eid, PhysicsRef);
   addComponent(world, eid, RenderRef);
 
-  const x = sedan.spawn.x;
-  const z = sedan.spawn.z;
-  const y = sampleHeight(x, z) + sedan.spawn.y;
+  const x = at?.x ?? sedan.spawn.x;
+  const z = at?.z ?? sedan.spawn.z;
+  const y = at?.y ?? sampleHeight(x, z) + sedan.spawn.y;
   const position = { x, y, z };
   const yaw = { x: 0, y: 0, z: 0, w: 1 };
-  quatFromYaw(sedan.spawnYaw, yaw);
+  quatFromYaw(at?.yaw ?? sedan.spawnYaw, yaw);
   writePose(eid, x, y, z);
   Transform.qx[eid] = yaw.x;
   Transform.qy[eid] = yaw.y;

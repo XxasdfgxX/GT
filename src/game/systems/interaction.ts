@@ -87,8 +87,16 @@ function enterTraffic(ctx: GameContext, world: World, eid: number, car: number):
 }
 
 function enterPlayerCar(ctx: GameContext, eid: number, vehicleEid: number): void {
-  sitDown(ctx, eid, vehicleEid);
-  Vehicle.occupied[vehicleEid] = 1;
+  boardVehicle(ctx, eid, vehicleEid);
+}
+
+export function boardVehicle(ctx: GameContext, eid: number, ride: number): void {
+  sitDown(ctx, eid, ride);
+  Vehicle.occupied[ride] = 1;
+}
+
+export function leaveVehicle(ctx: GameContext, world: World, eid: number): void {
+  exitVehicle(ctx, world, eid);
 }
 
 function sitDown(ctx: GameContext, eid: number, ride: number): void {
