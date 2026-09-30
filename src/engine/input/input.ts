@@ -20,6 +20,7 @@ export interface InputSnapshot {
   zoom: number;
   debugToggle: boolean;
   debugOverlay: boolean;
+  scoreToggle: boolean;
 }
 
 export interface Input extends Disposable {

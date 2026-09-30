@@ -2,6 +2,8 @@
 
 import type { World } from 'bitecs';
 import type { GameContext } from '../engine/core/context';
+import { CameraRig } from './ecs/components';
+import { players } from './ecs/queries';
 import { animatePlayer } from './systems/animate-player';
 import { updateCameraLook, placeCamera } from './systems/camera-follow';
 import { interactionSystem } from './systems/interaction';
@@ -50,7 +52,23 @@ export function fixedStep(ctx: GameContext, world: World): void {
 
 export function renderScene(ctx: GameContext, world: World, frameDt: number): void {
   const state = ctx.net?.state();
-  if (state) syncRemotes(ctx, state.players, state.npcs, state.cars, state.pickups, frameDt);
+  if (state) {
+    let cameraYaw = 0;
+    for (const eid of players(world)) {
+      cameraYaw = CameraRig.yaw[eid] ?? 0;
+      break;
+    }
+    syncRemotes(
+      ctx,
+      state.players,
+      state.npcs,
+      state.cars,
+      state.pickups,
+      state.corpses,
+      cameraYaw,
+      frameDt,
+    );
+  }
   pedestrianVisual(ctx, world);
   syncDebugView(ctx);
   pushInterpolatedTransforms(ctx, world);

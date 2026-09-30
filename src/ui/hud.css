@@ -447,8 +447,8 @@ canvas {
   top: 64px;
   left: 16px;
   box-sizing: border-box;
-  width: 220px;
-  height: 220px;
+  width: 268px;
+  max-height: 280px;
   margin: 0;
   padding: 10px 12px;
   overflow: auto;
@@ -461,8 +461,43 @@ canvas {
     sans-serif;
 }
 
+.scoreboard.is-collapsed {
+  max-height: none;
+  overflow: hidden;
+}
+
+.scoreboard.is-collapsed .score-body {
+  display: none;
+}
+
+.score-title {
+  margin: 0 0 8px;
+  color: #f2c14e;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.scoreboard.is-collapsed .score-title {
+  margin-bottom: 0;
+}
+
+.score-name,
+.score-detail {
+  margin: 0;
+}
+
+.score-detail {
+  font-weight: 600;
+  color: rgb(255 255 255 / 86%);
+}
+
+.score-self .score-detail {
+  color: #f2c14e;
+}
+
 .score-row {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
 }
 
 .score-row:last-child {
@@ -521,6 +556,8 @@ canvas {
 }
 
 .health-track {
+  display: flex;
+  justify-content: flex-start;
   height: 14px;
   overflow: hidden;
   background: rgb(0 0 0 / 55%);
@@ -530,6 +567,7 @@ canvas {
 .health-fill {
   width: 100%;
   height: 100%;
+  transform-origin: left center;
   background: #3ddc6a;
 }
 

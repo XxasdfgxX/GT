@@ -10,6 +10,7 @@ import type { ClipKey } from '../../../engine/render/renderer';
 import { Pedestrian, RenderRef, Transform, writePose } from '../../ecs/components';
 import { healthBarVisible } from '../../systems/ped-ai';
 import { pedestrians } from '../../ecs/queries';
+import { HEALTH_TRACK_WIDTH, healthFillLayout } from '../health-bar';
 
 export const PED_POOL = 120;
 export const NEAR_SLOTS = 24;
@@ -31,9 +32,12 @@ const barMatrices = new Float32Array(PED_POOL * 16);
 const barFill = new Float32Array(PED_POOL * 16);
 const barColors = new Float32Array(PED_POOL * 3);
 const fillColors = new Float32Array(PED_POOL * 3);
+const bloodMatrices = new Float32Array(PED_POOL * 16);
+const bloodColors = new Float32Array(PED_POOL * 3);
 let crowdMesh = 0;
 let barMesh = 0;
 let fillMesh = 0;
+let bloodMesh = 0;
 
 export function spawnPedCrowd(ctx: GameContext, world: World): void {
   nearMesh.length = 0;
@@ -109,6 +113,20 @@ export function spawnPedCrowd(ctx: GameContext, world: World): void {
   });
   ctx.renderer.setMeshVisible(barMesh, false);
   ctx.renderer.setMeshVisible(fillMesh, false);
+  bloodColors.fill(1);
+  bloodMesh = ctx.renderer.addInstances({
+    kind: 'box',
+    unit: true,
+    size: { x: 1, y: 1, z: 1 },
+    color: 0x7c1418,
+    count: PED_POOL,
+    matrices: bloodMatrices,
+    colors: bloodColors,
+    roughness: 1,
+    metalness: 0,
+    castShadow: false,
+  });
+  ctx.renderer.setMeshVisible(bloodMesh, false);
 }
 
 /** Gives the closest pedestrians a matching body and parks the rest on the instance batch. */
@@ -125,8 +143,9 @@ export function syncCrowd(
     if ((Pedestrian.active[eid] ?? 0) === 0) continue;
     const dx = (Transform.px[eid] ?? 0) - px;
     const dz = (Transform.pz[eid] ?? 0) - pz;
-    const distance = dx * dx + dz * dz;
-    if (distance > 40 * 40) continue;
+    const dead = (Pedestrian.health[eid] ?? 0) <= 0;
+    const distance = dx * dx + dz * dz - (dead ? 24 * 24 : 0);
+    if (dx * dx + dz * dz > 40 * 40) continue;
     const variant = (Pedestrian.variant[eid] ?? 0) % citizens.length;
     let slot = -1;
     let worst = -1;
@@ -169,7 +188,8 @@ export function syncCrowd(
     if (used[eid] === 1) continue;
     RenderRef.mesh[eid] = 0;
     const tint = farTint[Pedestrian.variant[eid] ?? 0] ?? 0xf7f4ef;
-    const y = (Transform.py[eid] ?? 0) + 0.85 + STREET_LIFT;
+    const dead = (Pedestrian.health[eid] ?? 0) <= 0;
+    const y = (Transform.py[eid] ?? 0) + (dead ? 0.16 : 0.85) + STREET_LIFT;
     writeTransformMatrix(
       matrices,
       far,
@@ -178,9 +198,9 @@ export function syncCrowd(
       Transform.pz[eid] ?? 0,
       Pedestrian.yaw[eid] ?? 0,
       0,
-      0.45,
-      1.7,
-      0.45,
+      dead ? 0.9 : 0.45,
+      dead ? 0.28 : 1.7,
+      dead ? 0.42 : 0.45,
     );
     colors[far * 3] = ((tint >> 16) & 255) / 255;
     colors[far * 3 + 1] = ((tint >> 8) & 255) / 255;
@@ -189,7 +209,35 @@ export function syncCrowd(
   }
   ctx.renderer.setInstances(crowdMesh, matrices, colors, far);
   ctx.renderer.setMeshVisible(crowdMesh, far > 0);
+  syncBlood(ctx, world);
   syncBars(ctx, world, cameraYaw);
+}
+
+function syncBlood(ctx: GameContext, world: World): void {
+  let count = 0;
+  for (const eid of pedestrians(world)) {
+    if (count >= PED_POOL) break;
+    if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.health[eid] ?? 0) > 0) continue;
+    const yaw = Pedestrian.yaw[eid] ?? 0;
+    writeTransformMatrix(
+      bloodMatrices,
+      count,
+      Transform.px[eid] ?? 0,
+      (Transform.py[eid] ?? 0) + STREET_LIFT + 0.03,
+      Transform.pz[eid] ?? 0,
+      yaw,
+      0,
+      1.25,
+      0.04,
+      0.72,
+    );
+    bloodColors[count * 3] = 0.55;
+    bloodColors[count * 3 + 1] = 0.06;
+    bloodColors[count * 3 + 2] = 0.07;
+    count += 1;
+  }
+  ctx.renderer.setInstances(bloodMesh, bloodMatrices, bloodColors, count);
+  ctx.renderer.setMeshVisible(bloodMesh, count > 0);
 }
 
 function citizenClip(eid: number): ClipKey {
@@ -207,16 +255,37 @@ function syncBars(ctx: GameContext, world: World, cameraYaw: number): void {
   for (const eid of pedestrians(world)) {
     if (count >= PED_POOL) break;
     if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
+    if ((Pedestrian.health[eid] ?? 0) <= 0) continue;
     if (!healthBarVisible(Pedestrian.hurt[eid] ?? 0)) continue;
     const hp = Math.max(0, Math.min(1, (Pedestrian.health[eid] ?? 0) / sim.maxHealth));
     const x = Transform.px[eid] ?? 0;
     const y = (Transform.py[eid] ?? 0) + 1.85;
     const z = Transform.pz[eid] ?? 0;
-    const ox = Math.sin(cameraYaw) * 0.04;
-    const oz = Math.cos(cameraYaw) * 0.04;
-    writeTransformMatrix(barMatrices, count, x, y, z, cameraYaw, 0, 0.72, 0.09, 0.045);
-    const width = Math.max(0.04, 0.66 * hp);
-    writeTransformMatrix(barFill, count, x + ox, y, z + oz, cameraYaw, 0, width, 0.055, 0.05);
+    const fill = healthFillLayout(hp, cameraYaw);
+    writeTransformMatrix(
+      barMatrices,
+      count,
+      x,
+      y,
+      z,
+      cameraYaw,
+      0,
+      HEALTH_TRACK_WIDTH,
+      0.09,
+      0.045,
+    );
+    writeTransformMatrix(
+      barFill,
+      count,
+      x + fill.x,
+      y,
+      z + fill.z,
+      cameraYaw,
+      0,
+      fill.width,
+      0.055,
+      0.05,
+    );
     fillColors[count * 3] = 0.9 * (1 - hp) + 0.15;
     fillColors[count * 3 + 1] = 0.75 * hp + 0.08;
     fillColors[count * 3 + 2] = 0.12;

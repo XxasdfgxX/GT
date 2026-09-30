@@ -10,7 +10,7 @@ import { PromptCode } from '../game/play/prompt';
 import type { RadarMap, WorldPoint } from './radar-map';
 import { drawRadar, missionBlip, northMarker, RADAR_SIZE } from './radar-map';
 import { routeOnStreets, type StreetIndex } from './street-route';
-import { scoreLine } from './score-line';
+import { npcScoreLine, playerScoreLine } from './score-line';
 import type { Waypoint } from './waypoint';
 
 const HEAD_LIFT = sim.playerHalfHeight + sim.playerRadius + 0.35;
@@ -24,6 +24,7 @@ export interface Presence {
 
 export interface Hud {
   toggle(): void;
+  toggleScore(): void;
   setStats(draws: number, bodies: number): void;
   setLocked(locked: boolean): void;
   setPlay(model: HudModel, peers?: readonly WorldPoint[]): void;
@@ -75,6 +76,12 @@ export function mountHud(
   const board = document.createElement('div');
   board.className = 'scoreboard';
   board.hidden = true;
+  const scoreTitle = document.createElement('p');
+  scoreTitle.className = 'score-title';
+  scoreTitle.textContent = 'Estatísticas · H';
+  const scoreBody = document.createElement('div');
+  scoreBody.className = 'score-body';
+  board.append(scoreTitle, scoreBody);
 
   const tags = document.createElement('div');
   tags.className = 'nametags';
@@ -137,6 +144,10 @@ export function mountHud(
     toggle() {
       panel.hidden = !panel.hidden;
     },
+    toggleScore() {
+      if (board.hidden) return;
+      board.classList.toggle('is-collapsed');
+    },
     setStats(drawCalls, bodyCount) {
       draws.textContent = `Desenhos ${drawCalls}`;
       bodies.textContent = `Corpos ${bodyCount}`;
@@ -179,11 +190,11 @@ export function mountHud(
     setPresence(presence) {
       board.hidden = presence === null;
       if (!presence) {
-        board.replaceChildren();
+        scoreBody.replaceChildren();
         tags.replaceChildren();
         return;
       }
-      fillRoster(board, presence.roster, presence.selfId);
+      fillRoster(scoreBody, presence.roster, presence.selfId);
       const width = root.clientWidth;
       const height = root.clientHeight;
       while (tags.childElementCount > presence.peers.length) tags.lastElementChild?.remove();
@@ -226,11 +237,23 @@ function fillRoster(board: HTMLElement, roster: readonly NetRosterEntry[], selfI
     if (!entry) continue;
     let row = board.children[index] as HTMLElement | undefined;
     if (!row) {
-      row = document.createElement('p');
+      row = document.createElement('div');
+      const name = document.createElement('p');
+      name.className = 'score-name';
+      const players = document.createElement('p');
+      players.className = 'score-detail';
+      const npcs = document.createElement('p');
+      npcs.className = 'score-detail';
+      row.append(name, players, npcs);
       board.append(row);
     }
     row.className = entry.id === selfId ? 'score-row score-self' : 'score-row';
-    row.textContent = scoreLine(entry.name, entry.kills, entry.deaths);
+    const name = row.children[0] as HTMLElement;
+    const players = row.children[1] as HTMLElement;
+    const npcs = row.children[2] as HTMLElement;
+    name.textContent = entry.name;
+    players.textContent = playerScoreLine(entry.kills, entry.playerDeaths);
+    npcs.textContent = npcScoreLine(entry.npcKills, entry.npcDeaths);
   }
 }
 

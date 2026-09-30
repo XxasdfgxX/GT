@@ -10,6 +10,7 @@ import { carModel, characterModel, citizens } from '../content/models';
 import { sim } from '../content/sim';
 import { soloSpawn } from '../content/spawns';
 import { spawnMission } from '../game/features/mission/spawn-mission';
+import { resetRemains } from '../game/features/corpse/remain';
 import { resetRemotes } from '../game/features/net/remotes';
 import { resetNetRide } from '../game/systems/net-ride';
 import { spawnPlayer } from '../game/features/player/spawn-player';
@@ -37,6 +38,7 @@ let session: { stop: () => void } | null = null;
 export async function start(root: HTMLElement, launch: LaunchChoice): Promise<void> {
   session?.stop();
   resetRemotes();
+  resetRemains();
   resetNetRide();
   let running = true;
   const cleanups: Array<() => void> = [];
@@ -224,6 +226,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
               : null,
           );
           if (context.input.snapshot().debugToggle) hud.toggle();
+          if (context.input.snapshot().scoreToggle) hud.toggleScore();
           if (context.input.snapshot().debugOverlay) {
             context.debug.showGraph = !context.debug.showGraph;
           }

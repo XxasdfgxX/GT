@@ -7,6 +7,7 @@ import {
   addCash,
   dropCash,
   formatCash,
+  CORPSE_TIME,
   NPC_DROP,
   PICKUP_REACH,
   RESPAWN_DELAY,
@@ -21,6 +22,7 @@ import {
   join,
   leave,
   listing,
+  pushEnter,
   pushPickup,
   pushPose,
   pushPunch,
@@ -28,7 +30,7 @@ import {
   tick,
 } from '../net/room';
 import { parseClientMessage, parseRoomList, parseServerMessage } from '../net/protocol';
-import { scoreLine } from '../ui/score-line';
+import { npcScoreLine, playerScoreLine } from '../ui/score-line';
 
 const spawns = [
   { name: 'centro', x: 0, y: 2, z: 0 },
@@ -169,12 +171,17 @@ describe('rooms', () => {
     }
     const view = snapshot(live, id);
     expect(view.npcs).toHaveLength(0);
+    expect(view.corpses).toEqual([expect.objectContaining({ kind: 1, x: npc.x, z: npc.z })]);
     expect(view.pickups).toEqual([
       expect.objectContaining({ amount: NPC_DROP, x: npc.x, z: npc.z }),
     ]);
     pushPickup(live, id, view.pickups[0]?.id ?? 0);
     expect(snapshot(live, id).self.cash).toBe(NPC_DROP);
     expect(snapshot(live, id).pickups).toHaveLength(0);
+    tick(live, CORPSE_TIME - 0.05);
+    expect(snapshot(live, id).corpses).toHaveLength(1);
+    tick(live, 0.05);
+    expect(snapshot(live, id).corpses).toHaveLength(0);
   });
 
   it('drops carried cash on death and respawns broke at a bairro point', () => {
@@ -199,6 +206,7 @@ describe('rooms', () => {
     expect(dead.self.alive).toBe(false);
     expect(dead.self.cash).toBe(0);
     expect(dead.pickups.some((drop) => drop.amount === NPC_DROP)).toBe(true);
+    expect(dead.corpses.some((body) => body.kind === 0)).toBe(true);
     expect(snapshot(live, other).players.some((player) => player.id === id)).toBe(false);
     tick(live, RESPAWN_DELAY);
     const back = snapshot(live, id);
@@ -206,6 +214,7 @@ describe('rooms', () => {
     expect(back.self.cash).toBe(0);
     expect(back.self.health).toBe(10);
     expect(back.self.place).toEqual({ x: spawns[0]?.x, y: spawns[0]?.y, z: spawns[0]?.z });
+    expect(back.corpses.some((body) => body.kind === 0)).toBe(true);
   });
 
   it('gives a pickup to the first player in reach', () => {
@@ -237,22 +246,116 @@ describe('rooms', () => {
     expect(seen?.name).toBe('Ana Maria dos Sa');
   });
 
+  it('hurts people on foot with the car and leaves the driver unhurt', () => {
+    const live = createRoom({
+      id: 'costa-1',
+      name: 'Costa 1',
+      spawns,
+      nodes,
+      edges,
+      rng: () => 0,
+      npcCount: 1,
+      carCount: 1,
+      maxPlayers: 2,
+    });
+    const driver = join(live) ?? 0;
+    const walker = join(live) ?? 0;
+    const car = snapshot(live, driver).cars[0];
+    const npc = snapshot(live, driver).npcs[0];
+    if (!car || !npc) throw new Error('missing street');
+    const seat = { x: car.x, y: car.y, z: car.z, yaw: car.yaw };
+    pushPose(live, driver, seat);
+    expect(pushEnter(live, driver, car.id)).toBe(true);
+    tick(live, 0.05);
+    pushPose(live, walker, { x: npc.x + 6, y: npc.y, z: npc.z, yaw: 0 });
+    pushPose(live, driver, { x: npc.x, y: npc.y, z: npc.z, yaw: 0 });
+    for (let serial = 1; serial <= 5; serial += 1) {
+      pushPunch(live, driver, { x: npc.x, y: npc.y, z: npc.z, yaw: 0, serial, heavy: true });
+    }
+    expect(snapshot(live, driver).npcs[0]?.health).toBe(10);
+    tick(live, 0.1);
+    const view = snapshot(live, driver);
+    expect(view.self.health).toBe(10);
+    expect(view.self.alive).toBe(true);
+    expect(view.npcs[0]?.health ?? 0).toBeLessThan(10);
+    pushPose(live, driver, { x: npc.x + 6, y: npc.y, z: npc.z, yaw: 0 });
+    tick(live, 0.1);
+    expect(snapshot(live, walker).self.health).toBeLessThan(10);
+    expect(snapshot(live, driver).self.health).toBe(10);
+  });
+
+  it('does not damage a player who is driving', () => {
+    const live = createRoom({
+      id: 'costa-1',
+      name: 'Costa 1',
+      spawns,
+      nodes,
+      edges,
+      rng: () => 0,
+      npcCount: 1,
+      carCount: 1,
+      maxPlayers: 2,
+    });
+    const driver = join(live) ?? 0;
+    const puncher = join(live) ?? 0;
+    const car = snapshot(live, driver).cars[0];
+    if (!car) throw new Error('missing car');
+    const seat = { x: car.x, y: car.y, z: car.z, yaw: car.yaw };
+    pushPose(live, driver, seat);
+    expect(pushEnter(live, driver, car.id)).toBe(true);
+    const hit = { x: seat.x, y: seat.y, z: seat.z - 1.2, yaw: Math.PI };
+    pushPose(live, puncher, hit);
+    for (let serial = 1; serial <= 5; serial += 1) {
+      pushPunch(live, puncher, { ...hit, serial, heavy: false });
+    }
+    tick(live, 2);
+    const view = snapshot(live, driver);
+    expect(view.self.car).toBe(car.id);
+    expect(view.self.alive).toBe(true);
+    expect(view.self.health).toBe(10);
+  });
+
   it('counts a player kill and keeps the dead player on the roster', () => {
     const live = room();
     const victim = join(live, 'Vic') ?? 0;
     const killer = join(live, 'Kay') ?? 0;
-    const pose = { x: 0, y: 2, z: 0, yaw: 0 };
-    const hit = { x: 0, y: 2, z: pose.z - 1.2, yaw: Math.PI };
+    const pose = { x: 30, y: 2, z: 0, yaw: 0 };
+    const hit = { x: 30, y: 2, z: pose.z - 1.2, yaw: Math.PI };
     pushPose(live, victim, pose);
     pushPose(live, killer, hit);
     for (let serial = 1; serial <= 5; serial += 1) {
       pushPunch(live, killer, { ...hit, serial, heavy: false });
     }
     const view = snapshot(live, killer);
-    expect(view.self).toMatchObject({ name: 'Kay', kills: 1, deaths: 0 });
+    expect(view.self).toMatchObject({
+      name: 'Kay',
+      kills: 1,
+      npcKills: 0,
+      deaths: 0,
+      playerDeaths: 0,
+      npcDeaths: 0,
+    });
     expect(view.roster).toEqual([
-      expect.objectContaining({ id: victim, name: 'Vic', kills: 0, deaths: 1, alive: false }),
-      expect.objectContaining({ id: killer, name: 'Kay', kills: 1, deaths: 0, alive: true }),
+      expect.objectContaining({
+        id: victim,
+        name: 'Vic',
+        kills: 0,
+        npcKills: 0,
+        deaths: 1,
+        playerDeaths: 1,
+        npcDeaths: 0,
+        alive: false,
+      }),
+      expect.objectContaining({
+        id: killer,
+        name: 'Kay',
+        kills: 1,
+        npcKills: 0,
+        deaths: 0,
+        playerDeaths: 0,
+        npcDeaths: 0,
+        alive: true,
+      }),
     ]);
     expect(view.players.some((player) => player.id === victim || player.id === killer)).toBe(false);
   });
@@ -262,31 +365,79 @@ describe('rooms', () => {
     const id = join(live) ?? 0;
     const npc = snapshot(live, id).npcs[0];
     if (!npc) throw new Error('missing npc');
-    pushPose(live, id, { x: npc.x, y: npc.y, z: npc.z, yaw: 0 });
+    const pose = { x: npc.x, y: npc.y, z: npc.z - 1.2, yaw: Math.PI };
+    pushPose(live, id, pose);
+    pushPunch(live, id, { ...pose, serial: 1, heavy: false });
     tick(live, 0.1);
     for (let step = 0; step < 9; step += 1) tick(live, 1.1);
     const view = snapshot(live, id);
     expect(view.self.alive).toBe(false);
     expect(view.self.kills).toBe(0);
+    expect(view.self.npcKills).toBe(0);
     expect(view.self.deaths).toBe(1);
-    expect(view.roster.find((player) => player.id === id)?.deaths).toBe(1);
+    expect(view.self.playerDeaths).toBe(0);
+    expect(view.self.npcDeaths).toBe(1);
+    expect(view.roster.find((player) => player.id === id)?.npcDeaths).toBe(1);
   });
 
-  it('lets an npc hit a player who stands on them', () => {
+  it('counts a knocked-out npc on the puncher', () => {
+    const live = room();
+    const id = join(live, 'Kay') ?? 0;
+    const npc = snapshot(live, id).npcs[0];
+    if (!npc) throw new Error('missing npc');
+    const pose = { x: npc.x, y: npc.y, z: npc.z - 1.2, yaw: Math.PI };
+    pushPose(live, id, pose);
+    for (let serial = 1; serial <= 5; serial += 1) {
+      pushPunch(live, id, { ...pose, serial, heavy: false });
+    }
+    const view = snapshot(live, id);
+    expect(view.npcs.some((person) => person.id === npc.id)).toBe(false);
+    expect(view.self).toMatchObject({ kills: 0, npcKills: 1, playerDeaths: 0, npcDeaths: 0 });
+    expect(view.roster.find((player) => player.id === id)).toMatchObject({
+      kills: 0,
+      npcKills: 1,
+      playerDeaths: 0,
+      npcDeaths: 0,
+    });
+  });
+
+  it('hits back only after the player lands a punch', () => {
     const live = room();
     const id = join(live) ?? 0;
     const npc = snapshot(live, id).npcs[0];
     if (!npc) throw new Error('missing npc');
-    pushPose(live, id, { x: npc.x, y: npc.y, z: npc.z, yaw: 0 });
+    pushPose(live, id, { x: npc.x, y: npc.y, z: npc.z - 1.2, yaw: Math.PI });
+    tick(live, 1.2);
+    expect(snapshot(live, id).self.health).toBe(10);
+    const moved = snapshot(live, id).npcs[0];
+    if (!moved) throw new Error('missing npc');
+    const pose = { x: moved.x, y: moved.y, z: moved.z - 1.2, yaw: Math.PI };
+    pushPose(live, id, pose);
+    pushPunch(live, id, { ...pose, serial: 1, heavy: false });
     tick(live, 0.1);
     expect(snapshot(live, id).self.health).toBeLessThan(10);
+  });
+
+  it('shows the other player health', () => {
+    const live = room();
+    const victim = join(live) ?? 0;
+    const puncher = join(live) ?? 0;
+    const pose = { x: 30, y: 2, z: 0, yaw: 0 };
+    const hit = { x: 30, y: 2, z: pose.z - 1.2, yaw: Math.PI };
+    pushPose(live, victim, pose);
+    pushPose(live, puncher, hit);
+    pushPunch(live, puncher, { ...hit, serial: 1, heavy: false });
+    const seen = snapshot(live, puncher).players.find((player) => player.id === victim);
+    expect(seen?.health).toBe(snapshot(live, victim).self.health);
+    expect(seen?.health).toBeLessThan(10);
   });
 });
 
 describe('scoreboard', () => {
-  it('writes kills and deaths with english plurals', () => {
-    expect(scoreLine('Player 1', 1, 0)).toBe('Player 1 — 1 kill, 0 deaths');
-    expect(scoreLine('Player 2', 2, 1)).toBe('Player 2 — 2 kills, 1 death');
+  it('writes player and npc rows in portuguese', () => {
+    expect(playerScoreLine(1, 0)).toBe('Jogadores: 1 abate, 0 mortes');
+    expect(playerScoreLine(2, 1)).toBe('Jogadores: 2 abates, 1 morte');
+    expect(npcScoreLine(1, 2)).toBe('NPCs: 1 abate, 2 mortes');
   });
 });
 
@@ -318,19 +469,44 @@ describe('protocol', () => {
         place: { x: 0, y: 1, z: 2 },
         name: 'Kay',
         kills: 1,
-        deaths: 0,
+        npcKills: 2,
+        deaths: 1,
+        playerDeaths: 0,
+        npcDeaths: 1,
       },
-      players: [{ id: 2, x: 1, y: 2, z: 3, yaw: 0, swing: 0, name: 'Vic' }],
+      players: [{ id: 2, x: 1, y: 2, z: 3, yaw: 0, swing: 0, name: 'Vic', health: 7 }],
       npcs: [],
       cars: [],
       pickups: [],
-      roster: [{ id: 1, name: 'Kay', kills: 1, deaths: 0, alive: true }],
+      roster: [
+        {
+          id: 1,
+          name: 'Kay',
+          kills: 1,
+          npcKills: 2,
+          deaths: 1,
+          playerDeaths: 0,
+          npcDeaths: 1,
+          alive: true,
+        },
+      ],
     });
     expect(parseServerMessage(raw)).toMatchObject({
       type: 'state',
-      self: { name: 'Kay', kills: 1, deaths: 0 },
-      players: [{ name: 'Vic' }],
-      roster: [{ id: 1, name: 'Kay', kills: 1, deaths: 0, alive: true }],
+      self: { name: 'Kay', kills: 1, npcKills: 2, deaths: 1, playerDeaths: 0, npcDeaths: 1 },
+      players: [{ name: 'Vic', health: 7 }],
+      roster: [
+        {
+          id: 1,
+          name: 'Kay',
+          kills: 1,
+          npcKills: 2,
+          deaths: 1,
+          playerDeaths: 0,
+          npcDeaths: 1,
+          alive: true,
+        },
+      ],
     });
   });
 
