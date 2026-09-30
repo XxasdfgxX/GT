@@ -388,10 +388,18 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
       if (!record || !action) return;
       if (record.clip === clip && record.token === token) return;
       record.mixer?.stopAllAction();
-      const once = clip === 'punch' || clip === 'jump' || clip === 'die';
+      const held = clip === 'die';
+      const once = held || clip === 'punch' || clip === 'jump';
       action.setLoop(once ? LoopOnce : LoopRepeat, once ? 1 : Infinity);
       action.clampWhenFinished = once;
-      action.reset().fadeIn(0.12).play();
+      action.reset().play();
+      if (held) {
+        action.time = Math.max(0, action.getClip().duration - 0.05);
+        action.paused = true;
+        action.setEffectiveWeight(1);
+      } else {
+        action.fadeIn(0.12);
+      }
       record.clip = clip;
       record.token = token;
     },

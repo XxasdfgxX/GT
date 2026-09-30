@@ -19,6 +19,7 @@ const EMPTY: InputSnapshot = {
   zoom: 0,
   debugToggle: false,
   debugOverlay: false,
+  scoreToggle: false,
 };
 
 export function createBrowserInput(target: HTMLElement): Input {
@@ -108,6 +109,7 @@ export function createBrowserInput(target: HTMLElement): Input {
       snapshot.zoom = zoom;
       snapshot.debugToggle = pressed.has('F3');
       snapshot.debugOverlay = pressed.has('F4');
+      snapshot.scoreToggle = pressed.has('KeyH');
       return snapshot;
     },
     endFrame() {
@@ -134,6 +136,7 @@ function isGameKey(code: string): boolean {
     code === 'Space' ||
     code === 'F3' ||
     code === 'F4' ||
+    code === 'KeyH' ||
     code === 'KeyW' ||
     code === 'KeyA' ||
     code === 'KeyS' ||

@@ -3,6 +3,8 @@
 export const NPC_DROP = 10;
 export const PICKUP_REACH = 1.5;
 export const RESPAWN_DELAY = 1;
+/** How long a dead body stays on the ground. */
+export const CORPSE_TIME = 60;
 
 export function addCash(balance: number, amount: number): number {
   if (amount <= 0) return balance;

@@ -48,13 +48,17 @@ export interface NetPlayer extends NetPose {
   name: string;
   swing: number;
   car: number;
+  health: number;
 }
 
 export interface NetRosterEntry {
   id: number;
   name: string;
   kills: number;
+  npcKills: number;
   deaths: number;
+  playerDeaths: number;
+  npcDeaths: number;
   alive: boolean;
 }
 
@@ -77,6 +81,12 @@ export interface NetCar extends NetPose {
   driver: number;
 }
 
+export interface NetCorpse extends NetPose {
+  id: number;
+  kind: number;
+  variant: number;
+}
+
 export interface NetSnapshot {
   self: {
     health: number;
@@ -86,13 +96,17 @@ export interface NetSnapshot {
     place: { x: number; y: number; z: number };
     name: string;
     kills: number;
+    npcKills: number;
     deaths: number;
+    playerDeaths: number;
+    npcDeaths: number;
     car: number;
   };
   players: readonly NetPlayer[];
   npcs: readonly NetNpc[];
   cars: readonly NetCar[];
   pickups: readonly NetPickup[];
+  corpses: readonly NetCorpse[];
   roster: readonly NetRosterEntry[];
 }
 

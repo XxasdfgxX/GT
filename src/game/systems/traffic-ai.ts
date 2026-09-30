@@ -124,6 +124,13 @@ export function yieldToPedestrian(
   return Math.min(limit, limit * ((ahead - YIELD_STOP) / (YIELD_LOOK - YIELD_STOP)));
 }
 
+/** Damage from a driven car. A crawl is a bump; a fast hit can empty a health bar. */
+export function carImpactDamage(speed: number): number {
+  const pace = Math.abs(speed);
+  if (pace < 3) return 0;
+  return Math.min(10, Math.max(1, Math.round(pace * 0.5)));
+}
+
 /** Ease toward a cap, or slam the brakes when a person is blocking the lane. */
 export function approachSpeed(speed: number, limit: number, dt: number, panic: boolean): number {
   if (panic) return Math.max(0, speed - PANIC_BRAKE * dt);

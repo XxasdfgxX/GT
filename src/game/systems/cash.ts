@@ -7,23 +7,41 @@ import type { GameContext } from '../../engine/core/context';
 import { Pedestrian, Pickup, Player, RenderRef, Transform, writePose } from '../ecs/components';
 import { pedestrians, pickups, players } from '../ecs/queries';
 import { hideBody, showBody } from '../features/player/place-player';
-import { NPC_DROP, PICKUP_REACH, RESPAWN_DELAY, addCash, dropCash } from '../play/wallet';
+import {
+  NPC_DROP,
+  PICKUP_REACH,
+  RESPAWN_DELAY,
+  CORPSE_TIME,
+  addCash,
+  dropCash,
+} from '../play/wallet';
+import { layLocalCorpse, tickRemains } from '../features/corpse/remain';
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };
 
 export function cashSystem(ctx: GameContext, world: World): void {
   for (const eid of pedestrians(world)) {
     if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.health[eid] ?? 0) > 0) continue;
-    spawnPickup(
-      ctx,
-      world,
-      Transform.px[eid] ?? 0,
-      Transform.py[eid] ?? 0,
-      Transform.pz[eid] ?? 0,
-      NPC_DROP,
-    );
+    let left = Pedestrian.corpse[eid] ?? 0;
+    if (left <= 0) {
+      spawnPickup(
+        ctx,
+        world,
+        Transform.px[eid] ?? 0,
+        Transform.py[eid] ?? 0,
+        Transform.pz[eid] ?? 0,
+        NPC_DROP,
+      );
+      left = CORPSE_TIME;
+    }
+    left -= ctx.time.fixedDt;
+    if (left > 0) {
+      Pedestrian.corpse[eid] = left;
+      continue;
+    }
     Pedestrian.active[eid] = 0;
     Pedestrian.health[eid] = sim.maxHealth;
+    Pedestrian.corpse[eid] = 0;
     writePose(eid, 0, -30, 0);
   }
 
@@ -42,6 +60,13 @@ export function cashSystem(ctx: GameContext, world: World): void {
           dropped.dropped,
         );
       }
+      layLocalCorpse(
+        ctx,
+        Transform.px[eid] ?? 0,
+        Transform.py[eid] ?? 0,
+        Transform.pz[eid] ?? 0,
+        Player.facing[eid] ?? 0,
+      );
       hideBody(ctx, eid);
       Player.life[eid] = RESPAWN_DELAY;
     }
@@ -57,6 +82,7 @@ export function cashSystem(ctx: GameContext, world: World): void {
     Player.life[eid] = 0;
   }
 
+  tickRemains(ctx, ctx.time.fixedDt);
   collect(ctx, world);
 }
 

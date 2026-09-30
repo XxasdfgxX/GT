@@ -82,7 +82,7 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
       Pedestrian.tz[eid] = (Transform.pz[eid] ?? 0) + Math.cos(away) * 8;
     }
     step(ctx, world, city.walks, eid, dt, px, pz, playerEid, driving);
-    active += 1;
+    if ((Pedestrian.health[eid] ?? 0) > 0) active += 1;
   }
   const target = Math.min(
     120,
@@ -129,6 +129,13 @@ function step(
   if ((Pedestrian.health[eid] ?? 0) <= 0) {
     Pedestrian.state[eid] = PedState.Down;
     Pedestrian.speed[eid] = 0;
+    Transform.ppx[eid] = Transform.px[eid] ?? 0;
+    Transform.ppy[eid] = Transform.py[eid] ?? 0;
+    Transform.ppz[eid] = Transform.pz[eid] ?? 0;
+    Transform.pqx[eid] = Transform.qx[eid] ?? 0;
+    Transform.pqy[eid] = Transform.qy[eid] ?? 0;
+    Transform.pqz[eid] = Transform.qz[eid] ?? 0;
+    Transform.pqw[eid] = Transform.qw[eid] ?? 1;
     return;
   }
   const state = Pedestrian.state[eid] ?? 0;
@@ -249,6 +256,7 @@ function wake(eid: number, px: number, pz: number): boolean {
     Pedestrian.cool[eid] = 0;
     Pedestrian.swing[eid] = 0;
     Pedestrian.speed[eid] = 0;
+    Pedestrian.corpse[eid] = 0;
     return true;
   }
   return false;

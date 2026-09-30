@@ -126,6 +126,8 @@ export const Pedestrian = {
   /** Seconds left on the punch clip. */
   swing: new Float32Array(CAP),
   swingId: new Uint16Array(CAP),
+  /** Seconds left before a dead body is cleared. 0 while alive. */
+  corpse: new Float32Array(CAP),
 };
 
 export const Pickup = {

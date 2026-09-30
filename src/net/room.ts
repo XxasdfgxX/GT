@@ -4,7 +4,14 @@ import { sampleHeight } from '../content/map/island-shape';
 import { pickSpawn, type BairroSpawn } from '../content/spawns';
 import { trafficCatalog } from '../content/traffic-catalog';
 import { sim } from '../content/sim';
-import { NPC_DROP, PICKUP_REACH, RESPAWN_DELAY, addCash, dropCash } from '../game/play/wallet';
+import {
+  CORPSE_TIME,
+  NPC_DROP,
+  PICKUP_REACH,
+  RESPAWN_DELAY,
+  addCash,
+  dropCash,
+} from '../game/play/wallet';
 import {
   COUNTER_DAMAGE,
   HEAVY_DAMAGE,
@@ -12,9 +19,16 @@ import {
   applyDamage,
   punchHits,
 } from '../game/systems/ped-ai';
-import { approachSpeed, laneOffset, yieldToPedestrian } from '../game/systems/traffic-ai';
+import {
+  approachSpeed,
+  carBoxesOverlap,
+  carImpactDamage,
+  laneOffset,
+  yieldToPedestrian,
+} from '../game/systems/traffic-ai';
 import type {
   CarView,
+  CorpseView,
   NpcView,
   PickupView,
   PlayerView,
@@ -77,6 +91,9 @@ interface Car {
   z: number;
   yaw: number;
   driver: number;
+  prevX: number;
+  prevZ: number;
+  hitAt: Map<string, number>;
 }
 
 export interface Pose {
@@ -102,7 +119,10 @@ interface Guy {
   cash: number;
   alive: boolean;
   kills: number;
+  npcKills: number;
   deaths: number;
+  playerDeaths: number;
+  npcDeaths: number;
   respawn: number;
   lastPunch: number;
   swing: number;
@@ -122,6 +142,8 @@ interface Npc {
   from: number;
   to: number;
   cool: number;
+  /** Player who landed a punch. 0 until then, so a passerby is left alone. */
+  foe: number;
 }
 
 interface Drop {
@@ -130,6 +152,18 @@ interface Drop {
   y: number;
   z: number;
   amount: number;
+}
+
+interface Corpse {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  /** 0 is a player. 1 is an npc, and variant picks the citizen model. */
+  kind: number;
+  variant: number;
+  left: number;
 }
 
 export interface Room {
@@ -145,9 +179,12 @@ export interface Room {
   npcs: Npc[];
   cars: Car[];
   drops: Drop[];
+  corpses: Corpse[];
   nextPlayer: number;
   nextNpc: number;
   nextDrop: number;
+  nextCorpse: number;
+  now: number;
 }
 
 export function createRoom(options: {
@@ -181,9 +218,12 @@ export function createRoom(options: {
     npcs: [],
     cars: [],
     drops: [],
+    corpses: [],
     nextPlayer: 1,
     nextNpc: 1,
     nextDrop: 1,
+    nextCorpse: 1,
+    now: 0,
   };
   const count = options.npcCount ?? ROOM_NPCS;
   for (let i = 0; i < count; i += 1) spawnNpc(room);
@@ -232,7 +272,10 @@ export function join(room: Room, requestedName?: string): number | null {
     cash: 0,
     alive: true,
     kills: 0,
+    npcKills: 0,
     deaths: 0,
+    playerDeaths: 0,
+    npcDeaths: 0,
     respawn: 0,
     lastPunch: 0,
     swing: 0,
@@ -264,10 +307,11 @@ export function pushPunch(room: Room, id: number, punch: Punch): void {
   if (!player?.alive || punch.serial <= player.lastPunch) return;
   player.lastPunch = punch.serial;
   player.swing += 1;
+  if (player.car !== 0) return;
   pushPose(room, id, punch);
   const damage = punch.heavy ? HEAVY_DAMAGE : LIGHT_DAMAGE;
   for (const other of room.players) {
-    if (other.id === id || !other.alive) continue;
+    if (other.id === id || !other.alive || other.car !== 0) continue;
     if (!punchHits(player.x, player.z, player.yaw, other.x, other.z, PUNCH_REACH)) continue;
     hurtPlayer(room, other, damage, id);
   }
@@ -275,7 +319,8 @@ export function pushPunch(room: Room, id: number, punch: Punch): void {
     if (!npc.alive) continue;
     if (!punchHits(player.x, player.z, player.yaw, npc.x, npc.z, PUNCH_REACH)) continue;
     npc.health = applyDamage(npc.health, damage);
-    if (npc.health <= 0) killNpc(room, npc);
+    npc.foe = id;
+    if (npc.health <= 0) killNpc(room, npc, id);
   }
 }
 
@@ -308,6 +353,11 @@ export function pushExit(room: Room, id: number): void {
 }
 
 export function tick(room: Room, dt: number): void {
+  room.now += dt;
+  room.corpses = room.corpses.filter((body) => {
+    body.left -= dt;
+    return body.left > 0;
+  });
   for (const player of room.players) {
     if (player.alive) continue;
     player.respawn -= dt;
@@ -316,14 +366,16 @@ export function tick(room: Room, dt: number): void {
   for (const npc of room.npcs) {
     if (!npc.alive) continue;
     npc.cool = Math.max(0, npc.cool - dt);
-    const quarry = nearestPlayer(room, npc.x, npc.z);
-    if (quarry && Math.hypot(quarry.x - npc.x, quarry.z - npc.z) <= AGGRO_RANGE) {
-      chase(room, npc, quarry, dt);
-    } else {
-      walk(room, npc, dt);
-    }
+    const quarry = provoked(room, npc);
+    if (quarry) chase(room, npc, quarry, dt);
+    else walk(room, npc, dt);
   }
-  for (const car of room.cars) driveCar(room, car, dt);
+  for (const car of room.cars) {
+    driveCar(room, car, dt);
+    ram(room, car, dt);
+    car.prevX = car.x;
+    car.prevZ = car.z;
+  }
 }
 
 export function snapshot(
@@ -335,6 +387,7 @@ export function snapshot(
   npcs: NpcView[];
   cars: CarView[];
   pickups: PickupView[];
+  corpses: CorpseView[];
   roster: RosterEntry[];
 } {
   const player = findPlayer(room, id);
@@ -347,7 +400,10 @@ export function snapshot(
         place: player.place,
         name: player.name,
         kills: player.kills,
+        npcKills: player.npcKills,
         deaths: player.deaths,
+        playerDeaths: player.playerDeaths,
+        npcDeaths: player.npcDeaths,
         car: player.car,
       }
     : {
@@ -358,7 +414,10 @@ export function snapshot(
         place: { x: 0, y: 0, z: 0 },
         name: '',
         kills: 0,
+        npcKills: 0,
         deaths: 0,
+        playerDeaths: 0,
+        npcDeaths: 0,
         car: 0,
       };
   return {
@@ -367,7 +426,10 @@ export function snapshot(
       id: person.id,
       name: person.name,
       kills: person.kills,
+      npcKills: person.npcKills,
       deaths: person.deaths,
+      playerDeaths: person.playerDeaths,
+      npcDeaths: person.npcDeaths,
       alive: person.alive,
     })),
     players: room.players
@@ -381,6 +443,7 @@ export function snapshot(
         yaw: other.yaw,
         swing: other.swing,
         car: other.car,
+        health: other.health,
       })),
     npcs: room.npcs
       .filter((npc) => npc.alive)
@@ -408,6 +471,15 @@ export function snapshot(
       z: drop.z,
       amount: drop.amount,
     })),
+    corpses: room.corpses.map((body) => ({
+      id: body.id,
+      x: body.x,
+      y: body.y,
+      z: body.z,
+      yaw: body.yaw,
+      kind: body.kind,
+      variant: body.variant,
+    })),
   };
 }
 
@@ -431,6 +503,7 @@ function spawnNpc(room: Room): void {
     from: origin.id,
     to: next,
     cool: 0,
+    foe: 0,
   });
 }
 
@@ -481,12 +554,13 @@ function slide(
 }
 
 function hurtPlayer(room: Room, player: Guy, amount: number, attackerId: number | null): void {
-  if (!player.alive) return;
+  if (!player.alive || player.car !== 0) return;
   player.health = applyDamage(player.health, amount);
   if (player.health <= 0) killPlayer(room, player, attackerId);
 }
 
 function killPlayer(room: Room, player: Guy, attackerId: number | null): void {
+  layCorpse(room, player.x, player.y, player.z, player.yaw, 0, 0);
   releaseCar(room, player);
   const dropped = dropCash(player.cash);
   if (dropped.dropped > 0) spawnDrop(room, player.x, player.y, player.z, dropped.dropped);
@@ -495,15 +569,36 @@ function killPlayer(room: Room, player: Guy, attackerId: number | null): void {
   player.alive = false;
   player.deaths += 1;
   player.respawn = RESPAWN_DELAY;
-  if (attackerId === null) return;
+  if (attackerId === null) {
+    player.npcDeaths += 1;
+    return;
+  }
+  player.playerDeaths += 1;
   const attacker = findPlayer(room, attackerId);
   if (attacker) attacker.kills += 1;
 }
 
-function killNpc(room: Room, npc: Npc): void {
+function killNpc(room: Room, npc: Npc, killerId: number): void {
+  layCorpse(room, npc.x, npc.y, npc.z, npc.yaw, 1, npc.id);
   npc.alive = false;
   npc.health = 0;
   spawnDrop(room, npc.x, npc.y, npc.z, NPC_DROP);
+  const killer = findPlayer(room, killerId);
+  if (killer) killer.npcKills += 1;
+}
+
+function layCorpse(
+  room: Room,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  kind: number,
+  variant: number,
+): void {
+  const id = room.nextCorpse;
+  room.nextCorpse += 1;
+  room.corpses.push({ id, x, y, z, yaw, kind, variant, left: CORPSE_TIME });
 }
 
 function revive(room: Room, player: Guy): void {
@@ -525,18 +620,18 @@ function spawnDrop(room: Room, x: number, y: number, z: number, amount: number):
   room.drops.push({ id, x, y, z, amount });
 }
 
-function nearestPlayer(room: Room, x: number, z: number): Guy | undefined {
-  let best: Guy | undefined;
-  let bestDistance = Infinity;
-  for (const player of room.players) {
-    if (!player.alive) continue;
-    const distance = Math.hypot(player.x - x, player.z - z);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = player;
-    }
+function provoked(room: Room, npc: Npc): Guy | undefined {
+  if (npc.foe === 0) return undefined;
+  const player = findPlayer(room, npc.foe);
+  const gone =
+    !player?.alive ||
+    player.car !== 0 ||
+    Math.hypot(player.x - npc.x, player.z - npc.z) > AGGRO_RANGE;
+  if (!player || gone) {
+    npc.foe = 0;
+    return undefined;
   }
-  return best;
+  return player;
 }
 
 function findPlayer(room: Room, id: number): Guy | undefined {
@@ -653,9 +748,46 @@ function spawnCar(room: Room, index: number): void {
     z: 0,
     yaw: 0,
     driver: 0,
+    prevX: 0,
+    prevZ: 0,
+    hitAt: new Map(),
   };
   placeCar(room, car);
+  car.prevX = car.x;
+  car.prevZ = car.z;
   room.cars.push(car);
+}
+
+const RAM_GAP = 0.6;
+
+function ram(room: Room, car: Car, dt: number): void {
+  if (car.driver === 0) return;
+  const step = Math.hypot(car.x - car.prevX, car.z - car.prevZ);
+  const damage = carImpactDamage(dt > 1e-4 ? step / dt : 0);
+  const spec = trafficCatalog[car.variant];
+  if (!spec || damage <= 0) return;
+  const halfWidth = spec.width / 2;
+  const halfLength = spec.length / 2;
+  for (const npc of room.npcs) {
+    if (!npc.alive || !overlaps(car, npc.x, npc.z, halfWidth, halfLength)) continue;
+    const key = `n${npc.id}`;
+    if (room.now - (car.hitAt.get(key) ?? -999) < RAM_GAP) continue;
+    car.hitAt.set(key, room.now);
+    npc.health = applyDamage(npc.health, damage);
+    if (npc.health <= 0) killNpc(room, npc, car.driver);
+  }
+  for (const player of room.players) {
+    if (!player.alive || player.car !== 0 || player.id === car.driver) continue;
+    if (!overlaps(car, player.x, player.z, halfWidth, halfLength)) continue;
+    const key = `p${player.id}`;
+    if (room.now - (car.hitAt.get(key) ?? -999) < RAM_GAP) continue;
+    car.hitAt.set(key, room.now);
+    hurtPlayer(room, player, damage, car.driver);
+  }
+}
+
+function overlaps(car: Car, x: number, z: number, halfWidth: number, halfLength: number): boolean {
+  return carBoxesOverlap(car.x, car.z, car.yaw, halfWidth, halfLength, x, z, 0, 0.35, 0.35);
 }
 
 function driveCar(room: Room, car: Car, dt: number): void {

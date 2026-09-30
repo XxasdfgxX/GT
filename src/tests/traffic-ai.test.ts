@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   carBoxesOverlap,
+  carImpactDamage,
   followSpeed,
   laneOffset,
   lightOpen,
@@ -35,6 +36,13 @@ describe('traffic lanes', () => {
     expect(yieldToPedestrian(0, 0, 0, 1, 5, 4, 0.9, 12)).toBe(12);
     const eased = yieldToPedestrian(0, 0, 0, 1, 0, 12, 0.9, 12);
     expect(eased).toBeCloseTo(12 * (5 / 11));
+  });
+
+  it('lets a crawl pass and scales a real impact up to a full health bar', () => {
+    expect(carImpactDamage(2.9)).toBe(0);
+    expect(carImpactDamage(-2.9)).toBe(0);
+    expect(carImpactDamage(6)).toBe(3);
+    expect(carImpactDamage(20)).toBe(10);
   });
 
   it('keeps car boxes from occupying the same patch of street', () => {
