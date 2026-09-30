@@ -5,9 +5,28 @@ import { buildCostaVerde } from '../../content/city';
 import { sampleHeight } from '../../content/map/island-shape';
 import type { WalkQuad } from '../../content/map/road-mesh';
 import { characterScale } from '../../content/models';
+import { trafficCatalog } from '../../content/traffic-catalog';
 import type { GameContext } from '../../engine/core/context';
 import { quatFromYaw } from '../../engine/core/math';
-import { CAP, CameraRig, Pedestrian, Player, Traffic, Transform, Vehicle } from '../ecs/components';
+import { meshYaw } from '../play/aim-cursor';
+import {
+  BODY_REACH,
+  circleHitsBox,
+  circlesOverlap,
+  shouldTrip,
+  TRIP_SECONDS,
+} from '../play/overlap';
+import {
+  CAP,
+  CameraRig,
+  Pedestrian,
+  PhysicsRef,
+  Player,
+  Traffic,
+  Transform,
+  Vehicle,
+  Velocity,
+} from '../ecs/components';
 import { syncCrowd } from '../features/pedestrians/crowd';
 import { pedestrians, players, traffic } from '../ecs/queries';
 import {
@@ -22,6 +41,7 @@ import {
   shouldFlee,
 } from './ped-ai';
 import { Mode } from './player-movement';
+import { yawFromQuat } from './camera-follow';
 
 const POINTS = 12;
 const pathX = new Float32Array(CAP * POINTS);
@@ -42,11 +62,13 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
   let facing = 0;
   let playerEid = -1;
   let punchDamage = 2;
+  let speed = 0;
   for (const eid of players(world)) {
     px = Transform.px[eid] ?? 0;
     pz = Transform.pz[eid] ?? 0;
     facing = Player.facing[eid] ?? 0;
     playerEid = eid;
+    speed = Math.hypot(Velocity.x[eid] ?? 0, Velocity.z[eid] ?? 0);
     punch = Player.mode[eid] === Mode.OnFoot && Player.strike[eid] === 1;
     punchDamage = Player.punchPower[eid] ?? 2;
     if (Player.mode[eid] === Mode.Driving) {
@@ -84,6 +106,10 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
     step(ctx, world, city.walks, eid, dt, px, pz, playerEid, driving);
     if ((Pedestrian.health[eid] ?? 0) > 0) active += 1;
   }
+  const foot = { x: px, z: pz };
+  if (!driving && playerEid >= 0) shove(ctx, world, playerEid, foot, speed);
+  px = foot.x;
+  pz = foot.z;
   const target = Math.min(
     120,
     Math.round(100 * ctx.debug.pedDensity * nightFactor(ctx.renderer.timeOfDay())),
@@ -139,8 +165,14 @@ function step(
     return;
   }
   const state = Pedestrian.state[eid] ?? 0;
+  if (state === PedState.Trip) {
+    Pedestrian.speed[eid] = 0;
+    Pedestrian.wait[eid] = (Pedestrian.wait[eid] ?? 0) - dt;
+    if ((Pedestrian.wait[eid] ?? 0) <= 0) Pedestrian.state[eid] = PedState.Idle;
+    return;
+  }
   if (state === PedState.Fight) {
-    fight(eid, dt, px, pz, playerEid, playerDriving);
+    fight(world, eid, dt, px, pz, playerEid, playerDriving);
     return;
   }
   if (state === PedState.Idle) {
@@ -156,7 +188,7 @@ function step(
   }
   if (state === PedState.Flee) {
     Pedestrian.wait[eid] = (Pedestrian.wait[eid] ?? 0) - dt;
-    const arrived = slide(eid, Pedestrian.tx[eid] ?? 0, Pedestrian.tz[eid] ?? 0, 4.4, dt);
+    const arrived = slide(world, eid, Pedestrian.tx[eid] ?? 0, Pedestrian.tz[eid] ?? 0, 4.4, dt);
     if (arrived || (Pedestrian.wait[eid] ?? 0) <= 0) {
       Pedestrian.state[eid] = PedState.Idle;
       Pedestrian.wait[eid] = 0.6;
@@ -179,7 +211,7 @@ function step(
   const count = Pedestrian.count[eid] ?? 0;
   const tx = count > 0 ? (pathX[eid * POINTS + index] ?? 0) : (Pedestrian.tx[eid] ?? px);
   const tz = count > 0 ? (pathZ[eid * POINTS + index] ?? 0) : (Pedestrian.tz[eid] ?? pz);
-  if (!slide(eid, tx, tz, speed, dt)) return;
+  if (!slide(world, eid, tx, tz, speed, dt)) return;
   const next = index + 1;
   if (count > 0 && next < count) {
     Pedestrian.path[eid] = next;
@@ -262,7 +294,105 @@ function wake(eid: number, px: number, pz: number): boolean {
   return false;
 }
 
-function slide(eid: number, tx: number, tz: number, speed: number, dt: number): boolean {
+function shove(
+  ctx: GameContext,
+  world: World,
+  playerEid: number,
+  foot: { x: number; z: number },
+  speed: number,
+): void {
+  const body = PhysicsRef.body[playerEid] ?? 0;
+  const pose = { x: 0, y: 0, z: 0, w: 1 };
+  for (const eid of pedestrians(world)) {
+    if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
+    if ((Pedestrian.health[eid] ?? 0) <= 0) continue;
+    const nx = Transform.px[eid] ?? 0;
+    const nz = Transform.pz[eid] ?? 0;
+    if (!circlesOverlap(foot.x, foot.z, nx, nz, BODY_REACH)) continue;
+    const dx = foot.x - nx;
+    const dz = foot.z - nz;
+    const dist = Math.hypot(dx, dz) || 0.001;
+    const gap = BODY_REACH - dist;
+    if (gap > 0 && body !== 0) {
+      const nextX = foot.x + (dx / dist) * gap;
+      const nextZ = foot.z + (dz / dist) * gap;
+      pose.x = Transform.qx[playerEid] ?? 0;
+      pose.y = Transform.qy[playerEid] ?? 0;
+      pose.z = Transform.qz[playerEid] ?? 0;
+      pose.w = Transform.qw[playerEid] ?? 1;
+      ctx.physics.setTransform(body, { x: nextX, y: Transform.py[playerEid] ?? 0, z: nextZ }, pose);
+      Transform.px[playerEid] = nextX;
+      Transform.pz[playerEid] = nextZ;
+      foot.x = nextX;
+      foot.z = nextZ;
+    }
+    const state = Pedestrian.state[eid] ?? 0;
+    if (state === PedState.Trip || state === PedState.Down) continue;
+    if (!shouldTrip(speed, 0)) continue;
+    Pedestrian.state[eid] = PedState.Trip;
+    Pedestrian.wait[eid] = TRIP_SECONDS;
+    Pedestrian.speed[eid] = 0;
+  }
+}
+
+function solidAt(world: World, x: number, z: number, self: number): boolean {
+  for (const eid of players(world)) {
+    if (Player.mode[eid] === Mode.Driving) break;
+    if (circlesOverlap(x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH))
+      return true;
+    break;
+  }
+  for (const eid of pedestrians(world)) {
+    if (
+      eid === self ||
+      (Pedestrian.active[eid] ?? 0) === 0 ||
+      (Pedestrian.driving[eid] ?? 0) === 1
+    ) {
+      continue;
+    }
+    if (circlesOverlap(x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH))
+      return true;
+  }
+  for (const eid of traffic(world)) {
+    if ((Traffic.active[eid] ?? 0) === 0) continue;
+    const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
+    if (!spec) continue;
+    const yaw = yawFromQuat({
+      x: Transform.qx[eid] ?? 0,
+      y: Transform.qy[eid] ?? 0,
+      z: Transform.qz[eid] ?? 0,
+      w: Transform.qw[eid] ?? 1,
+    });
+    if (
+      circleHitsBox(
+        x,
+        z,
+        0.35,
+        Transform.px[eid] ?? 0,
+        Transform.pz[eid] ?? 0,
+        spec.width / 2,
+        spec.length / 2,
+        yaw,
+      )
+    ) {
+      return true;
+    }
+  }
+  for (const box of buildCostaVerde().colliders) {
+    if (Math.hypot(box.x - x, box.z - z) > 24) continue;
+    if (circleHitsBox(x, z, 0.35, box.x, box.z, box.hx, box.hz, box.yaw)) return true;
+  }
+  return false;
+}
+
+function slide(
+  world: World,
+  eid: number,
+  tx: number,
+  tz: number,
+  speed: number,
+  dt: number,
+): boolean {
   const x = Transform.px[eid] ?? 0;
   const z = Transform.pz[eid] ?? 0;
   const dx = tx - x;
@@ -279,10 +409,14 @@ function slide(eid: number, tx: number, tz: number, speed: number, dt: number): 
   const stepDistance = Math.min(len, speed * dt);
   const nx = x + (dx / len) * stepDistance;
   const nz = z + (dz / len) * stepDistance;
+  if (solidAt(world, nx, nz, eid)) {
+    Pedestrian.speed[eid] = 0;
+    return false;
+  }
   Transform.px[eid] = nx;
   Transform.pz[eid] = nz;
   Transform.py[eid] = sampleHeight(nx, nz);
-  Pedestrian.yaw[eid] = Math.atan2(dx, dz);
+  Pedestrian.yaw[eid] = meshYaw(dx, dz);
   Pedestrian.speed[eid] = speed;
   quatFromYaw(Pedestrian.yaw[eid] ?? 0, rot);
   Transform.qx[eid] = rot.x;
@@ -346,6 +480,7 @@ const PUNCH_REACH = 1.85;
 const FIGHT_REACH = 1.7;
 
 function fight(
+  world: World,
   eid: number,
   dt: number,
   px: number,
@@ -367,11 +502,11 @@ function fight(
     return;
   }
   if (distance > FIGHT_REACH) {
-    slide(eid, px, pz, 2.6, dt);
+    slide(world, eid, px, pz, 2.6, dt);
     return;
   }
   Pedestrian.speed[eid] = 0;
-  Pedestrian.yaw[eid] = Math.atan2(dx, dz);
+  Pedestrian.yaw[eid] = meshYaw(dx, dz);
   quatFromYaw(Pedestrian.yaw[eid] ?? 0, rot);
   Transform.qx[eid] = rot.x;
   Transform.qy[eid] = rot.y;

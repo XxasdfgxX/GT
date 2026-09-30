@@ -16,6 +16,7 @@ export interface CharacterRecord {
   collider: Collider;
   controller: KinematicCharacterController;
   grounded: boolean;
+  blocked: boolean;
 }
 
 export interface MoveScratch {
@@ -43,7 +44,7 @@ export function attachCharacter(world: World, desc: CharacterDesc): CharacterRec
   controller.setSlideEnabled(true);
   controller.setApplyImpulsesToDynamicBodies(false);
   controller.setMaxSlopeClimbAngle(Math.PI * 0.3);
-  return { body, collider, controller, grounded: false };
+  return { body, collider, controller, grounded: false, blocked: false };
 }
 
 export function moveCharacter(record: CharacterRecord, delta: Vec3, scratch: MoveScratch): void {
@@ -60,6 +61,9 @@ export function moveCharacter(record: CharacterRecord, delta: Vec3, scratch: Mov
     Groups.player,
   );
   const movement = record.controller.computedMovement(scratch.movement);
+  const wanted = Math.hypot(delta.x, delta.z);
+  const gained = Math.hypot(movement.x, movement.z);
+  record.blocked = wanted > 0.04 && gained < wanted * 0.55;
   const translation = record.body.translation(scratch.translation);
   const maxUp = Math.max(delta.y, 0) + 0.35;
   const rise = Math.min(movement.y, maxUp);

@@ -1,6 +1,7 @@
 /** Enters a room car once the server gives the seat, and drives it with the local vehicle. */
 
 import type { World } from 'bitecs';
+import { engineForceFor, maxSpeedMs } from '../../content/cars';
 import { STREET_LIFT } from '../../content/map/road-mesh';
 import { sim } from '../../content/sim';
 import { trafficCatalog } from '../../content/traffic-catalog';
@@ -51,6 +52,12 @@ export function netRideSystem(ctx: GameContext, world: World): void {
 
 function mount(ctx: GameContext, world: World, eid: number, car: NetCar): void {
   const ride = ensureRide(ctx, world, car);
+  const spec = trafficCatalog[car.variant] ?? trafficCatalog[0];
+  if (spec) {
+    Vehicle.maxSpeed[ride] = maxSpeedMs(spec.maxSpeedKmh);
+    const powered = PhysicsRef.body[ride] ?? 0;
+    if (powered !== 0) ctx.physics.setVehiclePower(powered, engineForceFor(spec.torque));
+  }
   const body = PhysicsRef.body[ride] ?? 0;
   if (body !== 0) {
     ctx.physics.setBodyEnabled(body, true);
@@ -75,7 +82,7 @@ function dismount(ctx: GameContext, world: World, eid: number, alive: boolean): 
 
 function ensureRide(ctx: GameContext, world: World, car: NetCar): number {
   if (rideEid !== 0) return rideEid;
-  rideEid = spawnVehicle(ctx, world, { x: car.x, y: car.y, z: car.z, yaw: car.yaw });
+  rideEid = spawnVehicle(ctx, world, { x: car.x, y: car.y, z: car.z, yaw: car.yaw }, 'sedan');
   const stock = RenderRef.mesh[rideEid] ?? 0;
   if (stock !== 0) ctx.renderer.setMeshVisible(stock, false);
   return rideEid;

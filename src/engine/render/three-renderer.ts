@@ -18,6 +18,7 @@ import {
   LoopOnce,
   LoopRepeat,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -75,7 +76,11 @@ interface MeshRecord {
 
 const worldFar = 2800;
 
-export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetManager): Renderer {
+export function createThreeRenderer(
+  canvas: HTMLCanvasElement,
+  assets: AssetManager,
+  fov = 58,
+): Renderer {
   const renderer = new WebGLRenderer({ canvas, antialias: canvasAntialias(false) });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
@@ -88,7 +93,7 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
   const scene = new Scene();
   scene.fog = new Fog(HORIZON_COLOR, 520, 2400);
 
-  const camera = new PerspectiveCamera(58, 1, 0.3, worldFar);
+  const camera = new PerspectiveCamera(fov, 1, 0.3, worldFar);
   const projected = new Vector3();
   const cameraSpace = new Vector3();
   const ambient = new AmbientLight(0xfff6ea, 0.16);
@@ -281,9 +286,11 @@ export function createThreeRenderer(canvas: HTMLCanvasElement, assets: AssetMana
     },
     addMesh(desc) {
       const geometry = assets.track(createGeometry(desc));
-      const material = surfaceMaterial(desc, geometry);
+      const material = desc.wireframe
+        ? assets.track(new MeshBasicMaterial({ color: desc.color, wireframe: true }))
+        : surfaceMaterial(desc, geometry);
       const mesh = new Mesh(geometry, material);
-      const receives = desc.surface !== 'water';
+      const receives = !desc.wireframe && desc.surface !== 'water';
       mesh.castShadow = receives && !isGround(desc.finish);
       mesh.receiveShadow = receives;
       place(mesh, desc.position, desc.rotation);

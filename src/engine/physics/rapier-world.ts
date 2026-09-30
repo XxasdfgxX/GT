@@ -167,6 +167,26 @@ class RapierPhysics implements PhysicsWorld {
     moveCharacter(record, delta, this.moveScratch);
   }
 
+  raiseCharacter(id: number, minY: number): boolean {
+    const record = this.characters.get(id);
+    if (!record || !record.body.isEnabled()) return false;
+    const next = record.body.nextTranslation(this.translation);
+    const x = next.x;
+    const y = next.y;
+    const z = next.z;
+    if (y >= minY - 0.01) return false;
+    this.translation.x = x;
+    this.translation.y = minY;
+    this.translation.z = z;
+    record.body.setNextKinematicTranslation(this.translation);
+    record.grounded = true;
+    return true;
+  }
+
+  wasBlocked(id: number): boolean {
+    return this.characters.get(id)?.blocked ?? false;
+  }
+
   isGrounded(id: number): boolean {
     return this.characters.get(id)?.grounded ?? false;
   }
@@ -222,6 +242,12 @@ class RapierPhysics implements PhysicsWorld {
     const record = this.vehicles.get(id);
     if (!record) return;
     applyVehicleInput(record, input);
+  }
+
+  setVehiclePower(id: number, engineForce: number): void {
+    const record = this.vehicles.get(id);
+    if (!record) return;
+    record.engineForce = engineForce;
   }
 
   forwardSpeed(id: number): number {

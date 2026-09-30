@@ -94,14 +94,18 @@ export function syncRemotes(
     const punching = player.swing !== ghost.swing;
     move(ctx, ghost, player.x, player.y, player.z, player.yaw, dt);
     if (punching) ghost.swing = player.swing;
-    const clip: ClipKey = punching ? 'punch' : moving ? 'walk' : 'idle';
-    ctx.renderer.playClip(ghost.mesh, clip, ghost.swing);
+    const clip: ClipKey = player.down > 0 ? 'die' : punching ? 'punch' : moving ? 'walk' : 'idle';
+    ctx.renderer.playClip(ghost.mesh, clip, player.down > 0 ? 1 : ghost.swing);
   }
   for (const npc of npcs) {
     const ghost = ensure(ctx, `n${npc.id}`, 'npc', npc.id);
     const moving = ghost.shown && Math.hypot(npc.x - ghost.x, npc.z - ghost.z) > 0.02;
     move(ctx, ghost, npc.x, npc.y, npc.z, npc.yaw, dt);
-    ctx.renderer.playClip(ghost.mesh, moving ? 'walk' : 'idle', 0);
+    ctx.renderer.playClip(
+      ghost.mesh,
+      npc.down > 0 ? 'die' : moving ? 'walk' : 'idle',
+      npc.down > 0 ? 1 : 0,
+    );
     const previous = lastHealth.get(npc.id);
     if (previous !== undefined && npc.health < previous)
       hurtUntil.set(npc.id, clock + HURT_SECONDS);

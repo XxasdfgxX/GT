@@ -45,6 +45,8 @@ export const Player = {
   cash: new Float32Array(CAP),
   /** Seconds left on a solo respawn. 0 means the body is not waiting. */
   life: new Float32Array(CAP),
+  /** Seconds left on the ground after a bump. 0 means standing. */
+  trip: new Float32Array(CAP),
   /** Solo respawn point, copied from the spawn chosen at entry. */
   homeX: new Float32Array(CAP),
   homeY: new Float32Array(CAP),
@@ -82,6 +84,8 @@ export const RenderRef = {
 export const Vehicle = {
   occupied: new Uint8Array(CAP),
   speed: new Float32Array(CAP),
+  /** Forward cap in m/s while this body is driven. 0 falls back to the sedan. */
+  maxSpeed: new Float32Array(CAP),
 };
 
 export const Mission = {

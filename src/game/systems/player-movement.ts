@@ -1,11 +1,13 @@
-/** On-foot locomotion. Planar speed is camera-relative; jump is one impulse per press. */
+/** On-foot locomotion. Planar speed follows the body facing; jump is one impulse per press. */
 
 import { hasComponent, type World } from 'bitecs';
 import { quatFromYaw, type Quat, type Vec3 } from '../../engine/core/math';
 import type { GameContext } from '../../engine/core/context';
+import { sampleHeight } from '../../content/map/island-shape';
 import { sim } from '../../content/sim';
+import { BUMP_SPEED, BODY_REACH, TRIP_SECONDS, circlesOverlap } from '../play/overlap';
 import { punchProfile } from './ped-ai';
-import { CameraRig, InputState, PhysicsRef, Player, Transform, Velocity } from '../ecs/components';
+import { InputState, PhysicsRef, Player, Transform, Velocity } from '../ecs/components';
 import { players } from '../ecs/queries';
 
 export const Mode = {
@@ -60,6 +62,15 @@ export function applyLocomotion(
     Player.strike[eid] = 0;
     return;
   }
+  if ((Player.trip[eid] ?? 0) > 0) {
+    Player.trip[eid] = Math.max(0, (Player.trip[eid] ?? 0) - dt);
+    Velocity.x[eid] = 0;
+    Velocity.z[eid] = 0;
+    InputState.jump[eid] = 0;
+    InputState.punch[eid] = 0;
+    InputState.heavy[eid] = 0;
+    return;
+  }
   const speed = InputState.sprint[eid] ? Player.sprintSpeed[eid] : Player.speed[eid];
   const planar = computePlanarVelocity(
     InputState.moveX[eid] ?? 0,
@@ -69,8 +80,6 @@ export function applyLocomotion(
   );
   Velocity.x[eid] = planar.x;
   Velocity.z[eid] = planar.z;
-  // The mesh adds half a turn, so the X sign is flipped to face the way it walks.
-  if (planar.x !== 0 || planar.z !== 0) Player.facing[eid] = Math.atan2(-planar.x, -planar.z);
 
   let vertical = (Velocity.y[eid] ?? 0) + gravity * dt;
   if (grounded && vertical < 0) vertical = 0;
@@ -98,7 +107,14 @@ export function applyLocomotion(
 }
 
 const delta: Vec3 = { x: 0, y: 0, z: 0 };
+const pose: Vec3 = { x: 0, y: 0, z: 0 };
+const poseRot: Quat = { x: 0, y: 0, z: 0, w: 1 };
 const facing: Quat = { x: 0, y: 0, z: 0, w: 1 };
+
+/** Capsule center with the feet on the terrain. The drawn street sits just above this. */
+export function capsuleFloor(x: number, z: number): number {
+  return sampleHeight(x, z) + sim.playerRadius + sim.playerHalfHeight;
+}
 
 export function playerMovementSystem(ctx: GameContext, world: World): void {
   const dt = ctx.time.fixedDt;
@@ -114,18 +130,65 @@ export function playerMovementSystem(ctx: GameContext, world: World): void {
     applyLocomotion(
       world,
       eid,
-      CameraRig.yaw[eid] ?? 0,
+      Player.facing[eid] ?? 0,
       sim.gravity,
       dt,
       ctx.physics.isGrounded(body),
     );
     if (Player.mode[eid] !== Mode.OnFoot) continue;
+    const speed = Math.hypot(Velocity.x[eid] ?? 0, Velocity.z[eid] ?? 0);
     delta.x = (Velocity.x[eid] ?? 0) * dt;
     delta.y = (Velocity.y[eid] ?? 0) * dt;
     delta.z = (Velocity.z[eid] ?? 0) * dt;
     ctx.physics.moveCharacter(body, delta);
+    ctx.physics.getTransform(body, pose, poseRot);
+    const lifted = ctx.physics.raiseCharacter(
+      body,
+      capsuleFloor(pose.x + delta.x, pose.z + delta.z),
+    );
+    if (lifted && (Velocity.y[eid] ?? 0) < 0) Velocity.y[eid] = 0;
+    if (ctx.physics.wasBlocked(body) && speed > BUMP_SPEED && (Player.trip[eid] ?? 0) <= 0) {
+      Player.trip[eid] = TRIP_SECONDS;
+      Velocity.x[eid] = 0;
+      Velocity.z[eid] = 0;
+    }
     if (ctx.physics.isGrounded(body) && (Velocity.y[eid] ?? 0) < 0) Velocity.y[eid] = 0;
   }
+}
+
+const peerPos: Vec3 = { x: 0, y: 0, z: 0 };
+const peerRot: Quat = { x: 0, y: 0, z: 0, w: 1 };
+
+/** Keeps the local body outside other players. The one who gets hit falls on the server. */
+export function separateFromPeers(ctx: GameContext, world: World): void {
+  const peers = ctx.net?.state()?.players ?? [];
+  const crowd = ctx.net?.state()?.npcs ?? [];
+  if (peers.length === 0 && crowd.length === 0) return;
+  for (const eid of players(world)) {
+    if (Player.mode[eid] !== Mode.OnFoot) continue;
+    const body = PhysicsRef.body[eid] ?? 0;
+    if (body === 0) continue;
+    ctx.physics.getTransform(body, peerPos, peerRot);
+    for (const other of peers) {
+      if (other.car !== 0) continue;
+      pushOut(ctx, body, other.x, other.z);
+    }
+    for (const npc of crowd) {
+      pushOut(ctx, body, npc.x, npc.z);
+    }
+  }
+}
+
+function pushOut(ctx: GameContext, body: number, x: number, z: number): void {
+  if (!circlesOverlap(peerPos.x, peerPos.z, x, z, BODY_REACH)) return;
+  const dx = peerPos.x - x;
+  const dz = peerPos.z - z;
+  const dist = Math.hypot(dx, dz) || 0.001;
+  const gap = BODY_REACH - dist;
+  if (gap <= 0) return;
+  peerPos.x += (dx / dist) * gap;
+  peerPos.z += (dz / dist) * gap;
+  ctx.physics.setTransform(body, peerPos, peerRot);
 }
 
 export function applyPlayerFacing(world: World): void {

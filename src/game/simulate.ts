@@ -1,6 +1,7 @@
 /** Fixed-step and render order for the playable slice. */
 
 import type { World } from 'bitecs';
+import { sim } from '../content/sim';
 import type { GameContext } from '../engine/core/context';
 import { CameraRig } from './ecs/components';
 import { players } from './ecs/queries';
@@ -9,7 +10,12 @@ import { updateCameraLook, placeCamera } from './systems/camera-follow';
 import { interactionSystem } from './systems/interaction';
 import { netRideSystem } from './systems/net-ride';
 import { missionSystem } from './systems/mission';
-import { applyPlayerFacing, playerMovementSystem } from './systems/player-movement';
+import {
+  applyPlayerFacing,
+  playerMovementSystem,
+  separateFromPeers,
+} from './systems/player-movement';
+import { facePlayerToCursor } from './systems/aim-facing';
 import { sampleInputSystem } from './systems/sample-input';
 import { pushInterpolatedTransforms, syncTransforms, syncWheels } from './systems/sync-transforms';
 import { vehicleDriveSystem } from './systems/vehicle-drive';
@@ -44,6 +50,7 @@ export function fixedStep(ctx: GameContext, world: World): void {
     cashSystem(ctx, world);
   }
   ctx.physics.step(ctx.time.fixedDt);
+  separateFromPeers(ctx, world);
   syncTransforms(ctx, world);
   syncWheels(ctx, world);
   applyPlayerFacing(world);
@@ -71,8 +78,19 @@ export function renderScene(ctx: GameContext, world: World, frameDt: number): vo
   }
   pedestrianVisual(ctx, world);
   syncDebugView(ctx);
-  pushInterpolatedTransforms(ctx, world);
   placeCamera(ctx, world, frameDt);
+  const aim = ctx.input.snapshot();
+  facePlayerToCursor(
+    world,
+    ctx.input.pointerLocked,
+    aim.aimX,
+    aim.aimY,
+    aim.viewWidth,
+    aim.viewHeight,
+    ctx.time.alpha,
+    sim.cameraFov,
+  );
+  pushInterpolatedTransforms(ctx, world);
   animatePlayer(ctx, world);
   ctx.renderer.tick(frameDt);
   ctx.renderer.render();

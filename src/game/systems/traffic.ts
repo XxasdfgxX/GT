@@ -4,6 +4,7 @@ import type { World } from 'bitecs';
 import { buildCostaVerde } from '../../content/city';
 import { sampleHeight } from '../../content/map/island-shape';
 import type { RoadEdge, RoadGraph } from '../../content/map/roads';
+import { stepDrivenSpeed } from '../../content/cars';
 import { trafficCatalog } from '../../content/traffic-catalog';
 import { sedan } from '../../content/vehicles';
 import type { GameContext } from '../../engine/core/context';
@@ -11,6 +12,7 @@ import { quatFromYaw } from '../../engine/core/math';
 import {
   CameraRig,
   InputState,
+  Pedestrian,
   PhysicsRef,
   Player,
   RenderRef,
@@ -18,7 +20,9 @@ import {
   Transform,
   Vehicle,
 } from '../ecs/components';
-import { players, traffic, vehicles } from '../ecs/queries';
+import { players, pedestrians, traffic, vehicles } from '../ecs/queries';
+import { circleHitsBox, TRIP_SECONDS } from '../play/overlap';
+import { PedState } from './ped-ai';
 import { enginePlayback } from '../play/feel';
 import { attachDriver, ejectDriver, releaseDriver, seatDriver } from './pedestrians';
 import { TRAFFIC_POOL } from '../features/traffic/pool';
@@ -26,6 +30,7 @@ import { Mode } from './player-movement';
 import {
   approachSpeed,
   carBoxesOverlap,
+  drivenYawRate,
   followSpeed,
   laneOffset,
   lightOpen,
@@ -172,7 +177,16 @@ function drive(
   }
   const speed = Traffic.speed[eid] ?? 0;
   Traffic.speed[eid] = approachSpeed(speed, limit, dt, panic);
-  Traffic.along[eid] = (Traffic.along[eid] ?? 0) + (Traffic.speed[eid] ?? 0) * dt;
+  const hx = spec.width / 2;
+  const hz = spec.length / 2;
+  if (hitsBuilding(Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, yawOf(eid), hx, hz)) {
+    Traffic.speed[eid] = 0;
+    Traffic.along[eid] = Math.max(0, (Traffic.along[eid] ?? 0) - 0.45);
+  } else {
+    const speedNow = Traffic.speed[eid] ?? 0;
+    if (speedNow > 0 && laneBlocked(world, graph, eid, speedNow * dt)) Traffic.speed[eid] = 0;
+    else Traffic.along[eid] = (Traffic.along[eid] ?? 0) + speedNow * dt;
+  }
   if ((Traffic.along[eid] ?? 0) >= edge.length - 0.4) {
     const picked = pickNext(graph, edge, Traffic.dir[eid] ?? 0);
     if (!picked) {
@@ -219,6 +233,61 @@ function place(ctx: GameContext, world: World, graph: RoadGraph, eid: number): v
   const ground = pos.y - spec.height / 2;
   attachDriver(world, eid, pos.x, ground, pos.z, heading, spec.scale);
   seatDriver(world, eid, pos.x, ground, pos.z, heading, spec.scale);
+}
+
+function laneBlocked(world: World, graph: RoadGraph, eid: number, extra: number): boolean {
+  const edge = graph.edges[Traffic.edge[eid] ?? 0];
+  const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
+  if (!edge || !spec) return false;
+  const a = graph.nodes[edge.a];
+  const b = graph.nodes[edge.b];
+  if (!a || !b) return false;
+  const fx = (b.x - a.x) / edge.length;
+  const fz = (b.z - a.z) / edge.length;
+  const lateral = laneOffset(
+    edge.width,
+    edge.lanes,
+    Traffic.lane[eid] ?? 0,
+    Traffic.dir[eid] ?? 0,
+    edge.oneWay,
+  );
+  const heading = (Traffic.dir[eid] ?? 0) === 0 ? Math.atan2(fx, fz) : Math.atan2(-fx, -fz);
+  const hx = spec.width / 2;
+  const hz = spec.length / 2;
+  const ahead = (Traffic.along[eid] ?? 0) + extra;
+  const aheadTravel = (Traffic.dir[eid] ?? 0) === 0 ? ahead : edge.length - ahead;
+  const aheadX = a.x + fx * aheadTravel + fz * lateral;
+  const aheadZ = a.z + fz * aheadTravel - fx * lateral;
+  if (hitsBuilding(aheadX, aheadZ, heading, hx, hz)) return true;
+  if (hitsTraffic(world, eid, aheadX, aheadZ, heading, hx, hz)) return true;
+  for (const ped of pedestrians(world)) {
+    if ((Pedestrian.active[ped] ?? 0) === 0 || (Pedestrian.driving[ped] ?? 0) === 1) continue;
+    if ((Pedestrian.health[ped] ?? 0) <= 0) continue;
+    if (
+      !circleHitsBox(
+        Transform.px[ped] ?? 0,
+        Transform.pz[ped] ?? 0,
+        0.35,
+        aheadX,
+        aheadZ,
+        hx,
+        hz,
+        heading,
+      )
+    ) {
+      continue;
+    }
+    if (
+      (Pedestrian.state[ped] ?? 0) !== PedState.Trip &&
+      (Pedestrian.state[ped] ?? 0) !== PedState.Down
+    ) {
+      Pedestrian.state[ped] = PedState.Trip;
+      Pedestrian.wait[ped] = TRIP_SECONDS;
+      Pedestrian.speed[ped] = 0;
+    }
+    return true;
+  }
+  return false;
 }
 
 function hitPlayer(
@@ -379,18 +448,20 @@ function driveStolen(ctx: GameContext, world: World, eid: number, dt: number): v
     handbrake = InputState.handbrake[player] === 1;
     break;
   }
-  let speed = Traffic.speed[eid] ?? 0;
-  if (handbrake) speed *= Math.max(0, 1 - dt * 5);
-  if (brake > 0 && speed > 0.4) speed -= brake * 18 * dt;
-  else if (brake > 0) speed -= brake * 7 * dt;
-  else speed += throttle * 9 * dt;
-  if (speed > spec.topSpeed) speed = spec.topSpeed;
-  if (speed < -6) speed = -6;
+  let speed = stepDrivenSpeed(
+    Traffic.speed[eid] ?? 0,
+    { throttle, brake, handbrake },
+    dt,
+    spec.torque,
+    spec.maxSpeedKmh,
+  );
   Traffic.speed[eid] = speed;
   Vehicle.speed[eid] = speed;
   const yaw =
     yawOf(eid) +
-    steer * dt * (0.65 + Math.min(Math.abs(speed), spec.topSpeed) * 0.1) * (speed < -0.3 ? -1 : 1);
+    drivenYawRate(steer, speed, sedan.steerSign) *
+      dt *
+      (0.65 + Math.min(Math.abs(speed), spec.topSpeed) * 0.1);
   const prevX = Transform.px[eid] ?? 0;
   const prevZ = Transform.pz[eid] ?? 0;
   pos.x = prevX + Math.sin(yaw) * speed * dt;
@@ -423,21 +494,16 @@ const solidHz = new Float32Array(SOLID_CAP);
 const solidEid = new Int16Array(SOLID_CAP);
 const solidLock = new Uint8Array(SOLID_CAP);
 
-/** Pulls lane cars back out of anything they were placed through. */
+/** Eases a lane car out of another body. One short step, so a bump does not fling it. */
 function unstick(ctx: GameContext, world: World, graph: RoadGraph): void {
-  for (let pass = 0; pass < 5; pass += 1) {
-    const count = gatherSolids(world);
-    let moved = false;
-    for (let i = 0; i < count; i += 1) {
-      if (solidLock[i] === 1) continue;
-      if (!hitsAnother(i, count)) continue;
-      const eid = solidEid[i] ?? 0;
-      Traffic.speed[eid] = 0;
-      Traffic.along[eid] = Math.max(0, (Traffic.along[eid] ?? 0) - 0.85);
-      place(ctx, world, graph, eid);
-      moved = true;
-    }
-    if (!moved) return;
+  const count = gatherSolids(world);
+  for (let i = 0; i < count; i += 1) {
+    if (solidLock[i] === 1) continue;
+    if (!hitsAnother(i, count)) continue;
+    const eid = solidEid[i] ?? 0;
+    Traffic.speed[eid] = 0;
+    Traffic.along[eid] = Math.max(0, (Traffic.along[eid] ?? 0) - 0.35);
+    place(ctx, world, graph, eid);
   }
 }
 
@@ -495,6 +561,66 @@ function hitsAnother(index: number, count: number): boolean {
 }
 
 function blockedAt(
+  world: World,
+  self: number,
+  x: number,
+  z: number,
+  yaw: number,
+  hx: number,
+  hz: number,
+): boolean {
+  for (const other of traffic(world)) {
+    if (other === self || (Traffic.active[other] ?? 0) === 0) continue;
+    const spec = trafficCatalog[Traffic.variant[other] ?? 0];
+    if (!spec) continue;
+    if (
+      carBoxesOverlap(
+        x,
+        z,
+        yaw,
+        hx,
+        hz,
+        Transform.px[other] ?? 0,
+        Transform.pz[other] ?? 0,
+        yawOf(other),
+        spec.width / 2,
+        spec.length / 2,
+      )
+    ) {
+      return true;
+    }
+  }
+  for (const car of vehicles(world)) {
+    if (
+      carBoxesOverlap(
+        x,
+        z,
+        yaw,
+        hx,
+        hz,
+        Transform.px[car] ?? 0,
+        Transform.pz[car] ?? 0,
+        yawOf(car),
+        sedan.halfExtents.x,
+        sedan.halfExtents.z,
+      )
+    ) {
+      return true;
+    }
+  }
+  return hitsBuilding(x, z, yaw, hx, hz);
+}
+
+function hitsBuilding(x: number, z: number, yaw: number, hx: number, hz: number): boolean {
+  for (const box of buildCostaVerde().colliders) {
+    if (box.hy < 0.4) continue;
+    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+    if (carBoxesOverlap(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz)) return true;
+  }
+  return false;
+}
+
+function hitsTraffic(
   world: World,
   self: number,
   x: number,

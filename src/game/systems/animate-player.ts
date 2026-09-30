@@ -12,6 +12,10 @@ export function animatePlayer(ctx: GameContext, world: World): void {
     if (Player.mode[eid] === Mode.Driving) continue;
     const mesh = RenderRef.mesh[eid] ?? 0;
     if (mesh === 0) continue;
+    if ((Player.trip[eid] ?? 0) > 0) {
+      ctx.renderer.playClip(mesh, 'die', 1);
+      continue;
+    }
     const speed = Math.hypot(Velocity.x[eid] ?? 0, Velocity.z[eid] ?? 0);
     const body = PhysicsRef.body[eid] ?? 0;
     const airborne = body !== 0 && !ctx.physics.isGrounded(body) && (Velocity.y[eid] ?? 0) > 0.4;

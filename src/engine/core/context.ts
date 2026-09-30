@@ -21,6 +21,7 @@ export interface DebugState {
   trafficDensity: number;
   pedDensity: number;
   showGraph: boolean;
+  showColliders: boolean;
   npcs: number;
   traffic: number;
   chunks: number;
@@ -49,6 +50,7 @@ export interface NetPlayer extends NetPose {
   swing: number;
   car: number;
   health: number;
+  down: number;
 }
 
 export interface NetRosterEntry {
@@ -65,6 +67,7 @@ export interface NetRosterEntry {
 export interface NetNpc extends NetPose {
   id: number;
   health: number;
+  down: number;
 }
 
 export interface NetPickup {
@@ -101,6 +104,7 @@ export interface NetSnapshot {
     playerDeaths: number;
     npcDeaths: number;
     car: number;
+    down: number;
   };
   players: readonly NetPlayer[];
   npcs: readonly NetNpc[];

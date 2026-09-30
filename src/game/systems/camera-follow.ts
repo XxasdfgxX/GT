@@ -1,12 +1,17 @@
-/** On foot the mouse orbits. In a car the rig locks behind the nose, like a chase cam. */
+/** On foot the middle mouse orbits. In a car the rig locks behind the nose, like a chase cam. */
 
 import type { World } from 'bitecs';
 import { lerp, rotateVec3ByQuat, slerpQuat, type Quat, type Vec3 } from '../../engine/core/math';
 import type { GameContext } from '../../engine/core/context';
+import { sampleHeight } from '../../content/map/island-shape';
+import { STREET_LIFT } from '../../content/map/road-mesh';
 import { sim } from '../../content/sim';
 import { CameraRig, InputState, Player, Transform } from '../ecs/components';
 import { players } from '../ecs/queries';
 import { Mode } from './player-movement';
+
+/** Meters of air between the lens and the asphalt, past the near plane. */
+const CAMERA_CLEARANCE = STREET_LIFT + 0.55;
 
 const cameraPos: Vec3 = { x: 0, y: 0, z: 0 };
 const lookAt: Vec3 = { x: 0, y: 0, z: 0 };
@@ -36,6 +41,11 @@ function shortestAngleDelta(from: number, to: number): number {
   if (delta > Math.PI) delta -= tau;
   if (delta < -Math.PI) delta += tau;
   return delta;
+}
+
+/** Lifts a point that slipped under the drawn street. */
+export function aboveStreet(x: number, y: number, z: number): number {
+  return Math.max(y, sampleHeight(x, z) + CAMERA_CLEARANCE);
 }
 
 /** Degrees clockwise from north. Yaw 0 looks south, down the street toward the beach. */
@@ -82,8 +92,8 @@ export function placeCamera(ctx: GameContext, world: World, frameDt: number): vo
     const pivot = CameraRig.pivot[eid] ?? sim.cameraPivotFoot;
     const horizontal = Math.cos(pitch);
     const desiredX = tx + Math.sin(yaw) * horizontal * distance;
-    const desiredY = ty + pivot + Math.sin(pitch) * distance;
     const desiredZ = tz + Math.cos(yaw) * horizontal * distance;
+    const desiredY = aboveStreet(desiredX, ty + pivot + Math.sin(pitch) * distance, desiredZ);
     if ((CameraRig.ready[eid] ?? 0) === 0) {
       CameraRig.x[eid] = desiredX;
       CameraRig.y[eid] = desiredY;
@@ -95,6 +105,11 @@ export function placeCamera(ctx: GameContext, world: World, frameDt: number): vo
       CameraRig.y[eid] = (CameraRig.y[eid] ?? 0) + (desiredY - (CameraRig.y[eid] ?? 0)) * blend;
       CameraRig.z[eid] = (CameraRig.z[eid] ?? 0) + (desiredZ - (CameraRig.z[eid] ?? 0)) * blend;
     }
+    CameraRig.y[eid] = aboveStreet(
+      CameraRig.x[eid] ?? 0,
+      CameraRig.y[eid] ?? 0,
+      CameraRig.z[eid] ?? 0,
+    );
     cameraPos.x = CameraRig.x[eid] ?? 0;
     cameraPos.y = CameraRig.y[eid] ?? 0;
     cameraPos.z = CameraRig.z[eid] ?? 0;

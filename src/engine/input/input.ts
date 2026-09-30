@@ -18,6 +18,11 @@ export interface InputSnapshot {
   lookX: number;
   lookY: number;
   zoom: number;
+  /** Aim cursor, in CSS pixels of the canvas. */
+  aimX: number;
+  aimY: number;
+  viewWidth: number;
+  viewHeight: number;
   debugToggle: boolean;
   debugOverlay: boolean;
   scoreToggle: boolean;

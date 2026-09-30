@@ -1,9 +1,13 @@
 /** Authoritative room: roster, punches, npc brawls, cash, and respawn. */
 
 import { sampleHeight } from '../content/map/island-shape';
-import { findSpawn, pickSpawn, type BairroSpawn } from '../content/spawns';
+import { buildCostaVerde } from '../content/map/city-data';
+import type { BoxCollider } from '../content/map/batch';
+import { findSpawn, pickSpawn, scatterSpawn, type BairroSpawn } from '../content/spawns';
 import { trafficCatalog } from '../content/traffic-catalog';
 import { sim } from '../content/sim';
+import { meshYaw } from '../game/play/aim-cursor';
+import { BODY_REACH, TRIP_SECONDS, circleHitsBox, circlesOverlap } from '../game/play/overlap';
 import {
   CORPSE_TIME,
   NPC_DROP,
@@ -126,6 +130,8 @@ interface Guy {
   respawn: number;
   lastPunch: number;
   swing: number;
+  /** Seconds left on the ground after someone runs into this body. */
+  down: number;
   placeSerial: number;
   place: { x: number; y: number; z: number };
   /** Set when the player picked a bairro. Empty means each revive rolls again. */
@@ -146,6 +152,8 @@ interface Npc {
   cool: number;
   /** Player who landed a punch. 0 until then, so a passerby is left alone. */
   foe: number;
+  /** Seconds left on the ground after a player runs into this person. */
+  down: number;
 }
 
 interface Drop {
@@ -263,7 +271,8 @@ export function join(room: Room, requestedName?: string, requestedSpawn?: string
   const id = room.nextPlayer;
   room.nextPlayer += 1;
   const chosen = findSpawn(room.spawns, requestedSpawn ?? '');
-  const spawn = chosen ?? pickSpawn(room.spawns, room.rng);
+  const center = chosen ?? pickSpawn(room.spawns, room.rng);
+  const spawn = scatterSpawn(center, room.rng);
   room.players.push({
     id,
     name: chooseName(requestedName, id),
@@ -282,6 +291,7 @@ export function join(room: Room, requestedName?: string, requestedSpawn?: string
     respawn: 0,
     lastPunch: 0,
     swing: 0,
+    down: 0,
     placeSerial: 1,
     place: { x: spawn.x, y: spawn.y, z: spawn.z },
     home: chosen ? { x: chosen.x, y: chosen.y, z: chosen.z } : null,
@@ -299,10 +309,31 @@ export function leave(room: Room, id: number): void {
 export function pushPose(room: Room, id: number, pose: Pose): void {
   const player = findPlayer(room, id);
   if (!player?.alive) return;
+  const previousX = player.x;
+  const previousZ = player.z;
   player.x = pose.x;
   player.y = pose.y;
   player.z = pose.z;
   player.yaw = pose.yaw;
+  const moved = Math.hypot(pose.x - previousX, pose.z - previousZ);
+  if (player.car === 0 && moved > 0.12) {
+    for (const other of room.players) {
+      if (other.id === id || !other.alive || other.car !== 0) continue;
+      if (!circlesOverlap(player.x, player.z, other.x, other.z, BODY_REACH)) continue;
+      player.x = previousX;
+      player.z = previousZ;
+      if (other.down <= 0) other.down = TRIP_SECONDS;
+      break;
+    }
+    for (const npc of room.npcs) {
+      if (!npc.alive) continue;
+      if (!circlesOverlap(player.x, player.z, npc.x, npc.z, BODY_REACH)) continue;
+      player.x = previousX;
+      player.z = previousZ;
+      if (npc.down <= 0) npc.down = TRIP_SECONDS;
+      break;
+    }
+  }
   steerCar(room, player);
 }
 
@@ -363,6 +394,7 @@ export function tick(room: Room, dt: number): void {
     return body.left > 0;
   });
   for (const player of room.players) {
+    player.down = Math.max(0, player.down - dt);
     if (player.alive) continue;
     player.respawn -= dt;
     if (player.respawn <= 0) revive(room, player);
@@ -370,6 +402,8 @@ export function tick(room: Room, dt: number): void {
   for (const npc of room.npcs) {
     if (!npc.alive) continue;
     npc.cool = Math.max(0, npc.cool - dt);
+    npc.down = Math.max(0, npc.down - dt);
+    if (npc.down > 0) continue;
     const quarry = provoked(room, npc);
     if (quarry) chase(room, npc, quarry, dt);
     else walk(room, npc, dt);
@@ -409,6 +443,7 @@ export function snapshot(
         playerDeaths: player.playerDeaths,
         npcDeaths: player.npcDeaths,
         car: player.car,
+        down: player.down,
       }
     : {
         health: 0,
@@ -423,6 +458,7 @@ export function snapshot(
         playerDeaths: 0,
         npcDeaths: 0,
         car: 0,
+        down: 0,
       };
   return {
     self,
@@ -448,6 +484,7 @@ export function snapshot(
         swing: other.swing,
         car: other.car,
         health: other.health,
+        down: other.down,
       })),
     npcs: room.npcs
       .filter((npc) => npc.alive)
@@ -458,6 +495,7 @@ export function snapshot(
         z: npc.z,
         yaw: npc.yaw,
         health: npc.health,
+        down: npc.down,
       })),
     cars: room.cars.map((car) => ({
       id: car.id,
@@ -508,6 +546,7 @@ function spawnNpc(room: Room): void {
     to: next,
     cool: 0,
     foe: 0,
+    down: 0,
   });
 }
 
@@ -515,9 +554,9 @@ function chase(room: Room, npc: Npc, player: Guy, dt: number): void {
   const dx = player.x - npc.x;
   const dz = player.z - npc.z;
   const distance = Math.hypot(dx, dz);
-  npc.yaw = Math.atan2(dx, dz);
+  npc.yaw = meshYaw(dx, dz);
   if (distance > FIGHT_REACH) {
-    slide(npc, dx, dz, distance, 2.6, dt);
+    slide(room, npc, dx, dz, distance, 2.6, dt);
     return;
   }
   if (npc.cool > 0) return;
@@ -538,11 +577,12 @@ function walk(room: Room, npc: Npc, dt: number): void {
     npc.to = links.find((id) => id !== previous) ?? links[0] ?? npc.to;
     return;
   }
-  npc.yaw = Math.atan2(dx, dz);
-  slide(npc, dx, dz, distance, 1.35, dt);
+  npc.yaw = meshYaw(dx, dz);
+  slide(room, npc, dx, dz, distance, 1.35, dt);
 }
 
 function slide(
+  room: Room,
   npc: Npc,
   dx: number,
   dz: number,
@@ -552,9 +592,57 @@ function slide(
 ): void {
   if (distance < 1e-4) return;
   const step = Math.min(distance, speed * dt);
-  npc.x += (dx / distance) * step;
-  npc.z += (dz / distance) * step;
+  const x = npc.x + (dx / distance) * step;
+  const z = npc.z + (dz / distance) * step;
+  if (footBlocked(room, x, z, npc.id)) return;
+  npc.x = x;
+  npc.z = z;
   npc.y = sampleHeight(npc.x, npc.z) + sim.playerRadius + sim.playerHalfHeight;
+}
+
+function footBlocked(room: Room, x: number, z: number, self: number): boolean {
+  for (const player of room.players) {
+    if (!player.alive || player.car !== 0) continue;
+    if (circlesOverlap(x, z, player.x, player.z, BODY_REACH)) return true;
+  }
+  for (const other of room.npcs) {
+    if (other.id === self || !other.alive) continue;
+    if (circlesOverlap(x, z, other.x, other.z, BODY_REACH)) return true;
+  }
+  for (const car of room.cars) {
+    const spec = trafficCatalog[car.variant];
+    if (!spec) continue;
+    if (circleHitsBox(x, z, 0.35, car.x, car.z, spec.width / 2, spec.length / 2, car.yaw)) {
+      return true;
+    }
+  }
+  return hitsBuilding(x, z, 0.35, 24);
+}
+
+let buildingBoxes: readonly BoxCollider[] | null = null;
+
+function buildingHits(x: number, z: number, yaw: number, hx: number, hz: number): Set<number> {
+  buildingBoxes ??= buildCostaVerde().colliders;
+  const hits = new Set<number>();
+  for (let index = 0; index < buildingBoxes.length; index += 1) {
+    const box = buildingBoxes[index];
+    if (!box || box.hy < 0.4) continue;
+    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+    if (carBoxesOverlap(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz)) hits.add(index);
+  }
+  return hits;
+}
+
+function hitsBuilding(x: number, z: number, radius: number, reach: number): boolean {
+  buildingBoxes ??= buildCostaVerde().colliders;
+  const reachSq = reach * reach;
+  for (const box of buildingBoxes) {
+    const dx = x - box.x;
+    const dz = z - box.z;
+    if (dx * dx + dz * dz > reachSq) continue;
+    if (circleHitsBox(x, z, radius, box.x, box.z, box.hx, box.hz, box.yaw)) return true;
+  }
+  return false;
 }
 
 function hurtPlayer(room: Room, player: Guy, amount: number, attackerId: number | null): void {
@@ -606,7 +694,11 @@ function layCorpse(
 }
 
 function revive(room: Room, player: Guy): void {
-  const spawn = player.home ?? pickSpawn(room.spawns, room.rng);
+  const home = player.home;
+  const center = home
+    ? { name: player.name, x: home.x, y: home.y, z: home.z }
+    : pickSpawn(room.spawns, room.rng);
+  const spawn = scatterSpawn(center, room.rng);
   player.alive = true;
   player.health = sim.maxHealth;
   player.cash = 0;
@@ -825,7 +917,16 @@ function driveCar(room: Room, car: Car, dt: number): void {
     }
     car.speed = approachSpeed(car.speed, limit, dt, panic);
   }
-  car.along += car.speed * dt;
+  const body = trafficCatalog[car.variant];
+  if (
+    body &&
+    room.roads.length > 2 &&
+    buildingHits(car.x, car.z, car.yaw, body.width / 2, body.length / 2).size > 0
+  ) {
+    car.speed = 0;
+    car.along = Math.max(0, car.along - 0.45);
+  } else if (car.speed > 0 && carPathBlocked(room, car, car.speed * dt)) car.speed = 0;
+  else car.along += car.speed * dt;
   if (car.along >= span.length) {
     const arrived = car.dir === 0 ? span.b : span.a;
     const next = pickExit(room, car.edge, arrived);
@@ -839,6 +940,41 @@ function driveCar(room: Room, car: Car, dt: number): void {
     }
   }
   placeCar(room, car);
+}
+
+function carPathBlocked(room: Room, car: Car, extra: number): boolean {
+  const savedAlong = car.along;
+  const savedX = car.x;
+  const savedZ = car.z;
+  const savedYaw = car.yaw;
+  car.along += extra;
+  placeCar(room, car);
+  const spec = trafficCatalog[car.variant];
+  let blocked = false;
+  if (spec) {
+    const hx = spec.width / 2;
+    const hz = spec.length / 2;
+    if (room.roads.length > 2 && buildingHits(car.x, car.z, car.yaw, hx, hz).size > 0) {
+      blocked = true;
+    }
+    for (const npc of room.npcs) {
+      if (!npc.alive || npc.down > 0) continue;
+      if (!circleHitsBox(npc.x, npc.z, 0.35, car.x, car.z, hx, hz, car.yaw)) continue;
+      npc.down = TRIP_SECONDS;
+      blocked = true;
+    }
+    for (const player of room.players) {
+      if (!player.alive || player.car !== 0 || player.down > 0) continue;
+      if (!circleHitsBox(player.x, player.z, 0.35, car.x, car.z, hx, hz, car.yaw)) continue;
+      player.down = TRIP_SECONDS;
+      blocked = true;
+    }
+  }
+  car.along = savedAlong;
+  car.x = savedX;
+  car.z = savedZ;
+  car.yaw = savedYaw;
+  return blocked;
 }
 
 function pickExit(

@@ -78,12 +78,21 @@ export interface PhysicsWorld extends Disposable {
   applyImpulse(id: number, impulse: Vec3): void;
   createCharacter(desc: CharacterDesc): number;
   moveCharacter(id: number, delta: Vec3): void;
+  /**
+   * If the pending move left the capsule center below minY, lift it and mark it grounded.
+   * Returns true when the body was raised.
+   */
+  raiseCharacter(id: number, minY: number): boolean;
+  /** True when the last move was cut short by a building or a car. */
+  wasBlocked(id: number): boolean;
   isGrounded(id: number): boolean;
   setBodyEnabled(id: number, enabled: boolean): void;
   setTransform(id: number, position: Vec3, rotation: Quat): void;
   getTransform(id: number, outPos: Vec3, outRot: Quat): void;
   createVehicle(desc: VehicleCreateDesc): number;
   setVehicleInput(id: number, input: VehicleInput): void;
+  /** Replaces the drive force. Used when the player changes cars without a new chassis. */
+  setVehiclePower(id: number, engineForce: number): void;
   forwardSpeed(id: number): number;
   wheelPoses(id: number, out: WheelPose[]): number;
   bodyCount(): number;
