@@ -1,7 +1,6 @@
 /** Solo cash: a dead neighbor leaves $10, and the player drops what they carried. */
 
 import { addComponent, addEntity, type World } from 'bitecs';
-import { soloSpawn } from '../../content/spawns';
 import { sim } from '../../content/sim';
 import type { GameContext } from '../../engine/core/context';
 import { Pedestrian, Pickup, Player, RenderRef, Transform, writePose } from '../ecs/components';
@@ -75,8 +74,7 @@ export function cashSystem(ctx: GameContext, world: World): void {
       Player.life[eid] = left;
       continue;
     }
-    const spawn = soloSpawn();
-    showBody(ctx, eid, spawn.x, spawn.y, spawn.z);
+    showBody(ctx, eid, Player.homeX[eid] ?? 0, Player.homeY[eid] ?? 0, Player.homeZ[eid] ?? 0);
     Player.health[eid] = sim.maxHealth;
     Player.cash[eid] = 0;
     Player.life[eid] = 0;

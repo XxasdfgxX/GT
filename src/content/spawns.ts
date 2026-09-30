@@ -53,6 +53,11 @@ export function pickSpawn(spawns: readonly BairroSpawn[], rng: () => number): Ba
   return spawn;
 }
 
+export function findSpawn(spawns: readonly BairroSpawn[], name: string): BairroSpawn | null {
+  if (name.length === 0) return null;
+  return spawns.find((spawn) => spawn.name === name) ?? null;
+}
+
 function stand(x: number, z: number): number {
   return sampleHeight(x, z) + sim.playerRadius + sim.playerHalfHeight;
 }

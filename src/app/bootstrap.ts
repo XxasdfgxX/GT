@@ -8,7 +8,7 @@ import { createThreeRenderer } from '../engine/render/three-renderer';
 import { buildCostaVerde } from '../content/city';
 import { carModel, characterModel, citizens } from '../content/models';
 import { sim } from '../content/sim';
-import { soloSpawn } from '../content/spawns';
+import { bairroSpawns, findSpawn, soloSpawn } from '../content/spawns';
 import { spawnMission } from '../game/features/mission/spawn-mission';
 import { resetRemains } from '../game/features/corpse/remain';
 import { resetRemotes, remotePlayerMark } from '../game/features/net/remotes';
@@ -55,11 +55,12 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     let connected: Awaited<ReturnType<typeof connectRoom>> | null = null;
     if (launch.mode === 'multiplayer') {
       if (!launch.roomId) throw new Error('Sala ausente');
-      connected = await connectRoom(launch.roomId, launch.playerName);
+      connected = await connectRoom(launch.roomId, launch.playerName, launch.spawn ?? '');
       cleanups.push(() => {
         connected?.link.close();
       });
     }
+    const city = buildCostaVerde();
     const at = connected
       ? {
           name: 'sala',
@@ -67,7 +68,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
           y: connected.welcome.y,
           z: connected.welcome.z,
         }
-      : soloSpawn();
+      : (findSpawn(bairroSpawns(city.graph), launch.spawn ?? '') ?? soloSpawn());
 
     const canvas = document.createElement('canvas');
     root.append(canvas);
@@ -101,7 +102,6 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       audio.dispose();
     });
     audio.setVolume(launch.settings.volume);
-    const city = buildCostaVerde();
     const nav = createPathNav();
     nav.load(city.walks);
     const ctx = createContext({

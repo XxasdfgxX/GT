@@ -352,6 +352,10 @@ canvas {
   opacity: 0.5;
 }
 
+.menu-field[hidden] {
+  display: none;
+}
+
 .menu-field {
   display: flex;
   flex-direction: column;
@@ -362,6 +366,18 @@ canvas {
   background: rgb(247 243 232 / 4%);
   color: #efe6d4;
   font-size: 14px;
+}
+
+.menu-check {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.menu-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #f2c14e;
 }
 
 .menu-field-head {

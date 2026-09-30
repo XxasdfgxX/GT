@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRoadGraph } from '../content/map/roads';
 import { onIsland, zoneAt } from '../content/map/island-shape';
-import { bairroSpawns, soloSpawn } from '../content/spawns';
+import { bairroSpawns, findSpawn, soloSpawn } from '../content/spawns';
 import { TRAFFIC_POOL } from '../game/features/traffic/pool';
 import {
   addCash,
@@ -20,6 +20,7 @@ import {
   ROOM_NPCS,
   createRoom,
   join,
+  type Room,
   leave,
   listing,
   pushEnter,
@@ -30,6 +31,7 @@ import {
   tick,
 } from '../net/room';
 import { parseClientMessage, parseRoomList, parseServerMessage } from '../net/protocol';
+import { roomSocketQuery } from '../net/session';
 import { npcScoreLine, playerScoreLine } from '../ui/score-line';
 
 const spawns = [
@@ -58,7 +60,23 @@ function room() {
   });
 }
 
+function down(live: Room, victim: number, attacker: number): void {
+  const place = snapshot(live, victim).self.place;
+  const pose = { x: place.x, y: place.y, z: place.z - 1.2, yaw: Math.PI };
+  pushPose(live, attacker, pose);
+  for (let serial = 1; serial <= 5; serial += 1) {
+    pushPunch(live, attacker, { ...pose, serial, heavy: false });
+  }
+}
+
 describe('bairro spawns', () => {
+  it('finds a neighborhood by its exact name', () => {
+    const points = bairroSpawns(buildRoadGraph());
+    expect(findSpawn(points, 'norte')).toEqual(points.find((point) => point.name === 'norte'));
+    expect(findSpawn(points, '')).toBeNull();
+    expect(findSpawn(points, 'mar')).toBeNull();
+  });
+
   it('puts one sidewalk point in each neighborhood', () => {
     const points = bairroSpawns(buildRoadGraph());
     expect(points.map((point) => point.name)).toEqual([
@@ -215,6 +233,58 @@ describe('rooms', () => {
     expect(back.self.health).toBe(10);
     expect(back.self.place).toEqual({ x: spawns[0]?.x, y: spawns[0]?.y, z: spawns[0]?.z });
     expect(back.corpses.some((body) => body.kind === 0)).toBe(true);
+  });
+
+  it('respawns a chosen bairro at that same point', () => {
+    const live = room();
+    const id = join(live, 'Kay', 'sul') ?? 0;
+    const other = join(live) ?? 0;
+    expect(snapshot(live, id).self.place).toEqual({ x: 10, y: 2, z: 0 });
+    down(live, id, other);
+    tick(live, RESPAWN_DELAY);
+    expect(snapshot(live, id).self.place).toEqual({ x: 10, y: 2, z: 0 });
+  });
+
+  it('rerolls when the player did not choose a bairro', () => {
+    let call = 0;
+    const live = createRoom({
+      id: 'costa-1',
+      name: 'Costa 1',
+      spawns,
+      nodes,
+      edges,
+      rng: () => {
+        call += 1;
+        if (call === 1) return 0;
+        if (call === 2) return 0.6;
+        return 0;
+      },
+      npcCount: 0,
+      carCount: 0,
+      maxPlayers: 2,
+    });
+    const id = join(live) ?? 0;
+    const other = join(live, 'Kay', 'sul') ?? 0;
+    expect(snapshot(live, id).self.place).toEqual({ x: 0, y: 2, z: 0 });
+    expect(snapshot(live, other).self.place).toEqual({ x: 10, y: 2, z: 0 });
+    down(live, id, other);
+    tick(live, RESPAWN_DELAY);
+    expect(snapshot(live, id).self.place).toEqual({ x: 10, y: 2, z: 0 });
+    expect(snapshot(live, other).self.place).toEqual({ x: 10, y: 2, z: 0 });
+  });
+
+  it('adds spawn to the socket query only when a bairro was chosen', () => {
+    expect(roomSocketQuery('costa-1', 'Ana', 'sul')).toBe('room=costa-1&name=Ana&spawn=sul');
+    expect(roomSocketQuery('costa-1', 'Ana')).toBe('room=costa-1&name=Ana');
+  });
+
+  it('rolls when the requested bairro is blank or unknown', () => {
+    const blank = room();
+    const unknown = room();
+    const blankId = join(blank, 'Kay', '') ?? 0;
+    const unknownId = join(unknown, 'Kay', 'mar') ?? 0;
+    expect(snapshot(blank, blankId).self.place).toEqual({ x: 0, y: 2, z: 0 });
+    expect(snapshot(unknown, unknownId).self.place).toEqual({ x: 0, y: 2, z: 0 });
   });
 
   it('gives a pickup to the first player in reach', () => {

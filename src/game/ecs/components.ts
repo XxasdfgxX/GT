@@ -45,6 +45,10 @@ export const Player = {
   cash: new Float32Array(CAP),
   /** Seconds left on a solo respawn. 0 means the body is not waiting. */
   life: new Float32Array(CAP),
+  /** Solo respawn point, copied from the spawn chosen at entry. */
+  homeX: new Float32Array(CAP),
+  homeY: new Float32Array(CAP),
+  homeZ: new Float32Array(CAP),
   placeSerial: new Uint16Array(CAP),
   /** 1 while the mesh and body are hidden after death. */
   hidden: new Uint8Array(CAP),

@@ -1,7 +1,7 @@
 /** Authoritative room: roster, punches, npc brawls, cash, and respawn. */
 
 import { sampleHeight } from '../content/map/island-shape';
-import { pickSpawn, type BairroSpawn } from '../content/spawns';
+import { findSpawn, pickSpawn, type BairroSpawn } from '../content/spawns';
 import { trafficCatalog } from '../content/traffic-catalog';
 import { sim } from '../content/sim';
 import {
@@ -128,6 +128,8 @@ interface Guy {
   swing: number;
   placeSerial: number;
   place: { x: number; y: number; z: number };
+  /** Set when the player picked a bairro. Empty means each revive rolls again. */
+  home: { x: number; y: number; z: number } | null;
   car: number;
 }
 
@@ -256,11 +258,12 @@ function stripControls(value: string): string {
   return cleaned;
 }
 
-export function join(room: Room, requestedName?: string): number | null {
+export function join(room: Room, requestedName?: string, requestedSpawn?: string): number | null {
   if (room.players.length >= room.maxPlayers) return null;
   const id = room.nextPlayer;
   room.nextPlayer += 1;
-  const spawn = pickSpawn(room.spawns, room.rng);
+  const chosen = findSpawn(room.spawns, requestedSpawn ?? '');
+  const spawn = chosen ?? pickSpawn(room.spawns, room.rng);
   room.players.push({
     id,
     name: chooseName(requestedName, id),
@@ -281,6 +284,7 @@ export function join(room: Room, requestedName?: string): number | null {
     swing: 0,
     placeSerial: 1,
     place: { x: spawn.x, y: spawn.y, z: spawn.z },
+    home: chosen ? { x: chosen.x, y: chosen.y, z: chosen.z } : null,
     car: 0,
   });
   return id;
@@ -602,7 +606,7 @@ function layCorpse(
 }
 
 function revive(room: Room, player: Guy): void {
-  const spawn = pickSpawn(room.spawns, room.rng);
+  const spawn = player.home ?? pickSpawn(room.spawns, room.rng);
   player.alive = true;
   player.health = sim.maxHealth;
   player.cash = 0;
