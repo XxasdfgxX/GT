@@ -1,5 +1,6 @@
-/** Keyboard and mouse bound to a canvas. Pointer lock is required for look deltas. */
+/** Keyboard and mouse bound to a canvas. Pointer lock keeps the aim cursor inside the view. */
 
+import { stepAimCursor } from './aim-cursor';
 import type { Input, InputSnapshot } from './input';
 
 const EMPTY: InputSnapshot = {
@@ -17,6 +18,10 @@ const EMPTY: InputSnapshot = {
   lookX: 0,
   lookY: 0,
   zoom: 0,
+  aimX: 0,
+  aimY: 0,
+  viewWidth: 0,
+  viewHeight: 0,
   debugToggle: false,
   debugOverlay: false,
   scoreToggle: false,
@@ -28,6 +33,8 @@ export function createBrowserInput(target: HTMLElement): Input {
   let lookX = 0;
   let lookY = 0;
   let zoom = 0;
+  let aimX = 0;
+  let aimY = 0;
   let heavyAttack = false;
   let sprintDownAt = -1;
   let pointerLocked = false;
@@ -44,11 +51,35 @@ export function createBrowserInput(target: HTMLElement): Input {
   };
   const onMouseMove = (event: MouseEvent) => {
     if (!pointerLocked) return;
-    lookX += event.movementX;
-    lookY += event.movementY;
+    const orbiting = (event.buttons & 4) !== 0;
+    if (orbiting) {
+      lookX += event.movementX;
+      lookY += event.movementY;
+      return;
+    }
+    const next = stepAimCursor(
+      aimX,
+      aimY,
+      event.movementX,
+      event.movementY,
+      target.clientWidth,
+      target.clientHeight,
+      false,
+    );
+    aimX = next.x;
+    aimY = next.y;
   };
   const onLockChange = () => {
     pointerLocked = document.pointerLockElement === target;
+    if (!pointerLocked) return;
+    aimX = target.clientWidth / 2;
+    aimY = target.clientHeight / 2;
+  };
+  const onMouseDown = (event: MouseEvent) => {
+    if (event.button === 1) event.preventDefault();
+  };
+  const onAuxClick = (event: MouseEvent) => {
+    event.preventDefault();
   };
   const onClick = () => {
     if (document.pointerLockElement !== target) void target.requestPointerLock();
@@ -64,6 +95,8 @@ export function createBrowserInput(target: HTMLElement): Input {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('auxclick', onAuxClick);
   document.addEventListener('pointerlockchange', onLockChange);
   target.addEventListener('click', onClick);
   target.addEventListener('contextmenu', onContext);
@@ -106,6 +139,15 @@ export function createBrowserInput(target: HTMLElement): Input {
       snapshot.interact = pressed.has('KeyW');
       snapshot.lookX = pointerLocked ? lookX : 0;
       snapshot.lookY = pointerLocked ? lookY : 0;
+      const viewWidth = target.clientWidth;
+      const viewHeight = target.clientHeight;
+      const aim = stepAimCursor(aimX, aimY, 0, 0, viewWidth, viewHeight, false);
+      aimX = aim.x;
+      aimY = aim.y;
+      snapshot.aimX = aimX;
+      snapshot.aimY = aimY;
+      snapshot.viewWidth = viewWidth;
+      snapshot.viewHeight = viewHeight;
       snapshot.zoom = zoom;
       snapshot.debugToggle = pressed.has('F3');
       snapshot.debugOverlay = pressed.has('F4');
@@ -123,6 +165,8 @@ export function createBrowserInput(target: HTMLElement): Input {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('auxclick', onAuxClick);
       document.removeEventListener('pointerlockchange', onLockChange);
       target.removeEventListener('click', onClick);
       target.removeEventListener('contextmenu', onContext);

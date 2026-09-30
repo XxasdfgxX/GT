@@ -40,6 +40,7 @@ export function createContext(services: Services): GameContext {
       trafficDensity: 1,
       pedDensity: 1,
       showGraph: false,
+      showColliders: false,
       npcs: 0,
       traffic: 0,
       chunks: 0,

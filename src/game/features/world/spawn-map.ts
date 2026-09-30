@@ -11,6 +11,7 @@ const yawScratch = { x: 0, y: 0, z: 0, w: 1 };
 interface LiveChunk {
   meshIds: number[];
   bodyIds: number[];
+  shellIds: number[];
   near: number[];
   far: number[];
   always: number[];
@@ -94,6 +95,7 @@ function ensureChunk(ctx: GameContext, id: number): void {
   const record: LiveChunk = {
     meshIds: [],
     bodyIds: [],
+    shellIds: [],
     near: [],
     far: [],
     always: [],
@@ -130,6 +132,16 @@ function ensureChunk(ctx: GameContext, id: number): void {
         rotation: { x: yawScratch.x, y: yawScratch.y, z: yawScratch.z, w: yawScratch.w },
       }),
     );
+    record.shellIds.push(
+      ctx.renderer.addMesh({
+        kind: 'box',
+        size: { x: box.hx * 2, y: box.hy * 2, z: box.hz * 2 },
+        color: 0x39ffe1,
+        position: { x: box.x, y: box.y, z: box.z },
+        rotation: { x: yawScratch.x, y: yawScratch.y, z: yawScratch.z, w: yawScratch.w },
+        wireframe: true,
+      }),
+    );
   }
   live.set(id, record);
 }
@@ -145,4 +157,17 @@ function show(ctx: GameContext, id: number, mode: 'near' | 'far' | 'off'): void 
   for (const meshId of record.always) ctx.renderer.setMeshVisible(meshId, mode !== 'off');
   const solid = mode !== 'off';
   for (const bodyId of record.bodyIds) ctx.physics.setBodyEnabled(bodyId, solid);
+  for (const meshId of record.shellIds) {
+    ctx.renderer.setMeshVisible(meshId, solid && ctx.debug.showColliders);
+  }
+}
+
+/** Shows or hides the building volumes already loaded around the player. */
+export function syncBuildingShells(ctx: GameContext): void {
+  for (const record of live.values()) {
+    const solid = record.mode !== 'off';
+    for (const meshId of record.shellIds) {
+      ctx.renderer.setMeshVisible(meshId, solid && ctx.debug.showColliders);
+    }
+  }
 }

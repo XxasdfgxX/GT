@@ -3,6 +3,7 @@
 import { sampleHeight, urbanZones, zoneAt, onIsland } from './map/island-shape';
 import { SIDEWALK_WIDTH, type RoadGraph, type RoadNode } from './map/roads';
 import { sim } from './sim';
+import { sedan } from './vehicles';
 
 export interface BairroSpawn {
   name: string;
@@ -15,6 +16,29 @@ export function soloSpawn(): BairroSpawn {
   const x = 0;
   const z = 12;
   return { name: 'solo', x, z, y: stand(x, z) };
+}
+
+/** The opening camera looks north, so the parked car sits south of the player. */
+export function parkedBehind(player: { x: number; z: number }): {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+} {
+  const home = soloSpawn();
+  const x = player.x + sedan.spawn.x - home.x;
+  const z = player.z + sedan.spawn.z - home.z;
+  return { x, z, y: sampleHeight(x, z) + sedan.spawn.y, yaw: sedan.spawnYaw };
+}
+
+/** Side length of the square around a spawn point. Each entry rolls inside it. */
+export const SPAWN_SPREAD = 10;
+
+/** A fresh point inside the 10×10 square, so two entries rarely share a tile. */
+export function scatterSpawn(spawn: BairroSpawn, rng: () => number): BairroSpawn {
+  const x = spawn.x + (rng() - 0.5) * SPAWN_SPREAD;
+  const z = spawn.z + (rng() - 0.5) * SPAWN_SPREAD;
+  return { name: spawn.name, x, z, y: stand(x, z) };
 }
 
 export function bairroSpawns(graph: RoadGraph): BairroSpawn[] {

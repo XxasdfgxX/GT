@@ -13,6 +13,7 @@ export const characterClips = {
   run: 'HumanArmature|Man_Run',
   punch: 'HumanArmature|Man_Punch',
   jump: 'HumanArmature|Man_Jump',
+  sit: 'HumanArmature|Man_Sitting',
 } as const;
 
 const maleClips = {

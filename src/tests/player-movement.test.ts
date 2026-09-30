@@ -1,7 +1,24 @@
 import { addComponent, addEntity, createWorld } from 'bitecs';
 import { describe, expect, it } from 'vitest';
-import { InputState, Player, Velocity } from '../game/ecs/components';
-import { Mode, applyLocomotion, computePlanarVelocity } from '../game/systems/player-movement';
+import type { GameContext } from '../engine/core/context';
+import {
+  CameraRig,
+  InputState,
+  PhysicsRef,
+  Player,
+  RenderRef,
+  Transform,
+  Velocity,
+} from '../game/ecs/components';
+import { CITY_FLOOR } from '../content/map/island-shape';
+import { sim } from '../content/sim';
+import {
+  Mode,
+  applyLocomotion,
+  capsuleFloor,
+  computePlanarVelocity,
+  playerMovementSystem,
+} from '../game/systems/player-movement';
 
 describe('computePlanarVelocity', () => {
   it('returns zero when there is no stick input', () => {
@@ -31,7 +48,7 @@ describe('computePlanarVelocity', () => {
 });
 
 describe('applyLocomotion', () => {
-  it('writes camera-relative velocity and a jump impulse when grounded on foot', () => {
+  it('writes facing-relative velocity and a jump impulse when grounded on foot', () => {
     const world = createWorld();
     const eid = addEntity(world);
     addComponent(world, eid, Player);
@@ -57,7 +74,7 @@ describe('applyLocomotion', () => {
     expect(Player.facing[eid]).toBeCloseTo(0, 5);
   });
 
-  it('faces right when strafing to +X', () => {
+  it('strafes to +X without turning the body', () => {
     const world = createWorld();
     const eid = addEntity(world);
     addComponent(world, eid, Player);
@@ -73,7 +90,7 @@ describe('applyLocomotion', () => {
     applyLocomotion(world, eid, 0, -20, 1 / 60, true);
 
     expect(Velocity.x[eid]).toBeCloseTo(4, 5);
-    expect(Player.facing[eid]).toBeCloseTo(-Math.PI / 2, 5);
+    expect(Player.facing[eid]).toBeCloseTo(0, 5);
   });
 
   it('does not move a player who is driving', () => {
@@ -94,5 +111,62 @@ describe('applyLocomotion', () => {
     expect(Velocity.x[eid]).toBe(1);
     expect(Velocity.y[eid]).toBe(2);
     expect(Velocity.z[eid]).toBe(3);
+  });
+});
+
+describe('playerMovementSystem', () => {
+  it('walks forward along the body facing while the camera stays put', () => {
+    const world = createWorld();
+    const eid = addEntity(world);
+    addComponent(world, eid, Player);
+    addComponent(world, eid, Transform);
+    addComponent(world, eid, Velocity);
+    addComponent(world, eid, InputState);
+    addComponent(world, eid, PhysicsRef);
+    addComponent(world, eid, RenderRef);
+    addComponent(world, eid, CameraRig);
+
+    Player.mode[eid] = Mode.OnFoot;
+    Player.health[eid] = 10;
+    Player.speed[eid] = 4;
+    Player.facing[eid] = -Math.PI / 2;
+    PhysicsRef.body[eid] = 1;
+    CameraRig.yaw[eid] = 0;
+    InputState.moveX[eid] = 0;
+    InputState.moveZ[eid] = 1;
+
+    let floor = 0;
+    const ctx = {
+      time: { fixedDt: 1 / 60 },
+      physics: {
+        isGrounded: () => true,
+        moveCharacter: () => {},
+        wasBlocked: () => false,
+        getTransform: (_id: number, pos: { x: number; y: number; z: number }) => {
+          pos.x = 0;
+          pos.y = 1;
+          pos.z = 12;
+        },
+        raiseCharacter: (_id: number, minY: number) => {
+          floor = minY;
+          return false;
+        },
+      },
+    } as unknown as GameContext;
+
+    playerMovementSystem(ctx, world);
+
+    expect(Velocity.x[eid]).toBeCloseTo(4, 5);
+    expect(Velocity.z[eid]).toBeCloseTo(0, 5);
+    expect(floor).toBeCloseTo(capsuleFloor(4 / 60, 12), 5);
+  });
+});
+
+describe('capsuleFloor', () => {
+  it('sits the feet on the city street', () => {
+    expect(capsuleFloor(0, 12)).toBeCloseTo(
+      CITY_FLOOR + sim.playerRadius + sim.playerHalfHeight,
+      1,
+    );
   });
 });

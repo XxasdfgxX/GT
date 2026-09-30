@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   carBoxesOverlap,
   carImpactDamage,
+  drivenYawRate,
   followSpeed,
   laneOffset,
   lightOpen,
@@ -43,6 +44,12 @@ describe('traffic lanes', () => {
     expect(carImpactDamage(-2.9)).toBe(0);
     expect(carImpactDamage(6)).toBe(3);
     expect(carImpactDamage(20)).toBe(10);
+  });
+
+  it('turns a stolen car left toward +X, and the other way while reversing', () => {
+    expect(drivenYawRate(-1, 6, -1)).toBeGreaterThan(0);
+    expect(drivenYawRate(1, 6, -1)).toBeLessThan(0);
+    expect(drivenYawRate(-1, -2, -1)).toBeLessThan(0);
   });
 
   it('keeps car boxes from occupying the same patch of street', () => {

@@ -43,6 +43,8 @@ describe('start settings', () => {
         sharpness: 'low',
         admin: true,
         spawn: 'centro',
+        colliders: false,
+        car: 'aston',
       },
       store,
     );
@@ -53,6 +55,8 @@ describe('start settings', () => {
       sharpness: 'low',
       admin: true,
       spawn: 'centro',
+      colliders: false,
+      car: 'aston',
     });
   });
 
@@ -71,7 +75,45 @@ describe('start settings', () => {
       sharpness: 'low',
       admin: true,
       spawn: 'centro',
+      colliders: false,
+      car: 'aston',
     });
+  });
+
+  it('keeps an older save and fills the car with the Aston', () => {
+    const store = memoryStore(
+      JSON.stringify({
+        mouseScale: 0.5,
+        volume: 0.2,
+        shadows: 'off',
+        sharpness: 'low',
+        admin: false,
+        spawn: 'sul',
+        colliders: true,
+      }),
+    );
+    expect(loadSettings(store)).toMatchObject({
+      admin: false,
+      spawn: 'sul',
+      colliders: true,
+      car: 'aston',
+    });
+  });
+
+  it('drops a save whose car is not in the list', () => {
+    const store = memoryStore(
+      JSON.stringify({
+        mouseScale: 1,
+        volume: 1,
+        shadows: 'high',
+        sharpness: 'high',
+        admin: true,
+        spawn: 'centro',
+        colliders: false,
+        car: 'fusca',
+      }),
+    );
+    expect(loadSettings(store)).toEqual(defaultSettings);
   });
 
   it('round-trips admin off at jurere', () => {

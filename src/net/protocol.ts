@@ -64,6 +64,8 @@ export interface SelfView {
   npcDeaths: number;
   /** 0 on foot. Otherwise the id of the car this player is driving. */
   car: number;
+  /** Seconds left on the ground after a bump. 0 means standing. */
+  down: number;
 }
 
 export interface RosterEntry {
@@ -88,6 +90,7 @@ export interface PlayerView {
   /** 0 on foot. Otherwise the id of the car this player is driving. */
   car: number;
   health: number;
+  down: number;
 }
 
 export interface NpcView {
@@ -97,6 +100,7 @@ export interface NpcView {
   z: number;
   yaw: number;
   health: number;
+  down: number;
 }
 
 export interface PickupView {
@@ -232,11 +236,12 @@ function parseState(value: Record<string, unknown>): StateMsg | null {
   const cash = num(value.self.cash);
   const placeSerial = num(value.self.placeSerial);
   const kills = num(value.self.kills);
-  const npcKills = countOrZero(value.self.npcKills);
+  const npcKills = optionalNumber(value.self.npcKills);
   const deaths = num(value.self.deaths);
-  const playerDeaths = countOrZero(value.self.playerDeaths);
-  const npcDeaths = countOrZero(value.self.npcDeaths);
+  const playerDeaths = optionalNumber(value.self.playerDeaths);
+  const npcDeaths = optionalNumber(value.self.npcDeaths);
   const ride = value.self.car === undefined ? 0 : num(value.self.car);
+  const down = optionalNumber(value.self.down);
   if (
     health === null ||
     cash === null ||
@@ -247,6 +252,7 @@ function parseState(value: Record<string, unknown>): StateMsg | null {
     playerDeaths === null ||
     npcDeaths === null ||
     ride === null ||
+    down === null ||
     typeof value.self.alive !== 'boolean' ||
     typeof value.self.name !== 'string'
   ) {
@@ -306,6 +312,7 @@ function parseState(value: Record<string, unknown>): StateMsg | null {
       playerDeaths,
       npcDeaths,
       car: ride,
+      down,
     },
     players,
     npcs,
@@ -363,17 +370,19 @@ function parsePlayer(value: unknown): PlayerView | null {
   const ride = value.car === undefined ? 0 : num(value.car);
   const health = num(value.health);
   if (ride === null || health === null) return null;
-  return { id, name: value.name, x, y, z, yaw, swing, car: ride, health };
+  const down = optionalNumber(value.down);
+  if (down === null) return null;
+  return { id, name: value.name, x, y, z, yaw, swing, car: ride, health, down };
 }
 
 function parseRoster(value: unknown): RosterEntry | null {
   if (!isRecord(value)) return null;
   const id = num(value.id);
   const kills = num(value.kills);
-  const npcKills = countOrZero(value.npcKills);
+  const npcKills = optionalNumber(value.npcKills);
   const deaths = num(value.deaths);
-  const playerDeaths = countOrZero(value.playerDeaths);
-  const npcDeaths = countOrZero(value.npcDeaths);
+  const playerDeaths = optionalNumber(value.playerDeaths);
+  const npcDeaths = optionalNumber(value.npcDeaths);
   if (
     id === null ||
     kills === null ||
@@ -407,7 +416,9 @@ function parseNpc(value: unknown): NpcView | null {
   const health = num(value.health);
   if (id === null || x === null || y === null || z === null || yaw === null || health === null)
     return null;
-  return { id, x, y, z, yaw, health };
+  const down = optionalNumber(value.down);
+  if (down === null) return null;
+  return { id, x, y, z, yaw, health, down };
 }
 
 function parseCar(value: unknown): CarView | null {
@@ -445,7 +456,7 @@ function num(value: unknown): number | null {
 }
 
 /** Older snapshots omit the split counters. A bad number still rejects the message. */
-function countOrZero(value: unknown): number | null {
+function optionalNumber(value: unknown): number | null {
   if (value === undefined) return 0;
   return num(value);
 }

@@ -1,6 +1,7 @@
-/** Traffic variants. One CC0 body, recolored and rescaled until more models exist. */
+/** Traffic variants. One CC0 body, recolored and rescaled. The Aston is not in this list. */
 
 import { z } from 'zod';
+import { carById } from './cars';
 import { carModel } from './models';
 
 const trafficSchema = z.object({
@@ -11,6 +12,8 @@ const trafficSchema = z.object({
   height: z.number().positive(),
   mass: z.number().positive(),
   topSpeed: z.number().positive(),
+  torque: z.number().positive(),
+  maxSpeedKmh: z.number().positive(),
   wheelNodes: z.array(z.string()),
   weight: z.number().positive(),
   tag: z.enum(['car', 'taxi', 'bus', 'truck', 'moto']),
@@ -27,32 +30,34 @@ const wheels = [
   'NormalCar1_BackWheels_Cube.011',
 ];
 
-const specs: Array<[string, number, number, TrafficTag, number, number]> = [
-  ['hatch', 0.86, 0xc4553a, 'car', 3, 12],
-  ['sedan', 0.96, 0xf4f1ea, 'car', 3, 13],
-  ['taxi', 0.96, 0xf2c14e, 'taxi', 2, 13],
-  ['compact', 0.78, 0x2a2a2a, 'car', 2, 11],
-  ['pickup', 1.05, 0x8a5a32, 'truck', 1, 11],
-  ['van', 1.08, 0xd5dde4, 'bus', 1, 10],
+const specs: Array<[string, number, TrafficTag, number, number]> = [
+  ['hatch', 0xc4553a, 'car', 3, 12],
+  ['sedan', 0xf4f1ea, 'car', 3, 13],
+  ['taxi', 0xf2c14e, 'taxi', 2, 13],
+  ['compact', 0x2a2a2a, 'car', 2, 11],
+  ['pickup', 0x8a5a32, 'truck', 1, 11],
+  ['van', 0xd5dde4, 'bus', 1, 10],
 ];
 
-export const trafficCatalog: TrafficVehicle[] = specs.map(
-  ([id, scale, color, tag, weight, topSpeed]) =>
-    trafficSchema.parse({
-      id,
-      url: carModel,
-      length: 4.2 * scale,
-      width: 1.8 * scale,
-      height: 1.5 * scale,
-      mass: 280 * scale,
-      topSpeed,
-      wheelNodes: wheels,
-      weight,
-      tag,
-      scale,
-      color,
-    }),
-);
+export const trafficCatalog: TrafficVehicle[] = specs.map(([id, color, tag, weight, topSpeed]) => {
+  const car = carById(id);
+  return trafficSchema.parse({
+    id,
+    url: carModel,
+    length: 4.2 * car.scale,
+    width: 1.8 * car.scale,
+    height: 1.5 * car.scale,
+    mass: 280 * car.scale,
+    topSpeed,
+    torque: car.torque,
+    maxSpeedKmh: car.maxSpeedKmh,
+    wheelNodes: wheels,
+    weight,
+    tag,
+    scale: car.scale,
+    color,
+  });
+});
 
 export function pickTrafficVariant(roll: number): TrafficVehicle {
   let total = 0;

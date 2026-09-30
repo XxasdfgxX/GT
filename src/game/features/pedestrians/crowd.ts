@@ -8,7 +8,7 @@ import type { GameContext } from '../../../engine/core/context';
 import { writeTransformMatrix } from '../../../engine/core/math';
 import type { ClipKey } from '../../../engine/render/renderer';
 import { Pedestrian, RenderRef, Transform, writePose } from '../../ecs/components';
-import { healthBarVisible } from '../../systems/ped-ai';
+import { PedState, healthBarVisible } from '../../systems/ped-ai';
 import { pedestrians } from '../../ecs/queries';
 import { HEALTH_TRACK_WIDTH, healthFillLayout } from '../health-bar';
 
@@ -245,6 +245,7 @@ function citizenClip(eid: number): ClipKey {
   if ((Pedestrian.health[eid] ?? 0) <= 0) return 'die';
   if ((Pedestrian.swing[eid] ?? 0) > 0) return 'punch';
   const state = Pedestrian.state[eid] ?? 0;
+  if (state === PedState.Trip) return 'die';
   if (state === 4 || state === 3) return 'run';
   if ((Pedestrian.speed[eid] ?? 0) > 0.2) return 'walk';
   return 'idle';

@@ -1,6 +1,7 @@
 /** Player preferences chosen on the start screen and applied at launch. */
 
 import { z } from 'zod';
+import { carIds, type CarId } from '../content/cars';
 import { sim } from '../content/sim';
 import {
   shadowQualities,
@@ -22,6 +23,9 @@ export interface GameSettings {
   sharpness: Sharpness;
   admin: boolean;
   spawn: SpawnName;
+  /** Wireframe collision volumes. Only applies while admin mode is on. */
+  colliders: boolean;
+  car: CarId;
 }
 
 export const defaultSettings: GameSettings = {
@@ -31,6 +35,8 @@ export const defaultSettings: GameSettings = {
   sharpness: 'high',
   admin: true,
   spawn: 'centro',
+  colliders: false,
+  car: 'aston',
 };
 
 const settingsSchema = z.object({
@@ -40,6 +46,8 @@ const settingsSchema = z.object({
   sharpness: z.enum(sharpnessLevels),
   admin: z.boolean().default(true),
   spawn: z.enum(spawnNames).default('centro'),
+  colliders: z.boolean().default(false),
+  car: z.enum(carIds).default('aston'),
 });
 
 export interface SettingsStore {

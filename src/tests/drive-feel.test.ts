@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { quatFromYaw } from '../engine/core/math';
+import { CITY_FLOOR } from '../content/map/island-shape';
+import { STREET_LIFT } from '../content/map/road-mesh';
 import {
+  aboveStreet,
   chaseCameraYaw,
   compassHeading,
   dampAngle,
@@ -32,6 +35,12 @@ describe('chase camera', () => {
   it('reads south at yaw 0 and east when the camera looks along +X', () => {
     expect(compassHeading(0)).toBeCloseTo(180, 5);
     expect(compassHeading(-Math.PI / 2)).toBeCloseTo(90, 5);
+  });
+
+  it('lifts a lens that dropped under the street', () => {
+    const y = aboveStreet(0, 1, 12);
+    expect(y).toBeGreaterThan(CITY_FLOOR + STREET_LIFT);
+    expect(aboveStreet(0, 20, 12)).toBe(20);
   });
 
   it('turns the short way when the heading wraps past the seam', () => {

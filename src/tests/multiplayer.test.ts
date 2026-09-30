@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRoadGraph } from '../content/map/roads';
 import { onIsland, zoneAt } from '../content/map/island-shape';
-import { bairroSpawns, findSpawn, soloSpawn } from '../content/spawns';
+import { bairroSpawns, findSpawn, scatterSpawn, soloSpawn } from '../content/spawns';
 import { TRAFFIC_POOL } from '../game/features/traffic/pool';
 import {
   addCash,
@@ -228,10 +228,11 @@ describe('rooms', () => {
     expect(snapshot(live, other).players.some((player) => player.id === id)).toBe(false);
     tick(live, RESPAWN_DELAY);
     const back = snapshot(live, id);
+    const rolled = scatterSpawn(spawns[0] ?? soloSpawn(), () => 0);
     expect(back.self.alive).toBe(true);
     expect(back.self.cash).toBe(0);
     expect(back.self.health).toBe(10);
-    expect(back.self.place).toEqual({ x: spawns[0]?.x, y: spawns[0]?.y, z: spawns[0]?.z });
+    expect(back.self.place).toEqual({ x: rolled.x, y: rolled.y, z: rolled.z });
     expect(back.corpses.some((body) => body.kind === 0)).toBe(true);
   });
 
@@ -239,10 +240,11 @@ describe('rooms', () => {
     const live = room();
     const id = join(live, 'Kay', 'sul') ?? 0;
     const other = join(live) ?? 0;
-    expect(snapshot(live, id).self.place).toEqual({ x: 10, y: 2, z: 0 });
+    const sul = scatterSpawn({ name: 'sul', x: 10, y: 2, z: 0 }, () => 0);
+    expect(snapshot(live, id).self.place).toEqual({ x: sul.x, y: sul.y, z: sul.z });
     down(live, id, other);
     tick(live, RESPAWN_DELAY);
-    expect(snapshot(live, id).self.place).toEqual({ x: 10, y: 2, z: 0 });
+    expect(snapshot(live, id).self.place).toEqual({ x: sul.x, y: sul.y, z: sul.z });
   });
 
   it('rerolls when the player did not choose a bairro', () => {
@@ -256,21 +258,23 @@ describe('rooms', () => {
       rng: () => {
         call += 1;
         if (call === 1) return 0;
-        if (call === 2) return 0.6;
-        return 0;
+        if (call === 6) return 0.6;
+        return 0.5;
       },
       npcCount: 0,
       carCount: 0,
       maxPlayers: 2,
     });
+    const centro = scatterSpawn(spawns[0] ?? soloSpawn(), () => 0.5);
+    const sul = scatterSpawn(spawns[1] ?? soloSpawn(), () => 0.5);
     const id = join(live) ?? 0;
     const other = join(live, 'Kay', 'sul') ?? 0;
-    expect(snapshot(live, id).self.place).toEqual({ x: 0, y: 2, z: 0 });
-    expect(snapshot(live, other).self.place).toEqual({ x: 10, y: 2, z: 0 });
+    expect(snapshot(live, id).self.place).toEqual({ x: centro.x, y: centro.y, z: centro.z });
+    expect(snapshot(live, other).self.place).toEqual({ x: sul.x, y: sul.y, z: sul.z });
     down(live, id, other);
     tick(live, RESPAWN_DELAY);
-    expect(snapshot(live, id).self.place).toEqual({ x: 10, y: 2, z: 0 });
-    expect(snapshot(live, other).self.place).toEqual({ x: 10, y: 2, z: 0 });
+    expect(snapshot(live, id).self.place).toEqual({ x: sul.x, y: sul.y, z: sul.z });
+    expect(snapshot(live, other).self.place).toEqual({ x: sul.x, y: sul.y, z: sul.z });
   });
 
   it('adds spawn to the socket query only when a bairro was chosen', () => {
@@ -283,8 +287,13 @@ describe('rooms', () => {
     const unknown = room();
     const blankId = join(blank, 'Kay', '') ?? 0;
     const unknownId = join(unknown, 'Kay', 'mar') ?? 0;
-    expect(snapshot(blank, blankId).self.place).toEqual({ x: 0, y: 2, z: 0 });
-    expect(snapshot(unknown, unknownId).self.place).toEqual({ x: 0, y: 2, z: 0 });
+    const rolled = scatterSpawn(spawns[0] ?? soloSpawn(), () => 0);
+    expect(snapshot(blank, blankId).self.place).toEqual({ x: rolled.x, y: rolled.y, z: rolled.z });
+    expect(snapshot(unknown, unknownId).self.place).toEqual({
+      x: rolled.x,
+      y: rolled.y,
+      z: rolled.z,
+    });
   });
 
   it('gives a pickup to the first player in reach', () => {

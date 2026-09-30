@@ -2,6 +2,7 @@
 
 import type { PauseMap } from './map-panel';
 import { mountMapPanel } from './map-panel';
+import { carCatalog } from '../content/cars';
 import { loadSettings, saveSettings, type GameSettings, type SettingsStore } from './settings';
 import { parseRoomList, type RoomInfo } from '../net/protocol';
 
@@ -197,7 +198,24 @@ export function mountStartMenu(
   ]);
   bairro.field.hidden = !settings.admin;
 
-  home.append(resume, mission, free, openMap, multi, adminField, bairro.field, status);
+  const car = selectField(
+    'Carro',
+    settings.car,
+    carCatalog.map((item) => [item.id, `${item.name} · ${item.maxSpeedKmh} km/h · ${item.torque}`]),
+  );
+  car.field.hidden = !settings.admin;
+
+  const colliderInput = document.createElement('input');
+  colliderInput.type = 'checkbox';
+  colliderInput.checked = settings.colliders;
+  const colliderField = document.createElement('label');
+  colliderField.className = 'menu-field menu-check';
+  const colliderCaption = document.createElement('span');
+  colliderCaption.textContent = 'Volumes';
+  colliderField.append(colliderCaption, colliderInput);
+  colliderField.hidden = !settings.admin;
+
+  home.append(resume, mission, free, openMap, multi, status);
 
   const mapPanel = mapView ? mountMapPanel(mapView) : null;
   const mapBack = document.createElement('button');
@@ -243,6 +261,14 @@ export function mountStartMenu(
     settings.volume = Number(volume.input.value);
     settings.shadows = shadows.input.value as GameSettings['shadows'];
     settings.sharpness = sharpness.input.value as GameSettings['sharpness'];
+    settings.admin = adminInput.checked;
+    settings.spawn = bairro.input.value as GameSettings['spawn'];
+    settings.car = car.input.value as GameSettings['car'];
+    settings.colliders = colliderInput.checked;
+    const showPartida = settings.admin;
+    bairro.field.hidden = !showPartida;
+    car.field.hidden = !showPartida;
+    colliderField.hidden = !showPartida;
     sensitivity.value.textContent = percent(settings.mouseScale);
     volume.value.textContent = percent(settings.volume);
     saveSettings(settings, options?.store);
@@ -253,16 +279,10 @@ export function mountStartMenu(
   volume.input.addEventListener('input', persist);
   shadows.input.addEventListener('change', persist);
   sharpness.input.addEventListener('change', persist);
-
-  const persistSpawn = () => {
-    settings.admin = adminInput.checked;
-    settings.spawn = bairro.input.value as GameSettings['spawn'];
-    bairro.field.hidden = !settings.admin;
-    saveSettings(settings, options?.store);
-    options?.onSettings?.({ ...settings });
-  };
-  adminInput.addEventListener('change', persistSpawn);
-  bairro.input.addEventListener('change', persistSpawn);
+  adminInput.addEventListener('change', persist);
+  bairro.input.addEventListener('change', persist);
+  car.input.addEventListener('change', persist);
+  colliderInput.addEventListener('change', persist);
 
   const back = document.createElement('button');
   back.type = 'button';
@@ -289,6 +309,9 @@ export function mountStartMenu(
   const settingsTitle = document.createElement('p');
   settingsTitle.className = 'menu-section';
   settingsTitle.textContent = 'Configurações';
+  const partidaTitle = document.createElement('p');
+  partidaTitle.className = 'menu-section menu-break';
+  partidaTitle.textContent = 'Partida';
 
   settingsPanel.append(
     settingsTitle,
@@ -296,6 +319,11 @@ export function mountStartMenu(
     volume.field,
     shadows.field,
     sharpness.field,
+    partidaTitle,
+    adminField,
+    bairro.field,
+    car.field,
+    colliderField,
     back,
   );
 

@@ -18,12 +18,12 @@ import {
 } from '../ecs/components';
 import { players, traffic, vehicles } from '../ecs/queries';
 import { interactPrompt } from '../play/feel';
+import { armBoard } from '../play/board-state';
 import { chaseCameraYaw, yawFromQuat } from './camera-follow';
 import { Mode } from './player-movement';
 import { ejectDriver } from './pedestrians';
 
 const MODE_DRIVE = 0;
-const MODE_PLAYER = 3;
 const MODE_PARKED = 4;
 
 const position: Vec3 = { x: 0, y: 0, z: 0 };
@@ -33,6 +33,11 @@ const offset: Vec3 = { x: 0, y: 0, z: 0 };
 
 export function interactionSystem(ctx: GameContext, world: World): void {
   for (const eid of players(world)) {
+    if (Player.mode[eid] === Mode.Boarding) {
+      Player.prompt[eid] = 0;
+      InputState.interact[eid] = 0;
+      continue;
+    }
     const driving = Player.mode[eid] === Mode.Driving;
     const distance = driving ? 0 : (nearestRide(world, eid)?.distance ?? Number.POSITIVE_INFINITY);
     Player.prompt[eid] = interactPrompt(driving, distance, sim.interactDistance);
@@ -80,14 +85,22 @@ function enterTraffic(ctx: GameContext, world: World, eid: number, car: number):
   ctx.physics.getTransform(body, position, rotation);
   const yaw = yawFromQuat(rotation);
   if ((Traffic.mode[car] ?? 0) === MODE_DRIVE) ejectDriver(world, car, position.x, position.z, yaw);
-  sitDown(ctx, eid, car);
-  Traffic.mode[car] = MODE_PLAYER;
-  Transform.px[eid] = position.x;
-  Transform.pz[eid] = position.z;
+  Traffic.mode[car] = MODE_PARKED;
+  holdStill(eid);
+  armBoard(eid, car, 'traffic');
+  Player.mode[eid] = Mode.Boarding;
 }
 
-function enterPlayerCar(ctx: GameContext, eid: number, vehicleEid: number): void {
-  boardVehicle(ctx, eid, vehicleEid);
+function enterPlayerCar(_ctx: GameContext, eid: number, vehicleEid: number): void {
+  holdStill(eid);
+  armBoard(eid, vehicleEid, 'player');
+  Player.mode[eid] = Mode.Boarding;
+}
+
+function holdStill(eid: number): void {
+  Velocity.x[eid] = 0;
+  Velocity.y[eid] = 0;
+  Velocity.z[eid] = 0;
 }
 
 export function boardVehicle(ctx: GameContext, eid: number, ride: number): void {

@@ -30,6 +30,15 @@ export function mustYield(kind: string, avenueNear: boolean): boolean {
   return kind === 'street' && avenueNear;
 }
 
+/**
+ * Yaw change for a stolen car. Left is negative steer. steerSign matches the
+ * physics sedan, and reverse flips it so the car still backs the way you press.
+ */
+export function drivenYawRate(steer: number, speed: number, steerSign: number): number {
+  const reversing = speed < -0.3 ? -1 : 1;
+  return steer * steerSign * reversing;
+}
+
 /** Ground-plane overlap of two boxes. Yaw 0 faces +Z, matching quatFromYaw. */
 export function carBoxesOverlap(
   ax: number,

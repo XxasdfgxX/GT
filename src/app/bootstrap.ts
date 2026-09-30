@@ -6,18 +6,20 @@ import { createBrowserInput } from '../engine/input/browser-input';
 import { createRapierWorld } from '../engine/physics/rapier-world';
 import { createThreeRenderer } from '../engine/render/three-renderer';
 import { buildCostaVerde } from '../content/city';
+import { astonModel, starterCar } from '../content/cars';
 import { carModel, characterModel, citizens } from '../content/models';
 import { sim } from '../content/sim';
-import { bairroSpawns, findSpawn, soloSpawn } from '../content/spawns';
+import { bairroSpawns, findSpawn, parkedBehind, scatterSpawn, soloSpawn } from '../content/spawns';
 import { spawnMission } from '../game/features/mission/spawn-mission';
 import { resetRemains } from '../game/features/corpse/remain';
 import { resetRemotes, remotePlayerMark } from '../game/features/net/remotes';
 import { resetNetRide } from '../game/systems/net-ride';
 import { spawnPlayer } from '../game/features/player/spawn-player';
 import { spawnPedCrowd } from '../game/features/pedestrians/crowd';
-import { spawnTrafficPool } from '../game/features/traffic/pool';
+import { spawnTrafficPool, syncTrafficShells } from '../game/features/traffic/pool';
 import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
-import { spawnMap, streamAround } from '../game/features/world/spawn-map';
+import { spawnMap, streamAround, syncBuildingShells } from '../game/features/world/spawn-map';
+import { readCarTitle } from '../game/systems/board-car';
 import { readHud } from '../game/play/read-hud';
 import { createGameWorld } from '../game/ecs/world';
 import { bakeRadarMap } from '../ui/radar-map';
@@ -61,6 +63,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       });
     }
     const city = buildCostaVerde();
+    const center = findSpawn(bairroSpawns(city.graph), launch.spawn ?? '') ?? soloSpawn();
     const at = connected
       ? {
           name: 'sala',
@@ -68,7 +71,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
           y: connected.welcome.y,
           z: connected.welcome.z,
         }
-      : (findSpawn(bairroSpawns(city.graph), launch.spawn ?? '') ?? soloSpawn());
+      : scatterSpawn(center, Math.random);
 
     const canvas = document.createElement('canvas');
     root.append(canvas);
@@ -80,7 +83,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     cleanups.push(() => {
       assets.dispose();
     });
-    const renderer = createThreeRenderer(canvas, assets);
+    const renderer = createThreeRenderer(canvas, assets, sim.cameraFov);
     cleanups.push(() => {
       renderer.dispose();
     });
@@ -114,7 +117,10 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       mouseSensitivity: lookSensitivity(launch.settings),
       net: connected?.link ?? null,
     });
+    ctx.debug.showColliders = launch.settings.admin && launch.settings.colliders;
+    const parked = starterCar(launch.settings);
     const urls = [characterModel, carModel, ...citizens.map((person) => person.url)];
+    if (!connected && parked.id === 'aston') urls.push(astonModel);
     await Promise.all([renderer.prepare(), ...[...urls].map((url) => renderer.preloadModel(url))]);
     const world = createGameWorld();
     spawnMap(ctx, city);
@@ -122,7 +128,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       /* fill the blocks around the spawn before the first frame */
     }
     if (!connected) {
-      spawnVehicle(ctx, world);
+      spawnVehicle(ctx, world, parkedBehind(at), parked.id);
       spawnTrafficPool(ctx, world);
       spawnPedCrowd(ctx, world);
     }
@@ -150,6 +156,9 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       audio.setVolume(settings.volume);
       renderer.setGraphics({ shadows: settings.shadows, sharpness: settings.sharpness });
       ctx.look.mouseSensitivity = lookSensitivity(settings);
+      ctx.debug.showColliders = settings.admin && settings.colliders;
+      syncBuildingShells(ctx);
+      syncTrafficShells(ctx);
       resize();
     };
     const unpause = () => {
@@ -213,8 +222,16 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
           hud.updateFps(dt);
           hud.setStats(context.renderer.drawCalls(), context.physics.bodyCount());
           hud.setLocked(context.input.pointerLocked);
+          const aim = context.input.snapshot();
+          hud.setAim(aim.aimX, aim.aimY, context.input.pointerLocked);
           const state = context.net?.state() ?? null;
           hud.setPlay(readHud(world), state?.players ?? []);
+          const title = readCarTitle(world);
+          if (!title) hud.setCarTitle('', '', 0, 0, false);
+          else {
+            const plate = context.renderer.project(title);
+            hud.setCarTitle(title.name, title.detail, plate.x, plate.y, !plate.behind);
+          }
           hud.setPresence(
             state && context.net
               ? {

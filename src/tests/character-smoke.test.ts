@@ -90,4 +90,26 @@ describe('player capsule', () => {
     expect(position.y).toBeLessThan(2);
     physics.dispose();
   });
+
+  it('puts the capsule back on the street when a move drops through', async () => {
+    const physics = await createRapierWorld(0);
+    const id = physics.createCharacter({
+      position: { x: 0, y: sim.playerRadius + sim.playerHalfHeight, z: 0 },
+      radius: sim.playerRadius,
+      halfHeight: sim.playerHalfHeight,
+    });
+    const position: Vec3 = { x: 0, y: 0, z: 0 };
+    const rotation: Quat = { x: 0, y: 0, z: 0, w: 1 };
+    const floor = sim.playerRadius + sim.playerHalfHeight;
+    physics.moveCharacter(id, { x: 0, y: -4, z: 0.2 });
+    expect(physics.raiseCharacter(id, floor)).toBe(true);
+    expect(physics.isGrounded(id)).toBe(true);
+    physics.step(sim.fixedDt);
+    physics.getTransform(id, position, rotation);
+    expect(position.y).toBeCloseTo(floor, 2);
+    expect(position.z).toBeCloseTo(0.2, 2);
+    physics.moveCharacter(id, { x: 0, y: 0.4, z: 0 });
+    expect(physics.raiseCharacter(id, floor)).toBe(false);
+    physics.dispose();
+  });
 });

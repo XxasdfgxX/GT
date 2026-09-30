@@ -22,6 +22,8 @@ export interface MeshDesc {
   emissive?: number;
   surface?: 'solid' | 'water';
   finish?: SurfaceFinish;
+  /** Draws the collider as a wire box so its edges stay visible. */
+  wireframe?: boolean;
 }
 
 export interface InstanceBatchDesc {

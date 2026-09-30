@@ -8,6 +8,7 @@ export const PedState = {
   Flee: 4,
   Fight: 5,
   Down: 6,
+  Trip: 7,
 } as const;
 
 export const LIGHT_DAMAGE = 2;

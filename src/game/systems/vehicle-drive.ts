@@ -34,7 +34,7 @@ export function vehicleDriveSystem(ctx: GameContext, world: World): void {
       brake = throttle;
       throttle = 0;
     }
-    throttle = limitThrottle(throttle, speed);
+    throttle = limitThrottle(throttle, speed, Vehicle.maxSpeed[vehicleEid] ?? 0);
     let steer = InputState.steer[eid] ?? 0;
     if (speed > 1) steer *= 1.85;
     const tone = enginePlayback(true, speed, Math.abs(throttle));
@@ -60,9 +60,9 @@ export function vehicleDriveSystem(ctx: GameContext, world: World): void {
   }
 }
 
-function limitThrottle(throttle: number, speed: number): number {
+function limitThrottle(throttle: number, speed: number, maxForward: number): number {
   if (throttle > 0) {
-    const cap = sedan.maxForwardSpeed;
+    const cap = maxForward > 0 ? maxForward : sedan.maxForwardSpeed;
     if (speed >= cap) return 0;
     const fade = cap * 0.82;
     if (speed > fade) return throttle * ((cap - speed) / (cap - fade));

@@ -17,6 +17,37 @@ canvas {
   height: 100%;
 }
 
+.aim-cursor {
+  position: absolute;
+  z-index: 4;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.aim-cursor::before,
+.aim-cursor::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 80%);
+}
+
+.aim-cursor::before {
+  width: 2px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+}
+
+.aim-cursor::after {
+  width: 22px;
+  height: 2px;
+  transform: translate(-50%, -50%);
+}
+
 .hint,
 .mission,
 .prompt,
@@ -55,6 +86,45 @@ canvas {
   font:
     600 18px/1 system-ui,
     sans-serif;
+}
+
+.car-title {
+  position: absolute;
+  z-index: 4;
+  margin: 0;
+  pointer-events: none;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 55%);
+  opacity: 0;
+  transform: translate(-50%, 6px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.45s ease;
+  text-align: center;
+  color: #fff8e6;
+}
+
+.car-title.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 36px);
+}
+
+.car-title strong {
+  display: block;
+  font:
+    700 22px/1.1 system-ui,
+    sans-serif;
+  letter-spacing: -0.03em;
+}
+
+.car-title span {
+  display: block;
+  margin-top: 4px;
+  color: #f2c14e;
+  font:
+    700 11px/1 system-ui,
+    sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .speed {
@@ -202,6 +272,10 @@ canvas {
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
+}
+
+.menu-break {
+  margin-top: 14px;
 }
 
 .menu-map {
