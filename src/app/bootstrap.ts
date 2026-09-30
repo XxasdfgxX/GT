@@ -19,6 +19,7 @@ import { spawnPedCrowd } from '../game/features/pedestrians/crowd';
 import { spawnTrafficPool, syncTrafficShells } from '../game/features/traffic/pool';
 import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
 import { spawnMap, streamAround, syncBuildingShells } from '../game/features/world/spawn-map';
+import { readCarTitle } from '../game/systems/board-car';
 import { readHud } from '../game/play/read-hud';
 import { createGameWorld } from '../game/ecs/world';
 import { bakeRadarMap } from '../ui/radar-map';
@@ -225,6 +226,12 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
           hud.setAim(aim.aimX, aim.aimY, context.input.pointerLocked);
           const state = context.net?.state() ?? null;
           hud.setPlay(readHud(world), state?.players ?? []);
+          const title = readCarTitle(world);
+          if (!title) hud.setCarTitle('', '', 0, 0, false);
+          else {
+            const plate = context.renderer.project(title);
+            hud.setCarTitle(title.name, title.detail, plate.x, plate.y, !plate.behind);
+          }
           hud.setPresence(
             state && context.net
               ? {

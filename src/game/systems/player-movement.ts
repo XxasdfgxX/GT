@@ -13,6 +13,7 @@ import { players } from '../ecs/queries';
 export const Mode = {
   OnFoot: 0,
   Driving: 1,
+  Boarding: 2,
 } as const;
 
 export interface Planar {
@@ -193,7 +194,8 @@ function pushOut(ctx: GameContext, body: number, x: number, z: number): void {
 
 export function applyPlayerFacing(world: World): void {
   for (const eid of players(world)) {
-    if (Player.mode[eid] !== Mode.OnFoot) continue;
+    const mode = Player.mode[eid];
+    if (mode !== Mode.OnFoot && mode !== Mode.Boarding) continue;
     quatFromYaw(Player.facing[eid] ?? 0, facing);
     Transform.qx[eid] = facing.x;
     Transform.qy[eid] = facing.y;

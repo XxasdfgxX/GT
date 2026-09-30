@@ -7,6 +7,7 @@ import { CameraRig } from './ecs/components';
 import { players } from './ecs/queries';
 import { animatePlayer } from './systems/animate-player';
 import { updateCameraLook, placeCamera } from './systems/camera-follow';
+import { boardCarSystem } from './systems/board-car';
 import { interactionSystem } from './systems/interaction';
 import { netRideSystem } from './systems/net-ride';
 import { missionSystem } from './systems/mission';
@@ -50,6 +51,7 @@ export function fixedStep(ctx: GameContext, world: World): void {
     cashSystem(ctx, world);
   }
   ctx.physics.step(ctx.time.fixedDt);
+  if (!ctx.net) boardCarSystem(ctx, world);
   separateFromPeers(ctx, world);
   syncTransforms(ctx, world);
   syncWheels(ctx, world);

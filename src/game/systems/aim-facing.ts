@@ -24,7 +24,7 @@ export function facePlayerToCursor(
 ): void {
   if (!locked) return;
   for (const eid of players(world)) {
-    if (Player.mode[eid] === Mode.Driving) continue;
+    if (Player.mode[eid] === Mode.Driving || Player.mode[eid] === Mode.Boarding) continue;
     if ((Player.health[eid] ?? 0) <= 0) continue;
     if ((Player.hidden[eid] ?? 0) === 1) continue;
     const tx = lerp(Transform.ppx[eid] ?? 0, Transform.px[eid] ?? 0, alpha);

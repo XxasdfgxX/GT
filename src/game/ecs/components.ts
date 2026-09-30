@@ -86,6 +86,8 @@ export const Vehicle = {
   speed: new Float32Array(CAP),
   /** Forward cap in m/s while this body is driven. 0 falls back to the sedan. */
   maxSpeed: new Float32Array(CAP),
+  /** Index into the car catalog. Street cars keep their own variant. */
+  model: new Uint8Array(CAP),
 };
 
 export const Mission = {

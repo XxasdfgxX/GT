@@ -27,6 +27,7 @@ export interface Hud {
   setLocked(locked: boolean): void;
   setAim(x: number, y: number, visible: boolean): void;
   setPlay(model: HudModel, peers?: readonly WorldPoint[]): void;
+  setCarTitle(name: string, detail: string, x: number, y: number, visible: boolean): void;
   setPresence(presence: Presence | null): void;
   updateFps(dt: number): void;
   remove(): void;
@@ -91,6 +92,11 @@ export function mountHud(
   prompt.className = 'prompt';
   const speed = document.createElement('p');
   speed.className = 'speed';
+  const carTitle = document.createElement('p');
+  carTitle.className = 'car-title';
+  const carName = document.createElement('strong');
+  const carDetail = document.createElement('span');
+  carTitle.append(carName, carDetail);
 
   const panel = document.createElement('div');
   panel.className = 'debug';
@@ -137,8 +143,34 @@ export function mountHud(
   aimCursor.className = 'aim-cursor';
   aimCursor.hidden = true;
 
-  const nodes = [radar, vitals, cash, board, tags, hint, mission, prompt, speed, panel, aimCursor];
-  root.append(radar, vitals, cash, board, tags, hint, mission, prompt, speed, panel, aimCursor);
+  const nodes = [
+    radar,
+    vitals,
+    cash,
+    board,
+    tags,
+    hint,
+    mission,
+    prompt,
+    speed,
+    carTitle,
+    panel,
+    aimCursor,
+  ];
+  root.append(
+    radar,
+    vitals,
+    cash,
+    board,
+    tags,
+    hint,
+    mission,
+    prompt,
+    speed,
+    carTitle,
+    panel,
+    aimCursor,
+  );
 
   let frames = 0;
   let accumulated = 0;
@@ -163,6 +195,13 @@ export function mountHud(
       aimCursor.hidden = !visible;
       aimCursor.style.left = `${x}px`;
       aimCursor.style.top = `${y}px`;
+    },
+    setCarTitle(name, detail, x, y, visible) {
+      carName.textContent = name;
+      carDetail.textContent = detail;
+      carTitle.style.left = `${x}px`;
+      carTitle.style.top = `${y}px`;
+      carTitle.classList.toggle('is-shown', visible);
     },
     setPlay(model, peers = []) {
       prompt.textContent = promptLabel(model.prompt);

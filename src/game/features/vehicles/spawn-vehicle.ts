@@ -1,7 +1,7 @@
 /** Spawns the raycast car and the visible model. Wheels stay in the physics only. */
 
 import { addComponent, addEntity, type World } from 'bitecs';
-import { carBody, engineForceFor, maxSpeedMs, type CarId } from '../../../content/cars';
+import { carBody, carIds, engineForceFor, maxSpeedMs, type CarId } from '../../../content/cars';
 import { sampleHeight } from '../../../content/map/island-shape';
 import { STREET_LIFT } from '../../../content/map/road-mesh';
 import { trafficCatalog } from '../../../content/traffic-catalog';
@@ -31,6 +31,8 @@ export function spawnVehicle(
   const yaw = { x: 0, y: 0, z: 0, w: 1 };
   quatFromYaw(at?.yaw ?? sedan.spawnYaw, yaw);
   Vehicle.maxSpeed[eid] = maxSpeedMs(car.maxSpeedKmh);
+  const model = carIds.indexOf(carId);
+  Vehicle.model[eid] = model < 0 ? 0 : model;
   writePose(eid, x, y, z);
   Transform.qx[eid] = yaw.x;
   Transform.qy[eid] = yaw.y;
