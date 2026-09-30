@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "server": "node --experimental-strip-types --import ./server/register.mjs server/index.ts",
+    "play": "node scripts/play.mjs",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "lint": "eslint .",
