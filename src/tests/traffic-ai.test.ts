@@ -7,6 +7,7 @@ import {
   laneOffset,
   lightOpen,
   mustYield,
+  steppedAlong,
   yieldToPedestrian,
 } from '../game/systems/traffic-ai';
 
@@ -50,6 +51,12 @@ describe('traffic lanes', () => {
     expect(drivenYawRate(-1, 6, -1)).toBeGreaterThan(0);
     expect(drivenYawRate(1, 6, -1)).toBeLessThan(0);
     expect(drivenYawRate(-1, -2, -1)).toBeLessThan(0);
+  });
+
+  it('steps a later car clear of one that just spawned', () => {
+    expect(steppedAlong(2, 100, 0, 6)).toBe(2);
+    expect(steppedAlong(2, 100, 1, 6)).toBe(8);
+    expect(steppedAlong(2, 10, 2, 6)).toBe(4);
   });
 
   it('keeps car boxes from occupying the same patch of street', () => {

@@ -40,11 +40,19 @@ import {
 
 const rot = { x: 0, y: 0, z: 0, w: 1 };
 const pos = { x: 0, y: 0, z: 0 };
+let heading = 0;
 let cursor = 0;
 let salt = 1;
+const BATCH = 8;
+const batchX = new Float32Array(BATCH);
+const batchZ = new Float32Array(BATCH);
+const batchYaw = new Float32Array(BATCH);
+const batchHx = new Float32Array(BATCH);
+const batchHz = new Float32Array(BATCH);
+let batchCount = 0;
 
 const MODE_DRIVE = 0;
-const MODE_WRECK = 2;
+export const MODE_WRECK = 2;
 const MODE_PLAYER = 3;
 const MODE_PARKED = 4;
 
@@ -106,6 +114,7 @@ export function trafficSystem(ctx: GameContext, world: World): void {
     active += 1;
   }
   unstick(ctx, world, graph);
+  batchCount = 0;
   const target = Math.round(TRAFFIC_POOL * ctx.debug.trafficDensity);
   let guard = 0;
   while (active < target && guard < 8) {
@@ -204,12 +213,22 @@ function drive(
 }
 
 function place(ctx: GameContext, world: World, graph: RoadGraph, eid: number): void {
+  const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
+  if (!spec || !measure(graph, eid)) return;
+  const body = PhysicsRef.body[eid] ?? 0;
+  ctx.physics.setTransform(body, pos, rot);
+  const ground = pos.y - spec.height / 2;
+  attachDriver(world, eid, pos.x, ground, pos.z, heading, spec.scale);
+  seatDriver(world, eid, pos.x, ground, pos.z, heading, spec.scale);
+}
+
+function measure(graph: RoadGraph, eid: number): boolean {
   const edge = graph.edges[Traffic.edge[eid] ?? 0];
   const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
-  if (!edge || !spec) return;
+  if (!edge || !spec) return false;
   const a = graph.nodes[edge.a];
   const b = graph.nodes[edge.b];
-  if (!a || !b) return;
+  if (!a || !b) return false;
   const fx = (b.x - a.x) / edge.length;
   const fz = (b.z - a.z) / edge.length;
   const travel =
@@ -226,13 +245,9 @@ function place(ctx: GameContext, world: World, graph: RoadGraph, eid: number): v
   pos.x = a.x + fx * travel + fz * lateral;
   pos.z = a.z + fz * travel - fx * lateral;
   pos.y = sampleHeight(pos.x, pos.z) + spec.height / 2;
-  const heading = (Traffic.dir[eid] ?? 0) === 0 ? Math.atan2(fx, fz) : Math.atan2(-fx, -fz);
+  heading = (Traffic.dir[eid] ?? 0) === 0 ? Math.atan2(fx, fz) : Math.atan2(-fx, -fz);
   quatFromYaw(heading, rot);
-  const body = PhysicsRef.body[eid] ?? 0;
-  ctx.physics.setTransform(body, pos, rot);
-  const ground = pos.y - spec.height / 2;
-  attachDriver(world, eid, pos.x, ground, pos.z, heading, spec.scale);
-  seatDriver(world, eid, pos.x, ground, pos.z, heading, spec.scale);
+  return true;
 }
 
 function laneBlocked(world: World, graph: RoadGraph, eid: number, extra: number): boolean {
@@ -343,18 +358,31 @@ function activate(
     const ground = sampleHeight(mx, mz);
     if (ground < 1) continue;
     salt = (salt * 17 + 5) % 997;
-    Traffic.active[eid] = 1;
-    Traffic.mode[eid] = MODE_DRIVE;
     Traffic.edge[eid] = edge.id;
     Traffic.dir[eid] = edge.oneWay ? 0 : salt % 2;
     Traffic.lane[eid] = edge.lanes > 2 ? salt % 2 : 0;
     Traffic.along[eid] = edge.length * (0.15 + (salt % 40) / 70);
+    const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
+    if (!spec || !measure(graph, eid)) continue;
+    const hx = spec.width / 2;
+    const hz = spec.length / 2;
+    if (spotTaken(world, eid, hx, hz)) continue;
+    Traffic.active[eid] = 1;
+    Traffic.mode[eid] = MODE_DRIVE;
     Traffic.speed[eid] = edge.speed * 0.6;
     const body = PhysicsRef.body[eid] ?? 0;
     const mesh = RenderRef.mesh[eid] ?? 0;
     ctx.physics.setBodyEnabled(body, true);
     ctx.renderer.setMeshVisible(mesh, true);
     place(ctx, world, graph, eid);
+    if (batchCount < BATCH) {
+      batchX[batchCount] = pos.x;
+      batchZ[batchCount] = pos.z;
+      batchYaw[batchCount] = heading;
+      batchHx[batchCount] = hx;
+      batchHz[batchCount] = hz;
+      batchCount += 1;
+    }
     return true;
   }
   return false;
@@ -616,6 +644,29 @@ function hitsBuilding(x: number, z: number, yaw: number, hx: number, hz: number)
     if (box.hy < 0.4) continue;
     if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
     if (carBoxesOverlap(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz)) return true;
+  }
+  return false;
+}
+
+function spotTaken(world: World, eid: number, hx: number, hz: number): boolean {
+  if (hitsTraffic(world, eid, pos.x, pos.z, heading, hx, hz)) return true;
+  for (let i = 0; i < batchCount; i += 1) {
+    if (
+      carBoxesOverlap(
+        pos.x,
+        pos.z,
+        heading,
+        hx,
+        hz,
+        batchX[i] ?? 0,
+        batchZ[i] ?? 0,
+        batchYaw[i] ?? 0,
+        batchHx[i] ?? 0,
+        batchHz[i] ?? 0,
+      )
+    ) {
+      return true;
+    }
   }
   return false;
 }

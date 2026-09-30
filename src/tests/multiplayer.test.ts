@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRoadGraph } from '../content/map/roads';
+import { trafficCatalog } from '../content/traffic-catalog';
+import { carBoxesOverlap } from '../game/systems/traffic-ai';
 import { onIsland, zoneAt } from '../content/map/island-shape';
 import { bairroSpawns, findSpawn, scatterSpawn, soloSpawn } from '../content/spawns';
 import { TRAFFIC_POOL } from '../game/features/traffic/pool';
@@ -148,6 +150,49 @@ describe('rooms', () => {
     const before = view.cars[0]?.x;
     tick(live, 0.5);
     expect(snapshot(live, id).cars[0]?.x).not.toBe(before);
+  });
+
+  it('does not pile cars onto the same point when they spawn together', () => {
+    const live = createRoom({
+      id: 'costa-1',
+      name: 'Costa 1',
+      spawns,
+      nodes: [
+        { id: 0, x: 0, z: 0 },
+        { id: 1, x: 400, z: 0 },
+      ],
+      edges: [{ a: 0, b: 1 }],
+      rng: () => 0.2,
+      npcCount: 0,
+      carCount: 8,
+      maxPlayers: 2,
+    });
+    const id = join(live) ?? 0;
+    const cars = snapshot(live, id).cars;
+    expect(cars).toHaveLength(8);
+    for (let i = 0; i < cars.length; i += 1) {
+      for (let j = i + 1; j < cars.length; j += 1) {
+        const a = cars[i];
+        const b = cars[j];
+        const aBody = trafficCatalog[a?.variant ?? 0];
+        const bBody = trafficCatalog[b?.variant ?? 0];
+        if (!a || !b || !aBody || !bBody) continue;
+        expect(
+          carBoxesOverlap(
+            a.x,
+            a.z,
+            a.yaw,
+            aBody.width / 2,
+            aBody.length / 2,
+            b.x,
+            b.z,
+            b.yaw,
+            bBody.width / 2,
+            bBody.length / 2,
+          ),
+        ).toBe(false);
+      }
+    }
   });
 
   it('stops a car when a player stands in the lane ahead', () => {

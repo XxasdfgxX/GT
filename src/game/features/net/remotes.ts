@@ -162,9 +162,9 @@ function addPerson(ctx: GameContext, kind: 'player' | 'npc', id: number): number
   return ctx.renderer.addModel({
     url: person?.url ?? characterModel,
     position: { x: 0, y: -40, z: 0 },
-    scale: characterScale,
+    scale: person?.scale ?? characterScale,
     alignYaw: characterAlignYaw,
-    offset: { x: 0, y: feet, z: 0 },
+    offset: { x: 0, y: feet + (person?.lift ?? 0), z: 0 },
     clips: person?.clips ?? characterClips,
   });
 }

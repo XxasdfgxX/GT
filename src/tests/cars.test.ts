@@ -33,6 +33,18 @@ describe('car specs', () => {
     expect(starterCar({ admin: true, car: 'foguete' }).id).toBe('aston');
   });
 
+  it('keeps the UAZ at 120 km/h and the other showcase cars faster', () => {
+    expect(carById('uaz').maxSpeedKmh).toBe(120);
+    expect(carById('bmw').maxSpeedKmh).toBe(220);
+    expect(carById('gtr').maxSpeedKmh).toBe(250);
+    expect(carById('ferrari').maxSpeedKmh).toBe(280);
+    for (const id of ['ferrari', 'gtr', 'bmw', 'uaz'] as const) {
+      expect(trafficCatalog.some((car) => car.id === id)).toBe(false);
+      expect(carBody(id).url.endsWith('.glb')).toBe(true);
+      expect(carBody(id).url).not.toContain('car.glb');
+    }
+  });
+
   it('leaves the Aston out of street traffic', () => {
     expect(trafficCatalog.some((car) => car.id === 'aston')).toBe(false);
     const sedan = trafficCatalog.find((car) => car.id === 'sedan');

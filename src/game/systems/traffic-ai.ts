@@ -95,6 +95,13 @@ function projectedRadius(
   return hx * right + hz * forward;
 }
 
+/** Steps a spawn forward so a later car does not sit on one that just appeared. */
+export function steppedAlong(base: number, length: number, attempt: number, gap: number): number {
+  if (length <= 0) return 0;
+  const shift = base + attempt * gap;
+  return ((shift % length) + length) % length;
+}
+
 export function followSpeed(limit: number, gap: number, top: number): number {
   const cap = Math.min(limit, top);
   if (gap < 6) return 0;

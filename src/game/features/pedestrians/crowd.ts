@@ -1,7 +1,7 @@
 /** Near pedestrians are skinned clones of ten citizen models. Everyone else is a capsule. */
 
 import { addComponent, addEntity, type World } from 'bitecs';
-import { characterAlignYaw, characterScale, citizens } from '../../../content/models';
+import { characterAlignYaw, citizens } from '../../../content/models';
 import { STREET_LIFT } from '../../../content/map/road-mesh';
 import { sim } from '../../../content/sim';
 import type { GameContext } from '../../../engine/core/context';
@@ -64,9 +64,9 @@ export function spawnPedCrowd(ctx: GameContext, world: World): void {
     const mesh = ctx.renderer.addModel({
       url: person.url,
       position: { x: 0, y: -30, z: 0 },
-      scale: characterScale,
+      scale: person.scale,
       alignYaw: characterAlignYaw,
-      offset: { x: 0, y: STREET_LIFT, z: 0 },
+      offset: { x: 0, y: STREET_LIFT + person.lift, z: 0 },
       clips: person.clips,
     });
     ctx.renderer.setMeshVisible(mesh, false);

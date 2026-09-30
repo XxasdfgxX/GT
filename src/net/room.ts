@@ -28,6 +28,7 @@ import {
   carBoxesOverlap,
   carImpactDamage,
   laneOffset,
+  steppedAlong,
   yieldToPedestrian,
 } from '../game/systems/traffic-ai';
 import type {
@@ -826,32 +827,68 @@ function toRoad(nodes: Map<number, WalkNode>, edge: WalkEdge): RoadSpan[] {
 
 function spawnCar(room: Room, index: number): void {
   if (room.roads.length === 0) return;
-  const edge = Math.min(room.roads.length - 1, Math.floor(room.rng() * room.roads.length));
-  const span = room.roads[edge];
   const spec = trafficCatalog[index % trafficCatalog.length];
-  if (!span || !spec) return;
-  const lanes = Math.max(1, span.oneWay ? span.lanes : Math.floor(span.lanes / 2));
-  const car: Car = {
-    id: index + 1,
-    edge,
-    along: room.rng() * span.length,
-    dir: span.oneWay || room.rng() < 0.5 ? 0 : 1,
-    lane: Math.min(lanes - 1, Math.floor(room.rng() * lanes)),
-    variant: index % trafficCatalog.length,
-    speed: span.speed,
-    x: 0,
-    y: 0,
-    z: 0,
-    yaw: 0,
-    driver: 0,
-    prevX: 0,
-    prevZ: 0,
-    hitAt: new Map(),
-  };
-  placeCar(room, car);
-  car.prevX = car.x;
-  car.prevZ = car.z;
-  room.cars.push(car);
+  if (!spec) return;
+  const gap = spec.length + 2;
+  let chosen: Car | undefined;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const edge = Math.min(room.roads.length - 1, Math.floor(room.rng() * room.roads.length));
+    const span = room.roads[edge];
+    if (!span) continue;
+    const lanes = Math.max(1, span.oneWay ? span.lanes : Math.floor(span.lanes / 2));
+    const car: Car = {
+      id: index + 1,
+      edge,
+      along: steppedAlong(room.rng() * span.length, span.length, attempt, gap),
+      dir: span.oneWay || room.rng() < 0.5 ? 0 : 1,
+      lane: Math.min(lanes - 1, Math.floor(room.rng() * lanes)),
+      variant: index % trafficCatalog.length,
+      speed: span.speed,
+      x: 0,
+      y: 0,
+      z: 0,
+      yaw: 0,
+      driver: 0,
+      prevX: 0,
+      prevZ: 0,
+      hitAt: new Map(),
+    };
+    placeCar(room, car);
+    chosen = car;
+    if (!carInsideAnother(room, car)) break;
+  }
+  if (!chosen) return;
+  chosen.prevX = chosen.x;
+  chosen.prevZ = chosen.z;
+  room.cars.push(chosen);
+}
+
+function carInsideAnother(room: Room, car: Car): boolean {
+  const spec = trafficCatalog[car.variant];
+  if (!spec) return false;
+  const hx = spec.width / 2;
+  const hz = spec.length / 2;
+  for (const other of room.cars) {
+    const body = trafficCatalog[other.variant];
+    if (!body) continue;
+    if (
+      carBoxesOverlap(
+        car.x,
+        car.z,
+        car.yaw,
+        hx,
+        hz,
+        other.x,
+        other.z,
+        other.yaw,
+        body.width / 2,
+        body.length / 2,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const RAM_GAP = 0.6;

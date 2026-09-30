@@ -4,7 +4,7 @@ import type { World } from 'bitecs';
 import { buildCostaVerde } from '../../content/city';
 import { sampleHeight } from '../../content/map/island-shape';
 import type { WalkQuad } from '../../content/map/road-mesh';
-import { characterScale } from '../../content/models';
+import { characterScale, citizens } from '../../content/models';
 import { trafficCatalog } from '../../content/traffic-catalog';
 import type { GameContext } from '../../engine/core/context';
 import { quatFromYaw } from '../../engine/core/math';
@@ -567,6 +567,17 @@ function connectPunch(
   ctx.events.emit('pedestrian:hit', { pedestrian: best, speed: 0 });
 }
 
+/** The leaf outfit has no sit clip, so a driver swaps to the next rigged body. */
+function seatedVariant(variant: number): number {
+  const count = citizens.length;
+  for (let step = 0; step < count; step += 1) {
+    const index = (variant + step) % count;
+    const person = citizens[index];
+    if (person && 'sit' in person.clips) return index;
+  }
+  return variant;
+}
+
 /** Puts a free pedestrian in the driver's seat. Returns false when the pool is full. */
 export function attachDriver(
   world: World,
@@ -580,6 +591,7 @@ export function attachDriver(
   if (driverOf(world, car) >= 0) return true;
   const eid = inactive(world);
   if (eid < 0) return false;
+  Pedestrian.variant[eid] = seatedVariant(Pedestrian.variant[eid] ?? 0);
   Pedestrian.active[eid] = 1;
   Pedestrian.driving[eid] = 1;
   Pedestrian.car[eid] = car;

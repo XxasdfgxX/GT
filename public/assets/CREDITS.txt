@@ -1,5 +1,10 @@
 character.glb — "Man in Suit" by Quaternius, CC0, via poly.pizza.
 people/*.glb — Animated Men Pack and Animated Women Pack by Quaternius, CC0, via poly.pizza.
+people/woman-leaf.glb — "Casual Green Leaf Look" by restore50, CC BY 4.0, https://sketchfab.com/3d-models/casual-green-leaf-look-c8586ab08b6948d8ab0c6f0a4beb438b.
 car.glb — "Car" by Quaternius, CC0, via poly.pizza.
 aston-dbr1.glb — "1958 Aston Martin DBR1" by OUTPISTON, CC BY-NC-SA 4.0, https://sketchfab.com/3d-models/1958-aston-martin-dbr1-59f309fe359649b1aa5ac54cf5ba17b3.
+ferrari-488.glb — 2019 Ferrari 488 Pista Spider, modelo Sketchfab fornecido para o projeto.
+nissan-gtr.glb — 2024 Nissan GT-R Nismo, modelo Sketchfab fornecido para o projeto.
+bmw-m340i.glb — BMW M340i modified, modelo Sketchfab fornecido para o projeto.
+uaz-452.glb — UAZ 452 Bukhanka, modelo Sketchfab fornecido para o projeto.
 buildings/house-*.glb — City Kit Suburban by Kenney, CC0 (https://kenney.nl/assets/city-kit-suburban).

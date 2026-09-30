@@ -6,7 +6,7 @@ import { createBrowserInput } from '../engine/input/browser-input';
 import { createRapierWorld } from '../engine/physics/rapier-world';
 import { createThreeRenderer } from '../engine/render/three-renderer';
 import { buildCostaVerde } from '../content/city';
-import { astonModel, starterCar } from '../content/cars';
+import { carBody, starterCar } from '../content/cars';
 import { carModel, characterModel, citizens } from '../content/models';
 import { sim } from '../content/sim';
 import { bairroSpawns, findSpawn, parkedBehind, scatterSpawn, soloSpawn } from '../content/spawns';
@@ -120,7 +120,10 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     ctx.debug.showColliders = launch.settings.admin && launch.settings.colliders;
     const parked = starterCar(launch.settings);
     const urls = [characterModel, carModel, ...citizens.map((person) => person.url)];
-    if (!connected && parked.id === 'aston') urls.push(astonModel);
+    if (!connected) {
+      const parkedModel = carBody(parked.id).url;
+      if (parkedModel !== carModel) urls.push(parkedModel);
+    }
     await Promise.all([renderer.prepare(), ...[...urls].map((url) => renderer.preloadModel(url))]);
     const world = createGameWorld();
     spawnMap(ctx, city);
