@@ -14,6 +14,7 @@ export interface HudModel {
   speedKmh: number;
   missionPhase: number;
   missionTime: number;
+  hasMission: boolean;
   heading: number;
   health: number;
   x: number;
@@ -25,12 +26,12 @@ export function readHud(world: World): HudModel {
   let driving = false;
   let speed = 0;
   let heading = 180;
-  let health = 100;
+  let health = 10;
   let x = 0;
   let z = 0;
   for (const eid of players(world)) {
     prompt = Player.prompt[eid] ?? 0;
-    health = Player.health[eid] ?? 100;
+    health = Player.health[eid] ?? 10;
     heading = compassHeading(CameraRig.yaw[eid] ?? 0);
     driving = Player.mode[eid] === Mode.Driving;
     const target = driving ? (Player.vehicle[eid] ?? eid) : eid;
@@ -39,11 +40,24 @@ export function readHud(world: World): HudModel {
     if (!driving) continue;
     speed = speedKmh(Vehicle.speed[target] ?? 0);
   }
+  let hasMission = false;
   let missionPhase: number = MissionPhase.Pickup;
   let missionTime = 0;
   for (const mid of missions(world)) {
+    hasMission = true;
     missionPhase = Mission.phase[mid] ?? MissionPhase.Pickup;
     missionTime = Mission.time[mid] ?? 0;
   }
-  return { prompt, driving, speedKmh: speed, missionPhase, missionTime, heading, health, x, z };
+  return {
+    prompt,
+    driving,
+    speedKmh: speed,
+    missionPhase,
+    missionTime,
+    hasMission,
+    heading,
+    health,
+    x,
+    z,
+  };
 }

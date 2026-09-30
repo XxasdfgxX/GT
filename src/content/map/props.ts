@@ -73,7 +73,7 @@ export function buildProps(
         const walk = edge.width / 2 + 0.32 + SIDEWALK_WIDTH * 0.55;
         const x = a.x + fx * distance + rx * side * walk;
         const z = a.z + fz * distance + rz * side * walk;
-        if (!onIsland(x, z) || urbanWeight(x, z) < 0.45) continue;
+        if (!onIsland(x, z) || urbanWeight(x, z) < 0.96) continue;
         const y = sampleHeight(x, z);
         if (y < 1) continue;
         const chunk = chunkIndex(x, z);

@@ -155,9 +155,9 @@ export function mountHud(
       const mark = northMarker(model.heading, RADAR_SIZE / 2, RADAR_SIZE / 2, RADAR_SIZE / 2);
       north.style.left = `${mark.x}px`;
       north.style.top = `${mark.y}px`;
-      const health = Math.max(0, Math.min(100, model.health));
-      healthFill.style.width = `${health}%`;
-      healthFill.dataset.level = health < 25 ? 'low' : health < 55 ? 'mid' : 'high';
+      const health = Math.max(0, Math.min(1, model.health / 10));
+      healthFill.style.width = `${health * 100}%`;
+      healthFill.dataset.level = health < 0.25 ? 'low' : health < 0.55 ? 'mid' : 'high';
     },
     updateFps(dt) {
       frames += 1;

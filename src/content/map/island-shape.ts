@@ -87,7 +87,8 @@ const peaks: readonly Peak[] = [
   { x: 200, z: 430, h: 64, r: 120 },
 ];
 
-const blendMargin = 40;
+/** How far outside a basin the ground eases from the street up into the serra. */
+const blendMargin = 420;
 
 export function pointInPolygon(
   x: number,
@@ -160,11 +161,11 @@ function zoneWeight(x: number, z: number, zone: UrbanZone): number {
   const dx = Math.abs(x - zone.x) - hx;
   const dz = Math.abs(z - zone.z) - hz;
   const outside = Math.max(dx, dz);
-  if (outside > blendMargin) return 0;
-  if (outside > 0) return 1 - outside / blendMargin;
-  const edge = Math.min(hx - Math.abs(x - zone.x), hz - Math.abs(z - zone.z));
-  if (edge >= blendMargin) return 1;
-  return edge / blendMargin;
+  if (outside <= 0) return 1;
+  if (outside >= blendMargin) return 0;
+  const t = outside / blendMargin;
+  const smooth = t * t * (3 - 2 * t);
+  return 1 - smooth;
 }
 
 /** 1 inside a flat urban basin, 0 on the serra. */
@@ -189,18 +190,16 @@ export function zoneAt(x: number, z: number): UrbanZone | undefined {
 
 function rawHeight(x: number, z: number): number {
   let height = 1.2;
-  // Parque Estadual do Rio Vermelho: the broad green highland north of the city.
-  height += ridge(x, z, -10, 150, 100, 480, 112, 145);
-  // Morro das Pedras and the southern hills above Campeche.
-  height += ridge(x, z, -20, -170, 80, -540, 74, 115);
-  // Lower hills between the north beaches.
-  height += ridge(x, z, -90, 400, 30, 600, 46, 85);
+  // Broad, low highlands. Crests sit well outside the basins so the climb is a ramp.
+  height += ridge(x, z, 10, 320, 80, 480, 28, 200);
+  height += ridge(x, z, 0, -320, 50, -500, 22, 190);
+  height += ridge(x, z, -40, 520, 10, 640, 14, 160);
   for (const peak of peaks) {
     const dx = x - peak.x;
     const dz = z - peak.z;
-    height += peak.h * 0.35 * Math.exp(-(dx * dx + dz * dz) / (2 * peak.r * peak.r));
+    height += peak.h * 0.1 * Math.exp(-(dx * dx + dz * dz) / (2 * peak.r * peak.r));
   }
-  const n = Math.sin(x * 0.021) * Math.cos(z * 0.017) * 5 + Math.sin(x * 0.008 + z * 0.01) * 3;
+  const n = Math.sin(x * 0.012) * Math.cos(z * 0.01) * 2.2 + Math.sin(x * 0.006 + z * 0.007) * 1.4;
   return height + n;
 }
 
@@ -224,7 +223,13 @@ export function sampleHeight(x: number, z: number): number {
   if (!pointInPolygon(x, z, islandOutline)) return -6;
   const coast = coastDistance(x, z);
   let height = rawHeight(x, z);
-  if (coast < 32) height = Math.min(height, 0.45 + coast * 0.03);
+  const shore = 280;
+  if (coast < shore) {
+    const beach = 0.35 + coast * 0.035;
+    const t = coast / shore;
+    const smooth = t * t * (3 - 2 * t);
+    height = Math.min(height, beach) * (1 - smooth) + height * smooth;
+  }
   const urban = urbanWeight(x, z);
   if (urban > 0) height = height * (1 - urban) + CITY_FLOOR * urban;
   return height;

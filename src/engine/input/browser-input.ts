@@ -11,12 +11,14 @@ const EMPTY: InputSnapshot = {
   sprint: false,
   jump: false,
   punch: false,
+  heavy: false,
   interact: false,
   handbrake: false,
   lookX: 0,
   lookY: 0,
   zoom: 0,
   debugToggle: false,
+  debugOverlay: false,
 };
 
 export function createBrowserInput(target: HTMLElement): Input {
@@ -73,6 +75,9 @@ export function createBrowserInput(target: HTMLElement): Input {
     requestPointerLock() {
       void target.requestPointerLock();
     },
+    releasePointer() {
+      if (document.pointerLockElement === target) document.exitPointerLock();
+    },
     snapshot() {
       const left = keys.has('ArrowLeft');
       const right = keys.has('ArrowRight');
@@ -94,6 +99,7 @@ export function createBrowserInput(target: HTMLElement): Input {
       snapshot.brake = back ? 1 : 0;
       snapshot.steer = snapshot.moveX;
       snapshot.jump = pressed.has('KeyA');
+      snapshot.heavy = heavyAttack;
       snapshot.punch = pressed.has('KeyD') || heavyAttack;
       snapshot.handbrake = keys.has('Space');
       snapshot.interact = pressed.has('KeyW');
@@ -101,6 +107,7 @@ export function createBrowserInput(target: HTMLElement): Input {
       snapshot.lookY = pointerLocked ? lookY : 0;
       snapshot.zoom = zoom;
       snapshot.debugToggle = pressed.has('F3');
+      snapshot.debugOverlay = pressed.has('F4');
       return snapshot;
     },
     endFrame() {
@@ -126,6 +133,7 @@ function isGameKey(code: string): boolean {
   return (
     code === 'Space' ||
     code === 'F3' ||
+    code === 'F4' ||
     code === 'KeyW' ||
     code === 'KeyA' ||
     code === 'KeyS' ||

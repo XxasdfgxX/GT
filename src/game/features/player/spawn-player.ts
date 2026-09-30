@@ -2,7 +2,14 @@
 
 import { addComponent, addEntity, type World } from 'bitecs';
 import type { GameContext } from '../../../engine/core/context';
-import { characterClips, characterModel } from '../../../content/models';
+import { sampleHeight } from '../../../content/map/island-shape';
+import { STREET_LIFT } from '../../../content/map/road-mesh';
+import {
+  characterAlignYaw,
+  characterClips,
+  characterModel,
+  characterScale,
+} from '../../../content/models';
 import { sim } from '../../../content/sim';
 import {
   CameraRig,
@@ -26,15 +33,16 @@ export function spawnPlayer(ctx: GameContext, world: World): number {
   addComponent(world, eid, RenderRef);
   addComponent(world, eid, CameraRig);
 
-  const y = sim.playerRadius + sim.playerHalfHeight;
   const x = 0;
   const z = 12;
+  const y = sampleHeight(x, z) + sim.playerRadius + sim.playerHalfHeight;
   writePose(eid, x, y, z);
   Player.mode[eid] = Mode.OnFoot;
   Player.speed[eid] = sim.walkSpeed;
   Player.sprintSpeed[eid] = sim.sprintSpeed;
   Player.jumpSpeed[eid] = sim.jumpSpeed;
-  Player.health[eid] = 100;
+  Player.health[eid] = sim.maxHealth;
+  CameraRig.yaw[eid] = Math.PI;
   CameraRig.pitch[eid] = 0.28;
   CameraRig.distance[eid] = sim.cameraDistanceFoot;
   CameraRig.pivot[eid] = sim.cameraPivotFoot;
@@ -47,9 +55,9 @@ export function spawnPlayer(ctx: GameContext, world: World): number {
   RenderRef.mesh[eid] = ctx.renderer.addModel({
     url: characterModel,
     position: { x, y, z },
-    scale: 0.37,
-    offset: { x: 0, y: -(sim.playerRadius + sim.playerHalfHeight), z: 0 },
-    alignYaw: Math.PI,
+    scale: characterScale,
+    offset: { x: 0, y: -(sim.playerRadius + sim.playerHalfHeight) + STREET_LIFT, z: 0 },
+    alignYaw: characterAlignYaw,
     clips: characterClips,
   });
   return eid;

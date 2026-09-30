@@ -6,6 +6,7 @@ export type Sting = 'pickup' | 'dropoff';
 
 export interface AudioBus extends Disposable {
   setEngine(frequency: number, gain: number): void;
+  setVolume(volume: number): void;
   playSting(kind: Sting): void;
 }
 
@@ -13,6 +14,9 @@ export function createSilentAudioBus(): AudioBus {
   return {
     setEngine() {
       /* tests and headless boots stay quiet */
+    },
+    setVolume() {
+      /* no output */
     },
     playSting() {
       /* no output */
@@ -27,11 +31,15 @@ export function createWebAudioBus(target: HTMLElement): AudioBus {
   let context: AudioContext | null = null;
   let engine: OscillatorNode | null = null;
   let engineGain: GainNode | null = null;
+  let master: GainNode | null = null;
+  let masterVolume = 1;
 
   const ensure = () => {
     if (typeof AudioContext === 'undefined') return;
     if (!context) {
       context = new AudioContext();
+      master = context.createGain();
+      master.gain.value = masterVolume;
       engineGain = context.createGain();
       engineGain.gain.value = 0;
       const filter = context.createBiquadFilter();
@@ -42,7 +50,8 @@ export function createWebAudioBus(target: HTMLElement): AudioBus {
       engine.frequency.value = 46;
       engine.connect(filter);
       filter.connect(engineGain);
-      engineGain.connect(context.destination);
+      engineGain.connect(master);
+      master.connect(context.destination);
       engine.start();
     }
     if (context.state === 'suspended') void context.resume();
@@ -57,9 +66,14 @@ export function createWebAudioBus(target: HTMLElement): AudioBus {
       if (frequency > 0) engine.frequency.setTargetAtTime(frequency, time, 0.08);
       engineGain.gain.setTargetAtTime(gain, time, 0.05);
     },
+    setVolume(volume) {
+      masterVolume = Math.min(1, Math.max(0, volume));
+      if (!context || !master) return;
+      master.gain.setTargetAtTime(masterVolume, context.currentTime, 0.03);
+    },
     playSting(kind) {
       ensure();
-      if (!context) return;
+      if (!context || !master) return;
       const notes = kind === 'pickup' ? [523, 784] : [659, 880, 1046];
       const start = context.currentTime;
       for (let i = 0; i < notes.length; i += 1) {
@@ -74,7 +88,7 @@ export function createWebAudioBus(target: HTMLElement): AudioBus {
         gain.gain.exponentialRampToValueAtTime(0.07, when + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.18);
         voice.connect(gain);
-        gain.connect(context.destination);
+        gain.connect(master);
         voice.start(when);
         voice.stop(when + 0.2);
       }
@@ -86,6 +100,7 @@ export function createWebAudioBus(target: HTMLElement): AudioBus {
       context = null;
       engine = null;
       engineGain = null;
+      master = null;
     },
   };
 }

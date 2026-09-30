@@ -46,15 +46,16 @@ export function compassHeading(yaw: number): number {
 
 export function updateCameraLook(ctx: GameContext, world: World): void {
   const locked = ctx.input.pointerLocked;
+  const sensitivity = ctx.look.mouseSensitivity;
   for (const eid of players(world)) {
     applyZoom(eid, InputState.zoom[eid] ?? 0, Player.mode[eid] === Mode.Driving);
     if (!locked) continue;
     const lookX = InputState.lookX[eid] ?? 0;
     const lookY = InputState.lookY[eid] ?? 0;
-    const pitch = (CameraRig.pitch[eid] ?? 0) + lookY * sim.mouseSensitivity;
+    const pitch = (CameraRig.pitch[eid] ?? 0) + lookY * sensitivity;
     CameraRig.pitch[eid] = Math.min(sim.pitchMax, Math.max(sim.pitchMin, pitch));
     if (Player.mode[eid] === Mode.Driving) {
-      const offset = (CameraRig.lookOffset[eid] ?? 0) - lookX * sim.mouseSensitivity;
+      const offset = (CameraRig.lookOffset[eid] ?? 0) - lookX * sensitivity;
       CameraRig.lookOffset[eid] = Math.max(
         -sim.cameraLookLimit,
         Math.min(sim.cameraLookLimit, offset),
@@ -62,7 +63,7 @@ export function updateCameraLook(ctx: GameContext, world: World): void {
       continue;
     }
     CameraRig.lookOffset[eid] = 0;
-    CameraRig.yaw[eid] = (CameraRig.yaw[eid] ?? 0) - lookX * sim.mouseSensitivity;
+    CameraRig.yaw[eid] = (CameraRig.yaw[eid] ?? 0) - lookX * sensitivity;
   }
 }
 

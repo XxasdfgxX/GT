@@ -1,6 +1,6 @@
 /** Which clip the body plays, and how long a punch stays active. */
 
-export type ClipKey = 'idle' | 'walk' | 'run' | 'punch' | 'jump';
+export type ClipKey = 'idle' | 'walk' | 'run' | 'punch' | 'jump' | 'die' | 'sit';
 
 export function chooseClip(
   speed: number,

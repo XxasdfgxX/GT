@@ -6,7 +6,7 @@ import { createBrowserInput } from '../engine/input/browser-input';
 import { createRapierWorld } from '../engine/physics/rapier-world';
 import { createThreeRenderer } from '../engine/render/three-renderer';
 import { buildCostaVerde } from '../content/city';
-import { carModel, characterModel } from '../content/models';
+import { carModel, characterModel, citizens } from '../content/models';
 import { sim } from '../content/sim';
 import { spawnMission } from '../game/features/mission/spawn-mission';
 import { spawnPlayer } from '../game/features/player/spawn-player';
@@ -88,7 +88,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       assets,
       mouseSensitivity: lookSensitivity(launch.settings),
     });
-    const urls = [characterModel, carModel];
+    const urls = [characterModel, carModel, ...citizens.map((person) => person.url)];
     await Promise.all([renderer.prepare(), ...[...urls].map((url) => renderer.preloadModel(url))]);
     const world = createGameWorld();
     spawnMap(ctx, city);

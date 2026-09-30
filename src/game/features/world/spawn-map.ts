@@ -1,141 +1,148 @@
-/** Spawns Costa Verde: island, coast roads, houses, and the original street. */
+/** Spawns the island shell. Chunk meshes and building colliders stream in around the player. */
 
-import type { CostaVerde, CityCollider, CitySolid } from '../../../content/city';
-import { cityFinish } from '../../../content/city';
-import { island, testMap } from '../../../content/map';
-import type { MapContent } from '../../../content/schemas';
+import type { CityMesh } from '../../../content/map/batch';
+import type { CostaVerde } from '../../../content/city';
 import type { GameContext } from '../../../engine/core/context';
-import { quatFromYaw, writeYawMatrix } from '../../../engine/core/math';
-import { roadPieces } from './road';
+import { quatFromYawPitch } from '../../../engine/core/math';
+import { chunkIndex } from '../../../content/map/batch';
 
 const yawScratch = { x: 0, y: 0, z: 0, w: 1 };
 
+interface LiveChunk {
+  meshIds: number[];
+  bodyIds: number[];
+  near: number[];
+  far: number[];
+  always: number[];
+  mode: 'near' | 'far' | 'off';
+}
+
+let bound: CostaVerde | undefined;
+const live = new Map<number, LiveChunk>();
+const byChunk = new Map<number, CityMesh[]>();
+
 export function spawnMap(ctx: GameContext, city: CostaVerde): void {
-  const groundPos = { x: 0, y: -island.thickness / 2, z: island.centerZ };
-  ctx.physics.createStaticBox({
-    position: groundPos,
-    halfExtents: { x: island.width / 2, y: island.thickness / 2, z: island.depth / 2 },
+  bound = city;
+  live.clear();
+  byChunk.clear();
+  const { terrain } = city;
+  ctx.renderer.addTerrain(terrain);
+  ctx.physics.createHeightfield({
+    position: {
+      x: terrain.originX + terrain.sizeX / 2,
+      y: 0,
+      z: terrain.originZ + terrain.sizeZ / 2,
+    },
+    // Rapier counts cells. The buffer counts vertices, so each axis is one shorter.
+    rows: terrain.rows - 1,
+    cols: terrain.cols - 1,
+    heights: city.physicsHeights,
+    scale: { x: terrain.sizeX, y: 1, z: terrain.sizeZ },
   });
   ctx.renderer.addMesh({
     kind: 'box',
-    size: { x: island.width, y: island.thickness, z: island.depth },
-    color: island.color,
-    position: groundPos,
-    roughness: 0.97,
-    metalness: 0,
-    finish: 'grass',
+    size: { x: city.water.sx, y: 0.6, z: city.water.sz },
+    color: 0x0e8fbe,
+    position: { x: city.water.x, y: city.water.y, z: city.water.z },
+    roughness: 0.05,
+    metalness: 0.82,
+    surface: 'water',
   });
-
-  for (const item of city.solids) spawnSolid(ctx, item);
-  for (const road of city.roads) spawnRoad(ctx, road);
-  for (const batch of city.batches) {
-    ctx.renderer.addInstances({
-      kind: batch.kind,
-      size: { x: batch.sx, y: batch.sy, z: batch.sz },
-      color: batch.color,
-      count: batch.count,
-      matrices: batch.matrices,
-      roughness: batch.roughness,
-      metalness: batch.metalness,
-      emissive: batch.emissive,
-      castShadow: batch.castShadow,
-      ...optionalFinish(cityFinish(batch.color)),
-    });
+  for (const mesh of city.meshes) {
+    const list = byChunk.get(mesh.chunk);
+    if (list) list.push(mesh);
+    else byChunk.set(mesh.chunk, [mesh]);
   }
-  for (const box of city.colliders) spawnCollider(ctx, box);
-  for (const box of city.bounds) spawnCollider(ctx, box);
-  for (const building of [...testMap.buildings, ...city.houses]) {
-    quatFromYaw(building.yaw, yawScratch);
-    ctx.renderer.addModel({
-      url: building.model,
-      position: { x: building.x, y: 0, z: building.z },
-      rotation: { x: yawScratch.x, y: yawScratch.y, z: yawScratch.z, w: yawScratch.w },
-      scale: building.scale,
-    });
-    ctx.physics.createStaticBox({
-      position: { x: building.x, y: building.sy / 2, z: building.z },
-      halfExtents: { x: building.sx / 2, y: building.sy / 2, z: building.sz / 2 },
-    });
+  ensureChunk(ctx, -1);
+  show(ctx, -1, 'near');
+}
+
+/** Creates and shows chunks around a point. Returns how many chunks were created. */
+export function streamAround(ctx: GameContext, x: number, z: number, budget: number): number {
+  if (!bound) return 0;
+  const here = chunkIndex(x, z);
+  const hx = here % 64;
+  const hz = Math.floor(here / 64);
+  let created = 0;
+  for (const id of byChunk.keys()) {
+    if (id < 0) continue;
+    const distance = Math.max(Math.abs((id % 64) - hx), Math.abs(Math.floor(id / 64) - hz));
+    const mode = distance <= 1 ? 'near' : distance === 2 ? 'far' : 'off';
+    const existing = live.get(id);
+    if (!existing && mode === 'off') continue;
+    if (!existing) {
+      if (created >= budget) continue;
+      ensureChunk(ctx, id);
+      created += 1;
+    }
+    show(ctx, id, mode);
   }
+  let shown = 0;
+  for (const item of live.values()) if (item.mode !== 'off') shown += 1;
+  ctx.debug.chunks = shown;
+  return created;
 }
 
-function spawnSolid(ctx: GameContext, item: CitySolid): void {
-  ctx.renderer.addMesh({
-    kind: 'box',
-    size: { x: item.sx, y: item.sy, z: item.sz },
-    color: item.color,
-    position: { x: item.x, y: item.y, z: item.z },
-    roughness: item.roughness,
-    metalness: item.metalness,
-    surface: item.surface,
-    ...optionalFinish(item.surface === 'water' ? undefined : cityFinish(item.color)),
-  });
-  if (!item.collide) return;
-  spawnCollider(ctx, {
-    x: item.x,
-    y: item.y,
-    z: item.z,
-    hx: item.sx / 2,
-    hy: item.sy / 2,
-    hz: item.sz / 2,
-  });
+export function activeChunkCount(): number {
+  let count = 0;
+  for (const item of live.values()) if (item.mode !== 'off') count += 1;
+  return count;
 }
 
-function spawnCollider(ctx: GameContext, box: CityCollider): void {
-  ctx.physics.createStaticBox({
-    position: { x: box.x, y: box.y, z: box.z },
-    halfExtents: { x: box.hx, y: box.hy, z: box.hz },
-  });
-}
-
-function spawnRoad(ctx: GameContext, road: MapContent['road']): void {
-  const pieces = roadPieces(road);
-  const lanes = pieces.filter((item) => item.role === 'lane');
-  for (const item of pieces) {
-    if (item.role === 'lane') continue;
-    ctx.renderer.addMesh({
-      kind: 'box',
-      size: { x: item.sx, y: item.sy, z: item.sz },
-      color: item.color,
-      position: { x: item.x, y: item.y, z: item.z },
-      roughness: item.role === 'asphalt' ? 0.94 : 0.82,
-      metalness: 0,
-      finish: roadFinish(item.role),
+function ensureChunk(ctx: GameContext, id: number): void {
+  if (live.has(id) || !bound) return;
+  const record: LiveChunk = {
+    meshIds: [],
+    bodyIds: [],
+    near: [],
+    far: [],
+    always: [],
+    mode: 'off',
+  };
+  for (const mesh of byChunk.get(id) ?? []) {
+    const meshId = ctx.renderer.addInstances({
+      kind: mesh.kind,
+      size: { x: 1, y: 1, z: 1 },
+      color: 0xffffff,
+      count: mesh.count,
+      matrices: mesh.matrices,
+      colors: mesh.colors,
+      unit: true,
+      roughness: mesh.roughness,
+      metalness: mesh.metalness,
+      emissive: mesh.emissive,
+      castShadow: mesh.castShadow,
+      ...(mesh.finish === 'flat' ? {} : { finish: mesh.finish }),
     });
-    if (!item.collide) continue;
-    ctx.physics.createStaticBox({
-      position: { x: item.x, y: item.y, z: item.z },
-      halfExtents: { x: item.sx / 2, y: item.sy / 2, z: item.sz / 2 },
-    });
+    record.meshIds.push(meshId);
+    if (mesh.lod === 'near') record.near.push(meshId);
+    else if (mesh.lod === 'far') record.far.push(meshId);
+    else record.always.push(meshId);
+    ctx.renderer.setMeshVisible(meshId, false);
   }
-  const first = lanes[0];
-  if (!first) return;
-  const matrices = new Float32Array(lanes.length * 16);
-  lanes.forEach((lane, index) => {
-    writeYawMatrix(matrices, index, lane.x, lane.y, lane.z, 0);
-  });
-  ctx.renderer.addInstances({
-    size: { x: first.sx, y: first.sy, z: first.sz },
-    color: first.color,
-    count: lanes.length,
-    matrices,
-    roughness: 0.55,
-    metalness: 0,
-    castShadow: false,
-    finish: 'lane',
-  });
+  for (const box of bound.colliders) {
+    if (box.chunk !== id) continue;
+    quatFromYawPitch(box.yaw, box.pitch, yawScratch);
+    record.bodyIds.push(
+      ctx.physics.createStaticBox({
+        position: { x: box.x, y: box.y, z: box.z },
+        halfExtents: { x: box.hx, y: box.hy, z: box.hz },
+        rotation: { x: yawScratch.x, y: yawScratch.y, z: yawScratch.z, w: yawScratch.w },
+      }),
+    );
+  }
+  live.set(id, record);
 }
 
-function roadFinish(
-  role: 'asphalt' | 'sidewalk' | 'curb' | 'lane',
-): 'asphalt' | 'concrete' | 'lane' {
-  if (role === 'asphalt') return 'asphalt';
-  if (role === 'lane') return 'lane';
-  return 'concrete';
-}
-
-function optionalFinish(
-  finish: 'sand' | 'grass' | 'paint' | undefined,
-): { finish: 'sand' | 'grass' | 'paint' } | Record<string, never> {
-  return finish ? { finish } : {};
+function show(ctx: GameContext, id: number, mode: 'near' | 'far' | 'off'): void {
+  const record = live.get(id);
+  if (!record || record.mode === mode) return;
+  record.mode = mode;
+  const near = mode === 'near';
+  const far = mode === 'far';
+  for (const meshId of record.near) ctx.renderer.setMeshVisible(meshId, near);
+  for (const meshId of record.far) ctx.renderer.setMeshVisible(meshId, far);
+  for (const meshId of record.always) ctx.renderer.setMeshVisible(meshId, mode !== 'off');
+  const solid = mode !== 'off';
+  for (const bodyId of record.bodyIds) ctx.physics.setBodyEnabled(bodyId, solid);
 }

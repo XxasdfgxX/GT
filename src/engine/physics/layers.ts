@@ -13,6 +13,9 @@ export function interactionGroups(membership: number, filter: number): number {
 export const Groups = {
   world: interactionGroups(Membership.world, 0xffff),
   player: interactionGroups(Membership.player, Membership.world | Membership.vehicle),
-  vehicle: interactionGroups(Membership.vehicle, Membership.world | Membership.player),
+  vehicle: interactionGroups(
+    Membership.vehicle,
+    Membership.world | Membership.player | Membership.vehicle,
+  ),
   wheelRay: interactionGroups(Membership.vehicle, Membership.world),
 };

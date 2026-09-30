@@ -9,4 +9,4 @@ if (!(root instanceof HTMLElement)) {
   throw new Error('Elemento #app ausente');
 }
 
-mountStartMenu(root, () => start(root));
+mountStartMenu(root, (choice) => start(root, choice));

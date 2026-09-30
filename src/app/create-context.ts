@@ -8,6 +8,7 @@ import { createConsoleLogger } from '../engine/core/logger';
 import { createClock } from '../engine/core/time';
 import type { Input } from '../engine/input/input';
 import type { PhysicsWorld } from '../engine/physics/physics-world';
+import type { NavMesh } from '../engine/nav/nav-mesh';
 import type { Renderer } from '../engine/render/renderer';
 import { sim } from '../content/sim';
 
@@ -15,8 +16,10 @@ export interface Services {
   input: Input;
   physics: PhysicsWorld;
   renderer: Renderer;
+  nav: NavMesh;
   audio: AudioBus;
   assets: AssetManager;
+  mouseSensitivity: number;
 }
 
 export function createContext(services: Services): GameContext {
@@ -27,7 +30,17 @@ export function createContext(services: Services): GameContext {
     input: services.input,
     physics: services.physics,
     renderer: services.renderer,
+    nav: services.nav,
     audio: services.audio,
     assets: services.assets,
+    look: { mouseSensitivity: services.mouseSensitivity },
+    debug: {
+      trafficDensity: 1,
+      pedDensity: 1,
+      showGraph: false,
+      npcs: 0,
+      traffic: 0,
+      chunks: 0,
+    },
   };
 }

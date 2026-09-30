@@ -29,6 +29,20 @@ A simulação anda a 60 Hz. A renderização usa o tempo que sobrou.
 
 O relógio está em `src/engine/core/time.ts`. A ordem dos sistemas está em `src/game/simulate.ts`.
 
+Depois do carro do jogador, o passo fixo anda o tráfego e os pedestres. O streaming de chunks roda no começo do passo. No quadro, a multidão escolhe quem fica com esqueleto e quem vira cápsula instanciada, e só então a malha interpola.
+
+## Cidade
+
+`content/map` gera a ilha: contorno, altura, grafo de ruas, lotes, fachadas e props. Nada disso importa Three.js. `spawnMap` sobe o terreno e a água na hora. O resto entra por chunk de 128 m, no máximo alguns chunks por quadro, e some quando o jogador se afasta (a malha fica escondida e o collider desliga; não é recriado).
+
+O minimapa lê o contorno, a altura, o grafo e as pegadas.
+
+## Tráfego e pedestres
+
+O tráfego é um pool de corpos cinemáticos que seguem a faixa da direita. No impacto do jogador o corpo vira dinâmico e o `EventBus` emite `vehicle:collision`.
+
+Pedestres andam num navmesh de calçada e faixa (`engine/nav`, `three-pathfinding`). O jogo só vê a interface `NavMesh`. Estados: idle, walk, wait, cross, flee. `pedestrian:hit` sai quando o carro encosta. Não há missão nem polícia em cima desses eventos.
+
 ## Como adicionar um sistema
 
 1. Se precisar de estado, acrescente campos numéricos em `src/game/ecs/components.ts` e inclua o componente na query em `src/game/ecs/queries.ts`.

@@ -18,6 +18,7 @@ import { scaleBoxUv } from './uv-meters';
 export const TILE_METERS: Record<SurfaceFinish, number> = {
   asphalt: 4,
   concrete: 2,
+  sidewalk: 4,
   sand: 3,
   grass: 2,
   paint: 2,
@@ -27,6 +28,7 @@ export const TILE_METERS: Record<SurfaceFinish, number> = {
 const folders: Record<Exclude<SurfaceFinish, 'lane'>, string> = {
   asphalt: 'asphalt',
   concrete: 'concrete',
+  sidewalk: 'sidewalk',
   sand: 'sand',
   grass: 'grass',
   paint: 'plaster',
@@ -35,6 +37,7 @@ const folders: Record<Exclude<SurfaceFinish, 'lane'>, string> = {
 const envIntensity: Record<SurfaceFinish, number> = {
   asphalt: 0.28,
   concrete: 0.35,
+  sidewalk: 0.22,
   sand: 0.22,
   grass: 0.18,
   paint: 0.5,
@@ -141,12 +144,12 @@ export class MaterialLibrary {
       envMapIntensity: envIntensity[finish],
       aoMapIntensity: maps?.ao ? 0.85 : 0,
     });
-    if (finish === 'lane') {
+    if (finish === 'lane' || finish === 'asphalt') {
       material.polygonOffset = true;
-      material.polygonOffsetFactor = -2;
-      material.polygonOffsetUnits = -2;
+      material.polygonOffsetFactor = finish === 'lane' ? -4 : -1;
+      material.polygonOffsetUnits = finish === 'lane' ? -4 : -1;
     }
-    if (finish === 'asphalt') varyAsphalt(material);
+    if (finish === 'sidewalk') material.normalScale.set(1.4, 1.4);
     return material;
   }
 }
@@ -166,24 +169,6 @@ export function tileBoxUvs(
   uv.needsUpdate = true;
   if (!ao) return;
   geometry.setAttribute('uv2', new BufferAttribute(new Float32Array(array), 2));
-}
-
-function varyAsphalt(material: MeshStandardMaterial): void {
-  material.customProgramCacheKey = () => 'asphalt-patch';
-  material.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPatchWorld;')
-      .replace(
-        '#include <project_vertex>',
-        '#include <project_vertex>\nvPatchWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;',
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPatchWorld;')
-      .replace(
-        '#include <map_fragment>',
-        '#include <map_fragment>\nfloat patch = fract(sin(dot(floor(vPatchWorld.xz * 0.12), vec2(127.1, 311.7))) * 43758.5453);\ndiffuseColor.rgb *= mix(0.88, 1.06, patch);',
-      );
-  };
 }
 
 function textureBytes(texture: Texture): number {

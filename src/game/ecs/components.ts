@@ -1,6 +1,6 @@
 /** SoA stores. Entity ids are the indexes. Capacity covers the blockout, not an open city. */
 
-export const CAP = 1024;
+export const CAP = 2048;
 
 export const Transform = {
   px: new Float32Array(CAP),
@@ -36,6 +36,12 @@ export const Player = {
   action: new Float32Array(CAP),
   punchSerial: new Uint16Array(CAP),
   health: new Float32Array(CAP),
+  /** Damage of the swing that is in progress. */
+  punchPower: new Uint8Array(CAP),
+  /** Seconds until the fist connects. Zero means no pending hit. */
+  punchWindow: new Float32Array(CAP),
+  /** 1 on the frame a punch connects. */
+  strike: new Uint8Array(CAP),
 };
 
 export const InputState = {
@@ -52,6 +58,7 @@ export const InputState = {
   lookY: new Float32Array(CAP),
   zoom: new Float32Array(CAP),
   punch: new Uint8Array(CAP),
+  heavy: new Uint8Array(CAP),
 };
 
 export const PhysicsRef = {
@@ -77,6 +84,42 @@ export const Mission = {
 export const Wheel = {
   vehicle: new Uint32Array(CAP),
   index: new Uint8Array(CAP),
+};
+
+export const Traffic = {
+  edge: new Uint16Array(CAP),
+  lane: new Uint8Array(CAP),
+  dir: new Uint8Array(CAP),
+  along: new Float32Array(CAP),
+  speed: new Float32Array(CAP),
+  mode: new Uint8Array(CAP),
+  variant: new Uint8Array(CAP),
+  active: new Uint8Array(CAP),
+};
+
+export const Pedestrian = {
+  state: new Uint8Array(CAP),
+  variant: new Uint8Array(CAP),
+  yaw: new Float32Array(CAP),
+  speed: new Float32Array(CAP),
+  wait: new Float32Array(CAP),
+  tx: new Float32Array(CAP),
+  tz: new Float32Array(CAP),
+  path: new Uint8Array(CAP),
+  count: new Uint8Array(CAP),
+  active: new Uint8Array(CAP),
+  near: new Uint8Array(CAP),
+  /** 1 while this person is the driver of Pedestrian.car. */
+  driving: new Uint8Array(CAP),
+  car: new Uint16Array(CAP),
+  health: new Float32Array(CAP),
+  /** Seconds left on the overhead bar. Each hit sets this back to 5. */
+  hurt: new Float32Array(CAP),
+  /** Seconds until the next counter. */
+  cool: new Float32Array(CAP),
+  /** Seconds left on the punch clip. */
+  swing: new Float32Array(CAP),
+  swingId: new Uint16Array(CAP),
 };
 
 export const CameraRig = {

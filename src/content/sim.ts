@@ -33,6 +33,8 @@ export const simSchema = z.object({
   exitOffset: z.number().positive(),
   playerColor: z.number().int().nonnegative(),
   punchDuration: z.number().positive(),
+  lightPunchDuration: z.number().positive(),
+  maxHealth: z.number().positive(),
 });
 
 export const sim = simSchema.parse({
@@ -66,4 +68,6 @@ export const sim = simSchema.parse({
   exitOffset: 2.1,
   playerColor: 0x3d6b8c,
   punchDuration: 0.92,
+  lightPunchDuration: 0.42,
+  maxHealth: 10,
 });

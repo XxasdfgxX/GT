@@ -63,6 +63,55 @@ export function quatFromYaw(yaw: number, out: Quat): void {
   out.w = Math.cos(half);
 }
 
+/** Yaw around Y, then pitch around local X. Positive pitch lifts local +Z. Scale is full size of a unit mesh. */
+export function writeTransformMatrix(
+  out: Float32Array,
+  index: number,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  pitch: number,
+  sx: number,
+  sy: number,
+  sz: number,
+): void {
+  const cy = Math.cos(yaw);
+  const syaw = Math.sin(yaw);
+  const cp = Math.cos(pitch);
+  const sp = Math.sin(pitch);
+  const o = index * 16;
+  out[o] = cy * sx;
+  out[o + 1] = 0;
+  out[o + 2] = -syaw * sx;
+  out[o + 3] = 0;
+  out[o + 4] = -syaw * sp * sy;
+  out[o + 5] = cp * sy;
+  out[o + 6] = -cy * sp * sy;
+  out[o + 7] = 0;
+  out[o + 8] = syaw * cp * sz;
+  out[o + 9] = sp * sz;
+  out[o + 10] = cy * cp * sz;
+  out[o + 11] = 0;
+  out[o + 12] = x;
+  out[o + 13] = y;
+  out[o + 14] = z;
+  out[o + 15] = 1;
+}
+
+export function quatFromYawPitch(yaw: number, pitch: number, out: Quat): void {
+  const hy = yaw * 0.5;
+  const hp = pitch * 0.5;
+  const sy = Math.sin(hy);
+  const cy = Math.cos(hy);
+  const sp = Math.sin(hp);
+  const cp = Math.cos(hp);
+  out.x = -cy * sp;
+  out.y = sy * cp;
+  out.z = sy * sp;
+  out.w = cy * cp;
+}
+
 export function quatFromAxisAngle(
   ax: number,
   ay: number,

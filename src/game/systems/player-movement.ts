@@ -4,7 +4,7 @@ import { hasComponent, type World } from 'bitecs';
 import { quatFromYaw, type Quat, type Vec3 } from '../../engine/core/math';
 import type { GameContext } from '../../engine/core/context';
 import { sim } from '../../content/sim';
-import { stepAction } from '../play/animate';
+import { punchProfile } from './ped-ai';
 import { CameraRig, InputState, PhysicsRef, Player, Transform, Velocity } from '../ecs/components';
 import { players } from '../ecs/queries';
 
@@ -54,7 +54,10 @@ export function applyLocomotion(
   if (Player.mode[eid] !== Mode.OnFoot) {
     InputState.jump[eid] = 0;
     InputState.punch[eid] = 0;
+    InputState.heavy[eid] = 0;
     Player.action[eid] = 0;
+    Player.punchWindow[eid] = 0;
+    Player.strike[eid] = 0;
     return;
   }
   const speed = InputState.sprint[eid] ? Player.sprintSpeed[eid] : Player.speed[eid];
@@ -74,9 +77,23 @@ export function applyLocomotion(
   if (InputState.jump[eid] && grounded) vertical = Player.jumpSpeed[eid] ?? 0;
   InputState.jump[eid] = 0;
   const punching = InputState.punch[eid] === 1;
-  if (punching) Player.punchSerial[eid] = (Player.punchSerial[eid] ?? 0) + 1;
-  Player.action[eid] = stepAction(Player.action[eid] ?? 0, punching, dt, sim.punchDuration);
+  if (punching && (Player.action[eid] ?? 0) <= 0) {
+    const profile = punchProfile(InputState.heavy[eid] === 1);
+    Player.action[eid] = profile.duration;
+    Player.punchPower[eid] = profile.damage;
+    Player.punchWindow[eid] = profile.hitDelay;
+    Player.punchSerial[eid] = (Player.punchSerial[eid] ?? 0) + 1;
+  } else {
+    Player.action[eid] = Math.max(0, (Player.action[eid] ?? 0) - dt);
+  }
+  const windowLeft = Player.punchWindow[eid] ?? 0;
+  if (windowLeft > 0) {
+    const next = windowLeft - dt;
+    Player.punchWindow[eid] = Math.max(0, next);
+    if (next <= 0) Player.strike[eid] = 1;
+  }
   InputState.punch[eid] = 0;
+  InputState.heavy[eid] = 0;
   Velocity.y[eid] = vertical;
 }
 

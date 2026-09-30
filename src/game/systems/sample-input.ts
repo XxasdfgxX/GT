@@ -19,7 +19,10 @@ export function sampleInputSystem(ctx: GameContext, world: World): void {
     InputState.lookY[eid] = snap.lookY;
     InputState.zoom[eid] = snap.zoom;
     if (snap.jump) InputState.jump[eid] = 1;
-    if (snap.punch) InputState.punch[eid] = 1;
+    if (snap.punch) {
+      InputState.punch[eid] = 1;
+      InputState.heavy[eid] = snap.heavy ? 1 : 0;
+    }
     if (snap.interact) InputState.interact[eid] = 1;
   }
 }

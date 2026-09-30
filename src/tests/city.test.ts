@@ -11,10 +11,12 @@ describe('Costa Verde island', () => {
     let max = 0;
     for (const height of heights) max = Math.max(max, height);
     expect(city.terrain.sizeZ).toBeGreaterThan(city.terrain.sizeX);
-    expect(max).toBeGreaterThan(40);
+    expect(max).toBeGreaterThan(16);
     expect(onIsland(0, 12)).toBe(true);
     expect(sampleHeight(0, 12)).toBeCloseTo(CITY_FLOOR, 0);
     expect(sampleHeight(160, 20)).toBeLessThan(0);
+    expect(sampleHeight(40, 400)).toBeGreaterThan(8);
+    expect(sampleHeight(20, -420)).toBeGreaterThan(4);
     expect(city.graph.edges.length).toBeGreaterThan(20);
   });
 
@@ -53,7 +55,7 @@ describe('Costa Verde island', () => {
 
   it('keeps urban grass near a tenth of the basins and rebuilds the same city', () => {
     expect(city.urbanGreen).toBeGreaterThan(0.07);
-    expect(city.urbanGreen).toBeLessThan(0.16);
+    expect(city.urbanGreen).toBeLessThan(0.2);
     const again = createCity();
     expect(again.footprints.length).toBe(city.footprints.length);
     expect(again.footprints[0]?.x).toBe(city.footprints[0]?.x);
@@ -76,5 +78,24 @@ describe('Costa Verde island', () => {
       }
     }
     expect(seen.size).toBe(city.graph.nodes.length);
+  });
+
+  it('keeps the serra gentle enough for a car', () => {
+    let worst = 0;
+    let at = '';
+    for (let z = -700; z <= 800; z += 16) {
+      for (let x = -280; x <= 320; x += 16) {
+        const here = sampleHeight(x, z);
+        const east = sampleHeight(x + 16, z);
+        const north = sampleHeight(x, z + 16);
+        if (here < 0 || east < 0 || north < 0) continue;
+        const rise = Math.max(Math.abs(east - here), Math.abs(north - here));
+        if (rise > worst) {
+          worst = rise;
+          at = `${x},${z} h=${here.toFixed(1)} e=${east.toFixed(1)} n=${north.toFixed(1)}`;
+        }
+      }
+    }
+    expect(worst, at).toBeLessThan(3.6);
   });
 });

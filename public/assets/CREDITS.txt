@@ -1,3 +1,4 @@
 character.glb — "Man in Suit" by Quaternius, CC0, via poly.pizza.
+people/*.glb — Animated Men Pack and Animated Women Pack by Quaternius, CC0, via poly.pizza.
 car.glb — "Car" by Quaternius, CC0, via poly.pizza.
 buildings/house-*.glb — City Kit Suburban by Kenney, CC0 (https://kenney.nl/assets/city-kit-suburban).

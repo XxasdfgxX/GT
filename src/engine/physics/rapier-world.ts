@@ -4,7 +4,14 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { Collider, RigidBody } from '@dimforge/rapier3d-compat';
 import type { Quat, Vec3 } from '../core/math';
 import { Groups } from './layers';
-import type { PhysicsWorld, StaticBoxDesc, VehicleInput, WheelPose } from './physics-world';
+import type {
+  HeightfieldDesc,
+  KinematicBoxDesc,
+  PhysicsWorld,
+  StaticBoxDesc,
+  VehicleInput,
+  WheelPose,
+} from './physics-world';
 import {
   attachCharacter,
   moveCharacter,
@@ -46,6 +53,7 @@ class RapierPhysics implements PhysicsWorld {
   private readonly linvel = new RAPIER.Vector3(0, 0, 0);
   private readonly connection = new RAPIER.Vector3(0, 0, 0);
   private readonly direction = new RAPIER.Vector3(0, 0, 0);
+  private readonly impulse = new RAPIER.Vector3(0, 0, 0);
 
   constructor(gravityY: number) {
     this.world = new RAPIER.World({ x: 0, y: gravityY, z: 0 });
@@ -67,6 +75,13 @@ class RapierPhysics implements PhysicsWorld {
         desc.position.z,
       ),
     );
+    if (desc.rotation) {
+      this.rotation.x = desc.rotation.x;
+      this.rotation.y = desc.rotation.y;
+      this.rotation.z = desc.rotation.z;
+      this.rotation.w = desc.rotation.w;
+      body.setRotation(this.rotation, true);
+    }
     const collider = this.world.createCollider(
       RAPIER.ColliderDesc.cuboid(
         desc.halfExtents.x,
@@ -76,6 +91,68 @@ class RapierPhysics implements PhysicsWorld {
       body,
     );
     return this.store({ body, collider });
+  }
+
+  createHeightfield(desc: HeightfieldDesc): number {
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(
+        desc.position.x,
+        desc.position.y,
+        desc.position.z,
+      ),
+    );
+    const collider = this.world.createCollider(
+      RAPIER.ColliderDesc.heightfield(
+        desc.rows,
+        desc.cols,
+        desc.heights,
+        desc.scale,
+      ).setCollisionGroups(Groups.world),
+      body,
+    );
+    return this.store({ body, collider });
+  }
+
+  createKinematicBox(desc: KinematicBoxDesc): number {
+    const body = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
+        desc.position.x,
+        desc.position.y,
+        desc.position.z,
+      ),
+    );
+    if (desc.rotation) {
+      this.rotation.x = desc.rotation.x;
+      this.rotation.y = desc.rotation.y;
+      this.rotation.z = desc.rotation.z;
+      this.rotation.w = desc.rotation.w;
+      body.setRotation(this.rotation, true);
+    }
+    const collider = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(
+        desc.halfExtents.x,
+        desc.halfExtents.y,
+        desc.halfExtents.z,
+      ).setCollisionGroups(Groups.vehicle),
+      body,
+    );
+    return this.store({ body, collider });
+  }
+
+  promoteDynamic(id: number, mass: number): void {
+    const record = this.bodies.get(id);
+    if (!record || !record.body.isKinematic()) return;
+    record.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+    record.body.setAdditionalMass(mass, true);
+  }
+
+  applyImpulse(id: number, impulse: Vec3): void {
+    const record = this.bodies.get(id);
+    if (!record) return;
+    this.impulse.x = impulse.x;
+    this.impulse.y = impulse.y;
+    this.impulse.z = impulse.z;
+    record.body.applyImpulse(this.impulse, true);
   }
 
   createCharacter(desc: Parameters<PhysicsWorld['createCharacter']>[0]): number {

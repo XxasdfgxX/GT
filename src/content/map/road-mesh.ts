@@ -4,6 +4,9 @@ import { chunkIndex, type BoxCollider, type CityBatcher } from './batch';
 import { sampleHeight } from './island-shape';
 import { SIDEWALK_WIDTH, type RoadEdge, type RoadGraph, type RoadNode } from './roads';
 
+/** Meters the drawn street sits above the heightfield. Tires and feet use this. */
+export const STREET_LIFT = 0.12;
+
 export interface WalkQuad {
   ax: number;
   az: number;

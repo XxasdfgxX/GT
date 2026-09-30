@@ -12,6 +12,8 @@ import {
   Vehicle,
   Velocity,
   Wheel,
+  Traffic,
+  Pedestrian,
 } from './components';
 
 export function players(world: World): QueryResult {
@@ -24,6 +26,14 @@ export function vehicles(world: World): QueryResult {
 
 export function missions(world: World): QueryResult {
   return query(world, [Mission]);
+}
+
+export function traffic(world: World): QueryResult {
+  return query(world, [Traffic, Transform, PhysicsRef, RenderRef]);
+}
+
+export function pedestrians(world: World): QueryResult {
+  return query(world, [Pedestrian, Transform, RenderRef]);
 }
 
 export function wheels(world: World): QueryResult {

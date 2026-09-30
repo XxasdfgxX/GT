@@ -4,11 +4,13 @@ import type { World } from 'bitecs';
 import { sedan } from '../../content/vehicles';
 import type { GameContext } from '../../engine/core/context';
 import { enginePlayback } from '../play/feel';
-import { InputState, PhysicsRef, Player, Vehicle } from '../ecs/components';
+import { InputState, PhysicsRef, Player, Transform, Vehicle } from '../ecs/components';
 import { players, vehicles } from '../ecs/queries';
 import { Mode } from './player-movement';
 
 const coast = { throttle: 0, brake: 0, steer: 0, handbrake: false };
+const followed: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
+const followedRot = { x: 0, y: 0, z: 0, w: 1 };
 
 export function vehicleDriveSystem(ctx: GameContext, world: World): void {
   let driving = false;
@@ -22,6 +24,9 @@ export function vehicleDriveSystem(ctx: GameContext, world: World): void {
     let brake = InputState.brake[eid] ?? 0;
     const speed = ctx.physics.forwardSpeed(body);
     Vehicle.speed[vehicleEid] = speed;
+    ctx.physics.getTransform(body, followed, followedRot);
+    Transform.px[eid] = followed.x;
+    Transform.pz[eid] = followed.z;
     if (brake > 0 && speed <= 0.4) {
       throttle = -brake;
       brake = 0;

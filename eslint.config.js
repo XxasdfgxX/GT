@@ -14,7 +14,7 @@ const banRapier = {
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'public/**', 'eslint.config.js'],
+    ignores: ['dist/**', 'node_modules/**', 'public/**', 'eslint.config.js', 'scripts/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

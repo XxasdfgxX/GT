@@ -6,6 +6,24 @@ import type { Quat, Vec3 } from '../core/math';
 export interface StaticBoxDesc {
   position: Vec3;
   halfExtents: Vec3;
+  rotation?: Quat;
+}
+
+export interface HeightfieldDesc {
+  position: Vec3;
+  /** Cells along Z. The height buffer has (rows + 1) vertices on that axis. */
+  rows: number;
+  /** Cells along X. The height buffer has (cols + 1) vertices on that axis. */
+  cols: number;
+  /** Column-major vertices, length (rows + 1) * (cols + 1). */
+  heights: Float32Array;
+  scale: Vec3;
+}
+
+export interface KinematicBoxDesc {
+  position: Vec3;
+  halfExtents: Vec3;
+  rotation?: Quat;
 }
 
 export interface CharacterDesc {
@@ -54,6 +72,10 @@ export interface WheelPose {
 export interface PhysicsWorld extends Disposable {
   step(dt: number): void;
   createStaticBox(desc: StaticBoxDesc): number;
+  createHeightfield(desc: HeightfieldDesc): number;
+  createKinematicBox(desc: KinematicBoxDesc): number;
+  promoteDynamic(id: number, mass: number): void;
+  applyImpulse(id: number, impulse: Vec3): void;
   createCharacter(desc: CharacterDesc): number;
   moveCharacter(id: number, delta: Vec3): void;
   isGrounded(id: number): boolean;

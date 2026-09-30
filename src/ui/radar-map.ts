@@ -6,7 +6,8 @@ import { delivery } from '../content/mission';
 import { MissionPhase } from '../game/play/mission';
 
 export const RADAR_SIZE = 180;
-export const RADAR_VIEW_RADIUS = 64;
+/** Wide enough that the downtown radar shows the lagoon and the nearest serra. */
+export const RADAR_VIEW_RADIUS = 240;
 
 const atlasSize = 1024;
 const water = '#1787a8';

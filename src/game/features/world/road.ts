@@ -26,7 +26,7 @@ export function roadPieces(road: Road): RoadPiece[] {
   const curbWidth = 0.28;
   const sidewalkWidth = 5.2;
   const pieces: RoadPiece[] = [
-    piece('asphalt', along, cross, length, road.width, 0.02, 0.04, road.asphalt, false, alongX),
+    piece('asphalt', along, cross, length, road.width, 0.035, 0.04, road.asphalt, false, alongX),
   ];
   const curbOffset = road.width / 2 + curbWidth / 2;
   const walkOffset = road.width / 2 + curbWidth + sidewalkWidth / 2;

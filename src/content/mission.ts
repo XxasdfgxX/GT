@@ -15,7 +15,7 @@ export const missionSchema = z.object({
 });
 
 export const delivery = missionSchema.parse({
-  pickup: { x: 0, y: 0.4, z: 9.2 },
-  dropoff: { x: 0, y: 0.04, z: -40 },
+  pickup: { x: 0, y: 4.7, z: 9.2 },
+  dropoff: { x: 0, y: 4.08, z: -48 },
   radius: 2.6,
 });
