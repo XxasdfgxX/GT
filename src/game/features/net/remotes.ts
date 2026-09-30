@@ -22,7 +22,7 @@ import type {
 import { quatFromYaw, writeTransformMatrix } from '../../../engine/core/math';
 import type { ClipKey } from '../../../engine/render/renderer';
 import { HURT_SECONDS } from '../../systems/ped-ai';
-import { HEALTH_TRACK_WIDTH, healthFillLayout } from '../health-bar';
+import { HEALTH_TRACK_WIDTH, PLAYER_BAR_LIFT, carRoofLift, healthFillLayout } from '../health-bar';
 
 interface Ghost {
   mesh: number;
@@ -33,6 +33,7 @@ interface Ghost {
   shown: boolean;
   swing: number;
   blood: number;
+  roof: number;
 }
 
 const BAR_CAP = 64;
@@ -49,6 +50,20 @@ const fillColors = new Float32Array(BAR_CAP * 3);
 let clock = 0;
 let barMesh = 0;
 let fillMesh = 0;
+
+export function remotePlayerMark(
+  id: number,
+  carId: number,
+): { x: number; y: number; z: number; driving: boolean } | null {
+  if (carId !== 0) {
+    const ghost = ghosts.get(`v${carId}`);
+    if (!ghost?.shown) return null;
+    return { x: ghost.x, y: ghost.y + ghost.roof, z: ghost.z, driving: true };
+  }
+  const ghost = ghosts.get(`p${id}`);
+  if (!ghost?.shown) return null;
+  return { x: ghost.x, y: ghost.y, z: ghost.z, driving: false };
+}
 
 export function resetRemotes(): void {
   ghosts.clear();
@@ -132,7 +147,8 @@ function ensure(
         ? addCar(ctx, id)
         : addPerson(ctx, kind === 'player' ? 'player' : 'npc', id);
   const blood = kind === 'corpse' ? addBlood(ctx) : 0;
-  const ghost: Ghost = { mesh, x: 0, y: -40, z: 0, yaw: 0, shown: false, swing: 0, blood };
+  const roof = kind === 'car' ? carRoof(id) : 0;
+  const ghost: Ghost = { mesh, x: 0, y: -40, z: 0, yaw: 0, shown: false, swing: 0, blood, roof };
   ghosts.set(key, ghost);
   return ghost;
 }
@@ -147,6 +163,11 @@ function addPerson(ctx: GameContext, kind: 'player' | 'npc', id: number): number
     offset: { x: 0, y: feet, z: 0 },
     clips: person?.clips ?? characterClips,
   });
+}
+
+function carRoof(variant: number): number {
+  const spec = trafficCatalog[variant] ?? trafficCatalog[0];
+  return carRoofLift(spec?.height ?? 1.4);
 }
 
 function addCar(ctx: GameContext, variant: number): number {
@@ -237,7 +258,7 @@ function syncBars(
     if (player.car !== 0) continue;
     const ghost = ghosts.get(`p${player.id}`);
     if (!ghost?.shown) continue;
-    count = placeBar(count, ghost.x, ghost.y + 1.05, ghost.z, player.health, cameraYaw);
+    count = placeBar(count, ghost.x, ghost.y + PLAYER_BAR_LIFT, ghost.z, player.health, cameraYaw);
   }
   for (const npc of npcs) {
     if (count >= BAR_CAP) break;
