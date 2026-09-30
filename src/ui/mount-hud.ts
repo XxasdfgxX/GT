@@ -1,8 +1,8 @@
 /** DOM readout. Gameplay never touches document nodes directly. */
 
-import { sim } from '../content/sim';
 import type { DebugState, NetPlayer, NetRosterEntry } from '../engine/core/context';
 import type { Vec3 } from '../engine/core/math';
+import { PLAYER_TAG_LIFT } from '../game/features/health-bar';
 import type { HudModel } from '../game/play/read-hud';
 import { formatCash } from '../game/play/wallet';
 import { MissionPhase } from '../game/play/mission';
@@ -13,12 +13,10 @@ import { routeOnStreets, type StreetIndex } from './street-route';
 import { npcScoreLine, playerScoreLine } from './score-line';
 import type { Waypoint } from './waypoint';
 
-const HEAD_LIFT = sim.playerHalfHeight + sim.playerRadius + 0.35;
-
 export interface Presence {
   selfId: number;
   roster: readonly NetRosterEntry[];
-  peers: readonly NetPlayer[];
+  peers: readonly (NetPlayer & { driving: boolean })[];
   project: (point: Vec3) => { x: number; y: number; behind: boolean };
 }
 
@@ -207,8 +205,20 @@ export function mountHud(
           label.className = 'name-tag';
           tags.append(label);
         }
-        label.textContent = peer.name;
-        const spot = presence.project({ x: peer.x, y: peer.y + HEAD_LIFT, z: peer.z });
+        let mark = label.querySelector('.player-mark');
+        let name = label.querySelector('.player-name');
+        if (!mark || !name) {
+          mark = document.createElement('span');
+          mark.className = 'player-mark';
+          mark.textContent = 'V';
+          name = document.createElement('span');
+          name.className = 'player-name';
+          label.append(mark, name);
+        }
+        if (name instanceof HTMLElement) name.hidden = peer.driving;
+        name.textContent = peer.name;
+        const lift = peer.driving ? 0 : PLAYER_TAG_LIFT;
+        const spot = presence.project({ x: peer.x, y: peer.y + lift, z: peer.z });
         const outside =
           spot.behind || spot.x < 0 || spot.y < 0 || spot.x > width || spot.y > height;
         label.hidden = outside;
