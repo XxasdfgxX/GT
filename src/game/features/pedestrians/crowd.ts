@@ -68,6 +68,7 @@ export function spawnPedCrowd(ctx: GameContext, world: World): void {
       alignYaw: characterAlignYaw,
       offset: { x: 0, y: STREET_LIFT + person.lift, z: 0 },
       clips: person.clips,
+      ...('clipSource' in person ? { clipSource: person.clipSource } : {}),
     });
     ctx.renderer.setMeshVisible(mesh, false);
     nearMesh.push(mesh);

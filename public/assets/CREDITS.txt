@@ -1,6 +1,9 @@
 character.glb — "Man in Suit" by Quaternius, CC0, via poly.pizza.
 people/*.glb — Animated Men Pack and Animated Women Pack by Quaternius, CC0, via poly.pizza.
 people/woman-leaf.glb — "Casual Green Leaf Look" by restore50, CC BY 4.0, https://sketchfab.com/3d-models/casual-green-leaf-look-c8586ab08b6948d8ab0c6f0a4beb438b.
+people/base-f.glb, people/base-m.glb — Universal Base Characters by Quaternius, CC0, https://quaternius.com/packs/universalbasecharacters.html.
+people/peasant-f.glb, people/peasant-m.glb, people/ranger-f.glb, people/ranger-m.glb — Modular Character Outfits - Fantasy by Quaternius, CC0, https://quaternius.com/packs/modularcharacteroutfitsfantasy.html.
+people/universal-anims.glb — Universal Animation Library by Quaternius, CC0, https://quaternius.com/packs/universalanimationlibrary.html.
 car.glb — "Car" by Quaternius, CC0, via poly.pizza.
 aston-dbr1.glb — "1958 Aston Martin DBR1" by OUTPISTON, CC BY-NC-SA 4.0, https://sketchfab.com/3d-models/1958-aston-martin-dbr1-59f309fe359649b1aa5ac54cf5ba17b3.
 ferrari-488.glb — 2019 Ferrari 488 Pista Spider, modelo Sketchfab fornecido para o projeto.

@@ -166,6 +166,7 @@ function addPerson(ctx: GameContext, kind: 'player' | 'npc', id: number): number
     alignYaw: characterAlignYaw,
     offset: { x: 0, y: feet + (person?.lift ?? 0), z: 0 },
     clips: person?.clips ?? characterClips,
+    ...(person && 'clipSource' in person ? { clipSource: person.clipSource } : {}),
   });
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   carBoxesOverlap,
+  boxExit,
   carImpactDamage,
   drivenYawRate,
   followSpeed,
@@ -64,5 +65,13 @@ describe('traffic lanes', () => {
     expect(carBoxesOverlap(0, 0, 0, 0.9, 2.1, 3, 0, 0, 0.9, 2.1)).toBe(false);
     expect(carBoxesOverlap(0, 0, 0, 0.9, 2.1, 0, 5, 0, 0.9, 2.1)).toBe(false);
     expect(carBoxesOverlap(0, 0, 0, 0.9, 2.1, 1.2, 0, Math.PI / 2, 0.9, 2.1)).toBe(true);
+  });
+
+  it('pushes a buried car back out along the shallow side', () => {
+    const exit = boxExit(0, 0, 0, 1, 1, 1.5, 0, 0, 1, 1);
+    expect(exit.depth).toBeCloseTo(0.5, 5);
+    expect(exit.x).toBeCloseTo(-0.5, 5);
+    expect(exit.z).toBeCloseTo(0, 5);
+    expect(boxExit(0, 0, 0, 1, 1, 5, 0, 0, 1, 1).depth).toBe(0);
   });
 });

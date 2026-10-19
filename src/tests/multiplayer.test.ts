@@ -555,6 +555,46 @@ describe('rooms', () => {
     expect(seen?.health).toBe(snapshot(live, victim).self.health);
     expect(seen?.health).toBeLessThan(10);
   });
+
+  it('keeps two npcs from standing on the same corner', () => {
+    const live = createRoom({
+      id: 'costa-1',
+      name: 'Costa 1',
+      spawns,
+      nodes,
+      edges,
+      rng: () => 0,
+      npcCount: 2,
+      carCount: 0,
+      maxPlayers: 2,
+    });
+    const id = join(live) ?? 0;
+    const crowd = snapshot(live, id).npcs;
+    expect(crowd).toHaveLength(2);
+    const first = crowd[0];
+    const second = crowd[1];
+    if (!first || !second) throw new Error('missing npc');
+    expect(Math.hypot(first.x - second.x, first.z - second.z)).toBeGreaterThan(0.8);
+  });
+
+  it('lets a player step away while still inside an npc', () => {
+    const live = room();
+    const id = join(live) ?? 0;
+    const watcher = join(live) ?? 0;
+    const npc = snapshot(live, id).npcs[0];
+    if (!npc) throw new Error('missing npc');
+    let x = npc.x + 2;
+    pushPose(live, id, { x, y: npc.y, z: npc.z, yaw: 0 });
+    while (x > npc.x + 0.5) {
+      x -= 0.1;
+      pushPose(live, id, { x, y: npc.y, z: npc.z, yaw: 0 });
+    }
+    const buried = snapshot(live, watcher).players.find((person) => person.id === id);
+    expect(Math.hypot((buried?.x ?? 0) - npc.x, (buried?.z ?? 0) - npc.z)).toBeLessThan(0.8);
+    pushPose(live, id, { x: npc.x + 0.7, y: npc.y, z: npc.z, yaw: 0 });
+    const left = snapshot(live, watcher).players.find((person) => person.id === id);
+    expect(left?.x).toBeCloseTo(npc.x + 0.7, 5);
+  });
 });
 
 describe('scoreboard', () => {

@@ -114,7 +114,7 @@ export function attachVehicle(world: World, desc: VehicleCreateDesc): VehicleRec
 }
 
 export function applyVehicleInput(record: VehicleRecord, input: VehicleInput): void {
-  const drive = input.throttle * record.engineForce;
+  const drive = input.throttle * record.engineForce + (input.drag ?? 0);
   const brake = input.brake * record.brakeForce;
   const park = input.handbrake ? record.handbrakeForce : 0;
   const steer = input.steer * record.maxSteer * record.steerSign;

@@ -61,4 +61,12 @@ describe('car specs', () => {
     const capped = stepDrivenSpeed(54, { throttle: 1, brake: 0, handbrake: false }, 1, 80, 200);
     expect(capped).toBeCloseTo(maxSpeedMs(200), 5);
   });
+
+  it('lets a driven street car roll down after the throttle is released', () => {
+    const held = stepDrivenSpeed(12, { throttle: 0, brake: 0, handbrake: false }, 1, 80, 200);
+    expect(held).toBeLessThan(12);
+    expect(held).toBeGreaterThan(0);
+    const stopped = stepDrivenSpeed(1, { throttle: 0, brake: 0, handbrake: false }, 1, 80, 200);
+    expect(stopped).toBe(0);
+  });
 });

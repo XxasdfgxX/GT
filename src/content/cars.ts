@@ -57,7 +57,7 @@ export const carCatalog: readonly CarProfile[] = [
   { id: 'ferrari', name: 'Ferrari 488 Pista Spider', torque: 95, maxSpeedKmh: 280, scale: 1 },
   { id: 'gtr', name: 'Nissan GT-R Nismo', torque: 88, maxSpeedKmh: 250, scale: 1 },
   { id: 'bmw', name: 'BMW M340i', torque: 70, maxSpeedKmh: 220, scale: 1 },
-  { id: 'uaz', name: 'UAZ 452', torque: 34, maxSpeedKmh: 120, scale: 1 },
+  { id: 'uaz', name: 'UAZ 452', torque: 50, maxSpeedKmh: 130, scale: 1 },
 ];
 
 const referenceTorque = 50;
@@ -129,7 +129,7 @@ const showcase: Partial<Record<CarId, Omit<CarBody, 'torque' | 'maxSpeedKmh'>>> 
   uaz: {
     url: '/assets/uaz-452.glb',
     scale: 1,
-    mass: 700,
+    mass: 600,
     halfExtents: { x: 1.2, y: 0.77, z: 1.85 },
     wheelRadius: 0.42,
     ride: 0.37,
@@ -167,9 +167,18 @@ export function stepDrivenSpeed(
   if (input.handbrake) next *= Math.max(0, 1 - dt * 5);
   if (input.brake > 0 && next > 0.4) next -= input.brake * 18 * dt;
   else if (input.brake > 0) next -= input.brake * 7 * dt;
-  else next += input.throttle * driveAccel(torque) * dt;
+  else if (input.throttle > 0) next += input.throttle * driveAccel(torque) * dt;
+  else next = coastToStop(next, dt);
   const cap = maxSpeedMs(maxSpeedKmh);
   if (next > cap) next = cap;
   if (next < -6) next = -6;
   return next;
+}
+
+/** Rolling resistance once the driver lifts off. About 4.5 m/s² toward a stop. */
+function coastToStop(speed: number, dt: number): number {
+  const drop = 4.5 * dt;
+  if (speed > 0) return Math.max(0, speed - drop);
+  if (speed < 0) return Math.min(0, speed + drop);
+  return 0;
 }

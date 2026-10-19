@@ -30,6 +30,7 @@ import { Mode } from './player-movement';
 import {
   approachSpeed,
   carBoxesOverlap,
+  boxExit,
   drivenYawRate,
   followSpeed,
   laneOffset,
@@ -53,7 +54,7 @@ let batchCount = 0;
 
 const MODE_DRIVE = 0;
 export const MODE_WRECK = 2;
-const MODE_PLAYER = 3;
+export const MODE_PLAYER = 3;
 const MODE_PARKED = 4;
 
 export function trafficSystem(ctx: GameContext, world: World): void {
@@ -188,9 +189,24 @@ function drive(
   Traffic.speed[eid] = approachSpeed(speed, limit, dt, panic);
   const hx = spec.width / 2;
   const hz = spec.length / 2;
-  if (hitsBuilding(Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, yawOf(eid), hx, hz)) {
+  const hereX = Transform.px[eid] ?? 0;
+  const hereZ = Transform.pz[eid] ?? 0;
+  const buried = buildingPush(hereX, hereZ, yawOf(eid), hx, hz);
+  if (buried.depth > 0.05) {
     Traffic.speed[eid] = 0;
-    Traffic.along[eid] = Math.max(0, (Traffic.along[eid] ?? 0) - 0.45);
+    const nodeA = graph.nodes[edge.a];
+    const nodeB = graph.nodes[edge.b];
+    let step = -0.45;
+    if (nodeA && nodeB && edge.length > 0) {
+      const fx = (nodeB.x - nodeA.x) / edge.length;
+      const fz = (nodeB.z - nodeA.z) / edge.length;
+      const dir = Traffic.dir[eid] ?? 0;
+      const travelX = dir === 0 ? fx : -fx;
+      const travelZ = dir === 0 ? fz : -fz;
+      if (buried.x * travelX + buried.z * travelZ >= 0) step = 0.45;
+    }
+    const along = (Traffic.along[eid] ?? 0) + step;
+    Traffic.along[eid] = Math.max(0, Math.min(edge.length, along));
   } else {
     const speedNow = Traffic.speed[eid] ?? 0;
     if (speedNow > 0 && laneBlocked(world, graph, eid, speedNow * dt)) Traffic.speed[eid] = 0;
@@ -492,14 +508,20 @@ function driveStolen(ctx: GameContext, world: World, eid: number, dt: number): v
       (0.65 + Math.min(Math.abs(speed), spec.topSpeed) * 0.1);
   const prevX = Transform.px[eid] ?? 0;
   const prevZ = Transform.pz[eid] ?? 0;
+  const hx = spec.width / 2;
+  const hz = spec.length / 2;
   pos.x = prevX + Math.sin(yaw) * speed * dt;
   pos.z = prevZ + Math.cos(yaw) * speed * dt;
-  if (blockedAt(world, eid, pos.x, pos.z, yaw, spec.width / 2, spec.length / 2)) {
+  const before = obstruction(world, eid, prevX, prevZ, yaw, hx, hz);
+  const after = obstruction(world, eid, pos.x, pos.z, yaw, hx, hz);
+  if (after > before + 0.001) {
     pos.x = prevX;
     pos.z = prevZ;
     speed = 0;
     Traffic.speed[eid] = 0;
     Vehicle.speed[eid] = 0;
+    const push = deepestExit(world, eid, pos.x, pos.z, yaw, hx, hz);
+    slideOut(pos, push.x, push.z);
   }
   const ground = sampleHeight(pos.x, pos.z);
   pos.y = ground + spec.height / 2;
@@ -588,7 +610,7 @@ function hitsAnother(index: number, count: number): boolean {
   return false;
 }
 
-function blockedAt(
+function obstruction(
   world: World,
   self: number,
   x: number,
@@ -596,13 +618,34 @@ function blockedAt(
   yaw: number,
   hx: number,
   hz: number,
-): boolean {
+): number {
+  return deepestExit(world, self, x, z, yaw, hx, hz).depth;
+}
+
+function deepestExit(
+  world: World,
+  self: number,
+  x: number,
+  z: number,
+  yaw: number,
+  hx: number,
+  hz: number,
+): { x: number; z: number; depth: number } {
+  let bestX = 0;
+  let bestZ = 0;
+  let best = 0;
+  const consider = (push: { x: number; z: number; depth: number }) => {
+    if (push.depth <= best) return;
+    best = push.depth;
+    bestX = push.x;
+    bestZ = push.z;
+  };
   for (const other of traffic(world)) {
     if (other === self || (Traffic.active[other] ?? 0) === 0) continue;
     const spec = trafficCatalog[Traffic.variant[other] ?? 0];
     if (!spec) continue;
-    if (
-      carBoxesOverlap(
+    consider(
+      boxExit(
         x,
         z,
         yaw,
@@ -613,14 +656,12 @@ function blockedAt(
         yawOf(other),
         spec.width / 2,
         spec.length / 2,
-      )
-    ) {
-      return true;
-    }
+      ),
+    );
   }
   for (const car of vehicles(world)) {
-    if (
-      carBoxesOverlap(
+    consider(
+      boxExit(
         x,
         z,
         yaw,
@@ -631,12 +672,41 @@ function blockedAt(
         yawOf(car),
         sedan.halfExtents.x,
         sedan.halfExtents.z,
-      )
-    ) {
-      return true;
-    }
+      ),
+    );
   }
-  return hitsBuilding(x, z, yaw, hx, hz);
+  consider(buildingPush(x, z, yaw, hx, hz));
+  return { x: bestX, z: bestZ, depth: best };
+}
+
+function buildingPush(
+  x: number,
+  z: number,
+  yaw: number,
+  hx: number,
+  hz: number,
+): { x: number; z: number; depth: number } {
+  let bestX = 0;
+  let bestZ = 0;
+  let best = 0;
+  for (const box of buildCostaVerde().colliders) {
+    if (box.hy < 0.4) continue;
+    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+    const push = boxExit(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz);
+    if (push.depth <= best) continue;
+    best = push.depth;
+    bestX = push.x;
+    bestZ = push.z;
+  }
+  return { x: bestX, z: bestZ, depth: best };
+}
+
+function slideOut(target: { x: number; z: number }, pushX: number, pushZ: number): void {
+  const len = Math.hypot(pushX, pushZ);
+  if (len < 1e-4) return;
+  const scale = len > 0.45 ? 0.45 / len : 1;
+  target.x += pushX * scale;
+  target.z += pushZ * scale;
 }
 
 function hitsBuilding(x: number, z: number, yaw: number, hx: number, hz: number): boolean {

@@ -321,7 +321,10 @@ export function createThreeRenderer(
       place(root, desc.position, desc.rotation);
       scene.add(root);
       const mixer = new AnimationMixer(model);
-      const actions = bindClips(mixer, cached.animations, desc.clips);
+      const clipLibrary = desc.clipSource ? models.get(desc.clipSource) : cached;
+      if (desc.clipSource && !clipLibrary)
+        throw new Error(`Animações não carregadas: ${desc.clipSource}`);
+      const actions = bindClips(mixer, clipLibrary?.animations ?? [], desc.clips);
       const id = nextId;
       nextId += 1;
       meshes.set(id, { object: root, mixer, actions });

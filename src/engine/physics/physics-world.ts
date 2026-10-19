@@ -57,6 +57,8 @@ export interface VehicleInput {
   brake: number;
   steer: number;
   handbrake: boolean;
+  /** Signed drive-wheel force. Negative slows a car that is rolling forward. */
+  drag?: number;
 }
 
 export interface WheelPose {
@@ -88,6 +90,8 @@ export interface PhysicsWorld extends Disposable {
   isGrounded(id: number): boolean;
   setBodyEnabled(id: number, enabled: boolean): void;
   setTransform(id: number, position: Vec3, rotation: Quat): void;
+  /** Slides a body on the ground without clearing its velocity. */
+  shiftBody(id: number, dx: number, dz: number): void;
   getTransform(id: number, outPos: Vec3, outRot: Quat): void;
   createVehicle(desc: VehicleCreateDesc): number;
   setVehicleInput(id: number, input: VehicleInput): void;

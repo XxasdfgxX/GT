@@ -34,6 +34,19 @@ const femaleClips = {
 
 const rigged = { scale: characterScale, lift: 0 } as const;
 
+/** Universal Animation Library, same humanoid rig as the base and fantasy outfits. */
+export const universalAnims = '/assets/people/universal-anims.glb';
+
+const universalClips = {
+  idle: 'Idle_Loop',
+  walk: 'Walk_Loop',
+  run: 'Sprint_Loop',
+  punch: 'Punch_Jab',
+  jump: 'Jump_Start',
+  die: 'Death01',
+  sit: 'Sitting_Idle_Loop',
+} as const;
+
 /** Quaternius bodies are about this tall once characterScale is applied. */
 const citizenHeight = 4.845 * characterScale;
 
@@ -56,4 +69,46 @@ export const citizens = [
   { url: '/assets/people/woman-tank.glb', clips: femaleClips, ...rigged },
   { url: '/assets/people/woman-street.glb', clips: femaleClips, ...rigged },
   { url: '/assets/people/woman-dress.glb', clips: femaleClips, ...rigged },
+  {
+    url: '/assets/people/base-f.glb',
+    clips: universalClips,
+    clipSource: universalAnims,
+    scale: 1.0039,
+    lift: 0.0084,
+  },
+  {
+    url: '/assets/people/base-m.glb',
+    clips: universalClips,
+    clipSource: universalAnims,
+    scale: 0.9694,
+    lift: 0.0092,
+  },
+  {
+    url: '/assets/people/peasant-f.glb',
+    clips: universalClips,
+    clipSource: universalAnims,
+    scale: 1.0038,
+    lift: 0.0068,
+  },
+  {
+    url: '/assets/people/peasant-m.glb',
+    clips: universalClips,
+    clipSource: universalAnims,
+    scale: 0.9863,
+    lift: 0.0039,
+  },
+  {
+    url: '/assets/people/ranger-f.glb',
+    clips: universalClips,
+    clipSource: universalAnims,
+    scale: 0.997,
+    lift: 0.004,
+  },
+  {
+    url: '/assets/people/ranger-m.glb',
+    clips: universalClips,
+    clipSource: universalAnims,
+    scale: 0.9591,
+    lift: 0.0038,
+  },
 ] as const;

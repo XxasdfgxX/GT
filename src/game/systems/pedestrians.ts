@@ -11,9 +11,10 @@ import { quatFromYaw } from '../../engine/core/math';
 import { meshYaw } from '../play/aim-cursor';
 import {
   BODY_REACH,
-  circleHitsBox,
   circlesOverlap,
+  pinsCircle,
   shouldTrip,
+  sinksDeeper,
   TRIP_SECONDS,
 } from '../play/overlap';
 import {
@@ -119,7 +120,7 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
   while (active < target && guard < 4) {
     guard += 1;
     const eid = inactive(world);
-    if (eid < 0 || !wake(eid, px, pz)) break;
+    if (eid < 0 || !wake(world, eid, px, pz)) break;
     active += 1;
   }
   if (punch) connectPunch(ctx, world, px, pz, facing, punchDamage);
@@ -257,7 +258,7 @@ function aim(ctx: GameContext, eid: number): boolean {
   return Math.hypot(poi.x - x, poi.z - z) < 80;
 }
 
-function wake(eid: number, px: number, pz: number): boolean {
+function wake(world: World, eid: number, px: number, pz: number): boolean {
   const walks = buildCostaVerde().walks;
   salt = (salt * 17 + 3) % 10007;
   for (let n = 0; n < 24; n += 1) {
@@ -267,6 +268,7 @@ function wake(eid: number, px: number, pz: number): boolean {
     const z = (quad.az + quad.cz) / 2;
     const distance = Math.hypot(x - px, z - pz);
     if (distance < 18 || distance > 70) continue;
+    if (spotBusy(world, x, z)) continue;
     const y = sampleHeight(x, z);
     if (y < 1) continue;
     Transform.ppx[eid] = x;
@@ -292,6 +294,16 @@ function wake(eid: number, px: number, pz: number): boolean {
   return false;
 }
 
+function spotBusy(world: World, x: number, z: number): boolean {
+  for (const other of pedestrians(world)) {
+    if ((Pedestrian.active[other] ?? 0) === 0) continue;
+    if (circlesOverlap(x, z, Transform.px[other] ?? 0, Transform.pz[other] ?? 0, BODY_REACH)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function shove(
   ctx: GameContext,
   world: World,
@@ -304,6 +316,8 @@ function shove(
   for (const eid of pedestrians(world)) {
     if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
     if ((Pedestrian.health[eid] ?? 0) <= 0) continue;
+    const state = Pedestrian.state[eid] ?? 0;
+    if (state === PedState.Trip || state === PedState.Down) continue;
     const nx = Transform.px[eid] ?? 0;
     const nz = Transform.pz[eid] ?? 0;
     if (!circlesOverlap(foot.x, foot.z, nx, nz, BODY_REACH)) continue;
@@ -324,8 +338,6 @@ function shove(
       foot.x = nextX;
       foot.z = nextZ;
     }
-    const state = Pedestrian.state[eid] ?? 0;
-    if (state === PedState.Trip || state === PedState.Down) continue;
     if (!shouldTrip(speed, 0)) continue;
     Pedestrian.state[eid] = PedState.Trip;
     Pedestrian.wait[eid] = TRIP_SECONDS;
@@ -333,11 +345,21 @@ function shove(
   }
 }
 
-function solidAt(world: World, x: number, z: number, self: number): boolean {
+function solidAt(
+  world: World,
+  x: number,
+  z: number,
+  self: number,
+  fromX: number,
+  fromZ: number,
+): boolean {
   for (const eid of players(world)) {
     if (Player.mode[eid] === Mode.Driving) break;
-    if (circlesOverlap(x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH))
+    if (
+      pinsCircle(fromX, fromZ, x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH)
+    ) {
       return true;
+    }
     break;
   }
   for (const eid of pedestrians(world)) {
@@ -348,8 +370,11 @@ function solidAt(world: World, x: number, z: number, self: number): boolean {
     ) {
       continue;
     }
-    if (circlesOverlap(x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH))
+    if (
+      pinsCircle(fromX, fromZ, x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH)
+    ) {
       return true;
+    }
   }
   for (const eid of traffic(world)) {
     if ((Traffic.active[eid] ?? 0) === 0) continue;
@@ -362,23 +387,26 @@ function solidAt(world: World, x: number, z: number, self: number): boolean {
       w: Transform.qw[eid] ?? 1,
     });
     if (
-      circleHitsBox(
+      sinksDeeper(
+        fromX,
+        fromZ,
         x,
         z,
-        0.35,
         Transform.px[eid] ?? 0,
         Transform.pz[eid] ?? 0,
         spec.width / 2,
         spec.length / 2,
         yaw,
+        0.35,
       )
     ) {
       return true;
     }
   }
   for (const box of buildCostaVerde().colliders) {
+    if (box.hy < 0.4) continue;
     if (Math.hypot(box.x - x, box.z - z) > 24) continue;
-    if (circleHitsBox(x, z, 0.35, box.x, box.z, box.hx, box.hz, box.yaw)) return true;
+    if (sinksDeeper(fromX, fromZ, x, z, box.x, box.z, box.hx, box.hz, box.yaw, 0.35)) return true;
   }
   return false;
 }
@@ -407,7 +435,7 @@ function slide(
   const stepDistance = Math.min(len, speed * dt);
   const nx = x + (dx / len) * stepDistance;
   const nz = z + (dz / len) * stepDistance;
-  if (solidAt(world, nx, nz, eid)) {
+  if (solidAt(world, nx, nz, eid, x, z)) {
     Pedestrian.speed[eid] = 0;
     return false;
   }
