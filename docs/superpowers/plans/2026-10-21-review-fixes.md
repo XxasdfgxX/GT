@@ -4,7 +4,7 @@
 
 **Goal:** Deixar o build verde com um portão que impede regressão, e corrigir os defeitos achados na revisão completa: input, ciclo de vida do jogador, tráfego e pedestres, geração do mapa, servidor e desempenho.
 
-**Architecture:** Oito fases, uma branch e um PR por fase, todas saindo de `main`. A Fase 0 vem primeiro porque as outras precisam de `typecheck`, `lint` e `test` passando. As Fases 1 a 5 são independentes entre si. A Fase 6 mexe nos mesmos arquivos da Fase 3 e vem depois dela. A Fase 7 fecha com arquitetura e testes.
+**Architecture:** Oito fases, uma branch e um PR por fase, todas saindo de `master`. A Fase 0 vem primeiro porque as outras precisam de `typecheck`, `lint` e `test` passando. As Fases 1 a 5 são independentes entre si. A Fase 6 mexe nos mesmos arquivos da Fase 3 e vem depois dela. A Fase 7 fecha com arquitetura e testes.
 
 **Tech Stack:** TypeScript 6 (`strict`, `exactOptionalPropertyTypes`), Vitest 5, Zod 4, Three 0.186, Rapier 0.21, bitECS 0.4, `ws` 8.
 
@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- Antes de começar: fazer o merge de `fix/stream-while-driving` em `main` (ou abrir o PR dela). Cada fase sai de `main` atualizada.
+- O tronco é `master` (`main` só tem o commit inicial). Cada fase sai de `master` atualizada, depois do merge da fase anterior quando houver dependência.
 - Branches: `fix/build-green`, `fix/input-render`, `fix/player-lifecycle`, `fix/traffic-peds`, `fix/map-placement`, `fix/server-limits`, `perf/hot-paths`, `chore/architecture-tests`.
 - Ao fim de cada fase: `pnpm typecheck`, `pnpm lint` e `pnpm test` verdes, e uma volta manual com `pnpm play` no que a fase tocou.
 - Testes em `src/tests`, ambiente `node`. A parte pura de cada correção ganha teste. O que depende de DOM ou WebGL é verificado à mão, e o passo diz o que observar.
@@ -71,7 +71,7 @@
 
 **Files:** Create `.github/workflows/ci.yml`
 
-- [x] Em `push` e `pull_request` para `main`: checkout, `pnpm/action-setup`, Node 22 com cache de pnpm, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, `pnpm test`.
+- [x] Em `push` e `pull_request` para `master`: checkout, `pnpm/action-setup`, Node 22 com cache de pnpm, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, `pnpm test`.
 - [ ] Verificar: o PR desta fase roda o job e passa.
 
 ### Task 0.6: LFS e README
