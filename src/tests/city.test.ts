@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
 import { CITY_FLOOR, onIsland, sampleHeight } from '../content/map/island-shape';
 import { SIDEWALK_WIDTH } from '../content/map/roads';
+import { rectsOverlap } from '../content/map/blocks';
 
 describe('Costa Verde island', () => {
   const city = createCity();
@@ -51,6 +52,56 @@ describe('Costa Verde island', () => {
     expect(towers.length).toBeGreaterThan(0);
     expect(shops.length).toBeGreaterThan(0);
     expect(houses.length).toBeGreaterThan(0);
+  });
+
+  it('never stacks two buildings or stands one in a street', () => {
+    const lots = city.footprints.map((lot) => ({
+      x: lot.x,
+      z: lot.z,
+      hx: lot.sx / 2,
+      hz: lot.sz / 2,
+      yaw: lot.yaw,
+    }));
+    let stacked = 0;
+    for (let i = 0; i < lots.length; i += 1) {
+      for (let j = i + 1; j < lots.length; j += 1) {
+        const a = lots[i];
+        const b = lots[j];
+        if (a && b && rectsOverlap(a, b)) stacked += 1;
+      }
+    }
+    expect(stacked).toBe(0);
+    let inStreet = 0;
+    for (const edge of city.graph.edges) {
+      const a = city.graph.nodes[edge.a];
+      const b = city.graph.nodes[edge.b];
+      if (!a || !b) continue;
+      const street = {
+        x: (a.x + b.x) / 2,
+        z: (a.z + b.z) / 2,
+        hx: edge.width / 2 + SIDEWALK_WIDTH,
+        hz: edge.length / 2,
+        yaw: Math.atan2(b.x - a.x, b.z - a.z),
+      };
+      for (const lot of lots) if (rectsOverlap(lot, street)) inStreet += 1;
+    }
+    expect(inStreet).toBe(0);
+  });
+
+  it('tells crossing and touching rectangles apart', () => {
+    const base = { x: 0, z: 0, hx: 2, hz: 3, yaw: 0 };
+    expect(rectsOverlap(base, { ...base, x: 3 })).toBe(true);
+    expect(rectsOverlap(base, { ...base, x: 4 })).toBe(false);
+    // Turned a quarter, hz runs along x: this one spans x 1.5 to 3.5.
+    expect(rectsOverlap(base, { x: 2.5, z: 0, hx: 3, hz: 1, yaw: Math.PI / 2 })).toBe(true);
+    expect(rectsOverlap(base, { x: 3.5, z: 0, hx: 3, hz: 1, yaw: Math.PI / 2 })).toBe(false);
+  });
+
+  it('lights the streets', () => {
+    const lamps = city.meshes
+      .filter((mesh) => mesh.emissive !== 0)
+      .reduce((sum, mesh) => sum + mesh.count, 0);
+    expect(lamps).toBeGreaterThan(100);
   });
 
   it('keeps urban grass near a tenth of the basins and rebuilds the same city', () => {

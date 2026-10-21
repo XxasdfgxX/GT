@@ -9,6 +9,9 @@ import { MissionPhase } from '../game/play/mission';
 import { PromptCode } from '../game/play/prompt';
 import type { RadarMap, WorldPoint } from './radar-map';
 import { drawRadar, missionBlip, northMarker, RADAR_SIZE } from './radar-map';
+
+/** Matches the canvas border in hud.css. */
+const RADAR_BORDER = 4;
 import { routeOnStreets, type StreetIndex } from './street-route';
 import { npcScoreLine, playerScoreLine } from './score-line';
 import type { Waypoint } from './waypoint';
@@ -47,7 +50,10 @@ export function mountHud(
 
   const radar = document.createElement('div');
   radar.className = 'radar';
-  const radarScale = Math.min(window.devicePixelRatio || 1, 2);
+  // The CSS border eats the edge of the box, so the buffer matches the content area
+  // and the 180-unit drawing is scaled down into it instead of blurred.
+  const radarPixels = RADAR_SIZE - 2 * RADAR_BORDER;
+  const radarScale = (Math.min(window.devicePixelRatio || 1, 2) * radarPixels) / RADAR_SIZE;
   const radarCanvas = document.createElement('canvas');
   radarCanvas.width = Math.round(RADAR_SIZE * radarScale);
   radarCanvas.height = Math.round(RADAR_SIZE * radarScale);

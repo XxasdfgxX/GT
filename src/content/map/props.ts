@@ -68,8 +68,11 @@ export function buildProps(
     const rx = Math.cos(yaw);
     const rz = -Math.sin(yaw);
     const inset = 10;
+    // Slots every 12 m on both sides. Lamps stand 24 m apart on one side; trees fill the rest.
     for (let distance = inset; distance < edge.length - inset; distance += 12) {
+      const evenSlot = Math.round((distance - inset) / 12) % 2 === 0;
       for (const side of [-1, 1] as const) {
+        const lampSlot = side === -1 && evenSlot;
         const walk = edge.width / 2 + 0.32 + SIDEWALK_WIDTH * 0.55;
         const x = a.x + fx * distance + rx * side * walk;
         const z = a.z + fz * distance + rz * side * walk;
@@ -77,13 +80,13 @@ export function buildProps(
         const y = sampleHeight(x, z);
         if (y < 1) continue;
         const chunk = chunkIndex(x, z);
-        if (Math.round(distance) % 24 === 0) {
+        if (lampSlot) {
           addLamp(batch, x, y, z, chunk);
         } else {
           addTree(batch, x, y, z, chunk, rng);
           trees += 1;
         }
-        if (edge.kind !== 'coast' && rng() > 0.62 && distance % 24 !== 0) {
+        if (edge.kind !== 'coast' && rng() > 0.62 && !lampSlot) {
           const curb = edge.width / 2 + 0.7;
           const cx = a.x + fx * distance + rx * side * curb;
           const cz = a.z + fz * distance + rz * side * curb;

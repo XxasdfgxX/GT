@@ -86,15 +86,23 @@ function stand(x: number, z: number): number {
   return sampleHeight(x, z) + sim.playerRadius + sim.playerHalfHeight;
 }
 
+/** Meters up the street from the node, clear of the junction box. */
+const OFF_JUNCTION = 12;
+
+/** Middle of the sidewalk a short walk up the first street out of the node. */
 function besideSidewalk(graph: RoadGraph, node: RoadNode): { x: number; z: number } | null {
   const edge = graph.edges.find((item) => item.a === node.id || item.b === node.id);
   if (!edge) return null;
-  const a = graph.nodes.find((item) => item.id === edge.a);
-  const b = graph.nodes.find((item) => item.id === edge.b);
-  if (!a || !b) return null;
-  const dx = b.x - a.x;
-  const dz = b.z - a.z;
-  const length = Math.hypot(dx, dz) || 1;
-  const shift = Math.min(SIDEWALK_WIDTH, edge.width / 2);
-  return { x: node.x + (-dz / length) * shift, z: node.z + (dx / length) * shift };
+  const other = graph.nodes.find((item) => item.id === (edge.a === node.id ? edge.b : edge.a));
+  if (!other) return null;
+  const length = Math.hypot(other.x - node.x, other.z - node.z) || 1;
+  const fx = (other.x - node.x) / length;
+  const fz = (other.z - node.z) / length;
+  const along = Math.min(OFF_JUNCTION, length / 2);
+  // Same line the sidewalk mesh is laid on (road-mesh.ts).
+  const side = edge.width / 2 + 0.32 + SIDEWALK_WIDTH / 2;
+  return {
+    x: node.x + fx * along - fz * side,
+    z: node.z + fz * along + fx * side,
+  };
 }

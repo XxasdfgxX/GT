@@ -26,8 +26,8 @@ await freePorts();
 const children = jobs.map((job) => {
   const child = spawn(node, job.args, { stdio: 'inherit' });
   child.on('exit', (code, signal) => {
-    if (stopping || signal) return;
-    console.error(`[${job.name}] encerrou (${code ?? 0})`);
+    if (stopping) return;
+    console.error(`[${job.name}] encerrou (${signal ?? code ?? 0})`);
     stop();
   });
   return child;
@@ -49,6 +49,12 @@ process.on('SIGTERM', stop);
 async function freePorts() {
   for (const { port, name } of ports) {
     for (const pid of await listeningPids(port)) {
+      const image = await processName(pid);
+      // Gone already. The busy-port wait below reports it if the port stays taken.
+      if (image === '') continue;
+      if (!/^node(\.exe)?$/i.test(image)) {
+        throw new Error(`[play] a porta ${port} está com ${image} (pid ${pid}). Feche-o antes.`);
+      }
       console.info(`[play] encerrando ${name} antigo (pid ${pid}, porta ${port})`);
       await killPid(pid);
     }
@@ -100,6 +106,26 @@ async function unixListeners(port) {
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 1) return [];
     throw error;
+  }
+}
+
+/** Image name of a pid, so a stale game server is stopped and anything else is left alone. */
+async function processName(pid) {
+  try {
+    if (process.platform === 'win32') {
+      const { stdout } = await execFileAsync(
+        'tasklist.exe',
+        ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
+        { windowsHide: true },
+      );
+      // No match prints an INFO line with no comma.
+      if (!stdout.includes(',')) return '';
+      return stdout.trim().split(',')[0]?.replaceAll('"', '') ?? '';
+    }
+    const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'comm=']);
+    return stdout.trim().split('/').at(-1) ?? '';
+  } catch {
+    return '';
   }
 }
 
