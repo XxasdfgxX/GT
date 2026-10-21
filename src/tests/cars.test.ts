@@ -33,8 +33,8 @@ describe('car specs', () => {
     expect(starterCar({ admin: true, car: 'foguete' }).id).toBe('aston');
   });
 
-  it('keeps the UAZ at 120 km/h and the other showcase cars faster', () => {
-    expect(carById('uaz').maxSpeedKmh).toBe(120);
+  it('keeps the UAZ at 130 km/h and the other showcase cars faster', () => {
+    expect(carById('uaz').maxSpeedKmh).toBe(130);
     expect(carById('bmw').maxSpeedKmh).toBe(220);
     expect(carById('gtr').maxSpeedKmh).toBe(250);
     expect(carById('ferrari').maxSpeedKmh).toBe(280);
