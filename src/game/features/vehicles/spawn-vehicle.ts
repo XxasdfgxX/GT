@@ -30,6 +30,9 @@ export function spawnVehicle(
   const position = { x, y, z };
   const yaw = { x: 0, y: 0, z: 0, w: 1 };
   quatFromYaw(at?.yaw ?? sedan.spawnYaw, yaw);
+  // Component arrays outlive the world, so a restart can hand back an id that was driven.
+  Vehicle.occupied[eid] = 0;
+  Vehicle.speed[eid] = 0;
   Vehicle.maxSpeed[eid] = maxSpeedMs(car.maxSpeedKmh);
   const model = carIds.indexOf(carId);
   Vehicle.model[eid] = model < 0 ? 0 : model;

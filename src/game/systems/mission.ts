@@ -15,7 +15,8 @@ export function missionSystem(ctx: GameContext, world: World): void {
     let z = 0;
     for (const eid of players(world)) {
       driving = Player.mode[eid] === Mode.Driving;
-      const target = driving ? (Player.vehicle[eid] ?? eid) : eid;
+      const ride = Player.vehicle[eid] ?? 0;
+      const target = driving && ride > 0 ? ride : eid;
       x = Transform.px[target] ?? 0;
       z = Transform.pz[target] ?? 0;
     }

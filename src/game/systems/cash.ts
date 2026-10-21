@@ -15,6 +15,7 @@ import {
   dropCash,
 } from '../play/wallet';
 import { layLocalCorpse, tickRemains } from '../features/corpse/remain';
+import { abandonRide } from './interaction';
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };
 
@@ -66,6 +67,7 @@ export function cashSystem(ctx: GameContext, world: World): void {
         Transform.pz[eid] ?? 0,
         Player.facing[eid] ?? 0,
       );
+      abandonRide(ctx, world, eid);
       hideBody(ctx, eid);
       Player.life[eid] = RESPAWN_DELAY;
     }

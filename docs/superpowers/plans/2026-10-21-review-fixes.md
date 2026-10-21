@@ -153,42 +153,36 @@
 
 ### Task 2.1: Morrer embarcando ou dirigindo deixa o modo errado
 
-**Files:** Modify `src/game/systems/cash.ts`, `src/game/systems/board-car.ts`, `src/game/play/board-state.ts` · Test: novo `src/tests/player-death.test.ts`
+**Files:** Modify `src/game/systems/interaction.ts`, `src/game/systems/cash.ts`, `src/game/features/vehicles/spawn-vehicle.ts` · Test: novo `src/tests/player-death.test.ts`
 
-- [ ] Teste primeiro, com o mundo de `enter-car.test.ts`:
-  1. Armar o embarque e avançar até a fase `walk`, depois zerar `Player.health` e rodar `cashSystem` e `boardCarSystem` por 2 s. Expected: `Player.mode === Mode.OnFoot`, `Player.vehicle === 0`, `currentBoard() === null`, e o corpo reaparece em `home`.
-  2. A mesma coisa já em `Mode.Driving`. Expected: o mesmo resultado, e o carro fica sem input (acelerador 0, freio de mão).
-- [ ] Na hora da morte (o bloco que chama `hideBody`): `clearBoard()`, `Player.mode = OnFoot`, `Player.vehicle = 0`, input do carro zerado. Se for um carro de tráfego roubado, devolver ao estado parado (a Task 3.4 zera a velocidade).
-- [ ] `boardCarSystem`: sair cedo se `Player.health <= 0`.
-- [ ] `vehicleDriveSystem`: não aplicar input se o motorista está morto.
+- [x] Teste primeiro, com o mundo de `enter-car.test.ts` e a ordem de `fixedStep` (interação, dinheiro, embarque): morrer na caminhada até a porta e morrer ao volante. Expected nos dois casos: `OnFoot`, `vehicle === 0`, carro livre, nenhum embarque armado, e o corpo volta visível e com vida.
+- [x] `abandonRide` em `interaction.ts`: limpa o embarque ou solta o banco (tráfego fica estacionado, carro do jogador fica livre), volta a câmera a pé e emite `player:exited-vehicle`. `cashSystem` chama na hora da morte, antes de `hideBody`. Com o embarque limpo, `boardCarSystem` não tem mais o que fazer, e não precisa checar vida.
+- [x] `interactionSystem` ignora `E` com o jogador morto: antes, o corpo escondido podia armar um embarque durante o segundo de respawn.
+- [x] Achado no caminho: os arrays de componente são do módulo e sobrevivem ao mundo. `spawnVehicle` não zerava `Vehicle.occupied`, então reiniciar a sessão dirigindo devolvia o mesmo id marcado como ocupado: não dava para entrar no carro e ele ficava sem freio de mão. Agora zera `occupied` e `speed`. O problema geral está na Task 7.5.
 
 ### Task 2.2: Embarque sobrevive à troca de mundo
 
-**Files:** Modify `src/app/bootstrap.ts` (ou o ponto de teardown do mundo)
+**Files:** Modify `src/app/bootstrap.ts`
 
-- [ ] Chamar `clearBoard()` ao destruir e ao criar um mundo, junto dos outros resets de módulo (`resetNetRide`, `resetRemotes`).
+- [x] `clearBoard()` em `start`, junto de `resetRemotes`, `resetRemains` e `resetNetRide`.
 
-### Task 2.3: Dinheiro é recolhido na porta, não no carro
+### Task 2.3: Dinheiro é recolhido na porta, não no carro — descartada
 
-**Files:** Modify `src/game/systems/cash.ts` (`collect`)
-
-- [ ] Ler a posição com `playerFocus` (ou o carro quando `Mode.Driving`), não com o `Transform` do corpo.
-- [ ] Teste: jogador dirigindo, corpo na porta, pickup ao lado do carro a 40 m da porta. Expected: o dinheiro entra.
+Não é defeito. `vehicleDriveSystem` grava a posição do carro no `Transform` do jogador antes de `cashSystem` no mesmo passo, então a coleta já acontece em volta do carro. A Task 3.10 tira essa dependência da ordem.
 
 ### Task 2.4: Missão e HUD leem a entidade 0
 
 **Files:** Modify `src/game/systems/mission.ts`, `src/game/play/read-hud.ts`
 
-- [ ] Trocar `Player.vehicle[eid] ?? eid` por `const ride = Player.vehicle[eid] ?? 0; const focus = ride > 0 ? ride : eid;`, como em `player-focus.ts`.
-- [ ] Teste em `player-focus.test.ts` ou num novo `read-hud.test.ts`: com `vehicle = 0`, a velocidade lida é a do jogador.
+- [x] `const ride = Player.vehicle[eid] ?? 0; const target = driving && ride > 0 ? ride : eid;`, como em `player-focus.ts`. Sem teste: com o modo `Driving` o veículo nunca é 0 hoje. É só guarda.
 
 ### Task 2.5: Bordas numéricas do HUD
 
 **Files:** Modify `src/game/features/health-bar.ts`, `src/ui/mount-hud.ts` (`formatTime`)
 
-- [ ] Barra de vida: `const ratio = Number.isFinite(h) ? clamp(h / max, 0, 1) : 0`.
-- [ ] `formatTime`: arredondar primeiro para décimos (`Math.round(t * 10) / 10`) e só depois dividir em minutos e segundos.
-- [ ] Testes: `health-bar.test.ts` com `NaN`. `formatTime(59.96) === '1:00.0'` (exportar `formatTime` se preciso).
+- [x] Barra de vida: `NaN` vira barra vazia.
+- [x] `formatTime` arredonda para décimos antes de dividir em minutos, e foi exportada.
+- [x] Testes: `health-bar.test.ts` com `NaN` e o novo `hud-time.test.ts` (`59.96 → '1:00.0'`).
 
 ---
 
@@ -476,6 +470,14 @@ Medir antes e depois: um contador de quadros em `?debug` com o tempo médio de `
   - `sky.test.ts`: remover ou trocar por um teste com comportamento.
 
 ---
+
+### Task 7.5: Componentes sujos entre sessões
+
+**Files:** Modify `src/game/ecs/components.ts`, `src/game/ecs/world.ts` · Test novo `src/tests/world-reset.test.ts`
+
+- [ ] Os arrays SoA são do módulo e não zeram quando um mundo novo nasce. bitecs reaproveita os ids a partir de 1, então qualquer campo que o spawn não grava herda o valor da sessão anterior (a Task 2.1 achou `Vehicle.occupied`).
+- [ ] `createGameWorld` zera todos os arrays de `components.ts` (`fill(0)` em cada campo de cada componente, por uma lista exportada). Custa um laço curto na carga, não no quadro.
+- [ ] Teste: escrever lixo em campos de `Player`, `Pedestrian`, `Traffic` e `Vehicle`, criar um mundo, e conferir que estão zerados.
 
 ## Ordem sugerida e tamanho
 
