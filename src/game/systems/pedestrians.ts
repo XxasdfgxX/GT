@@ -54,8 +54,6 @@ let salt = 3;
 export function pedestrianSystem(ctx: GameContext, world: World): void {
   const city = buildCostaVerde();
   const dt = ctx.time.fixedDt;
-  let px = 0;
-  let pz = 12;
   let carX = 0;
   let carZ = 0;
   let carSpeed = 0;
@@ -65,9 +63,10 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
   let playerEid = -1;
   let punchDamage = 2;
   let speed = 0;
+  const focus = playerFocus(world);
+  let px = focus.x;
+  let pz = focus.z;
   for (const eid of players(world)) {
-    px = Transform.px[eid] ?? 0;
-    pz = Transform.pz[eid] ?? 0;
     facing = Player.facing[eid] ?? 0;
     playerEid = eid;
     speed = Math.hypot(Velocity.x[eid] ?? 0, Velocity.z[eid] ?? 0);
@@ -75,10 +74,9 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
     punchDamage = Player.punchPower[eid] ?? 2;
     if (Player.mode[eid] === Mode.Driving) {
       driving = true;
-      const vehicleEid = Player.vehicle[eid] ?? 0;
-      carX = Transform.px[vehicleEid] ?? px;
-      carZ = Transform.pz[vehicleEid] ?? pz;
-      carSpeed = Math.abs(Vehicle.speed[vehicleEid] ?? 0);
+      carX = px;
+      carZ = pz;
+      carSpeed = Math.abs(Vehicle.speed[Player.vehicle[eid] ?? 0] ?? 0);
     }
     break;
   }
@@ -96,7 +94,8 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
       continue;
     }
     const toCar = Math.hypot((Transform.px[eid] ?? 0) - carX, (Transform.pz[eid] ?? 0) - carZ);
-    const fleeing = driving && shouldFlee(carSpeed, toCar, toCar < 1.7);
+    const alive = (Pedestrian.health[eid] ?? 0) > 0;
+    const fleeing = alive && driving && shouldFlee(carSpeed, toCar, toCar < 1.7);
     if (fleeing && (Pedestrian.state[eid] ?? 0) !== PedState.Flee) {
       if (toCar < 1.7) ctx.events.emit('pedestrian:hit', { pedestrian: eid, speed: carSpeed });
       Pedestrian.state[eid] = PedState.Flee;
@@ -210,7 +209,22 @@ function step(
   const count = Pedestrian.count[eid] ?? 0;
   const tx = count > 0 ? (pathX[eid * POINTS + index] ?? 0) : (Pedestrian.tx[eid] ?? px);
   const tz = count > 0 ? (pathZ[eid * POINTS + index] ?? 0) : (Pedestrian.tz[eid] ?? pz);
-  if (!slide(world, eid, tx, tz, speed, dt)) return;
+  if (!slide(world, eid, tx, tz, speed, dt)) {
+    if ((Pedestrian.speed[eid] ?? 0) > 0) {
+      Pedestrian.stuck[eid] = 0;
+      return;
+    }
+    // Two walkers head-on block each other forever. Give up and pick a new errand.
+    const stuck = (Pedestrian.stuck[eid] ?? 0) + dt;
+    Pedestrian.stuck[eid] = stuck;
+    if (stuck < STUCK_SECONDS) return;
+    Pedestrian.stuck[eid] = 0;
+    Pedestrian.state[eid] = PedState.Idle;
+    Pedestrian.wait[eid] = 0.3 + (eid % 4) * 0.35;
+    Pedestrian.count[eid] = 0;
+    return;
+  }
+  Pedestrian.stuck[eid] = 0;
   const next = index + 1;
   if (count > 0 && next < count) {
     Pedestrian.path[eid] = next;
@@ -284,11 +298,7 @@ function wake(world: World, eid: number, px: number, pz: number): boolean {
     Pedestrian.wait[eid] = (salt % 8) * 0.15;
     Pedestrian.count[eid] = 0;
     Pedestrian.health[eid] = 10;
-    Pedestrian.hurt[eid] = 0;
-    Pedestrian.cool[eid] = 0;
-    Pedestrian.swing[eid] = 0;
-    Pedestrian.speed[eid] = 0;
-    Pedestrian.corpse[eid] = 0;
+    freshBody(eid);
     return true;
   }
   return false;
@@ -366,7 +376,8 @@ function solidAt(
     if (
       eid === self ||
       (Pedestrian.active[eid] ?? 0) === 0 ||
-      (Pedestrian.driving[eid] ?? 0) === 1
+      (Pedestrian.driving[eid] ?? 0) === 1 ||
+      (Pedestrian.health[eid] ?? 0) <= 0
     ) {
       continue;
     }
@@ -502,6 +513,7 @@ function inactive(world: World): number {
   return -1;
 }
 
+const STUCK_SECONDS = 1.5;
 const PUNCH_REACH = 1.85;
 const FIGHT_REACH = 1.7;
 
@@ -626,9 +638,19 @@ export function attachDriver(
   Pedestrian.state[eid] = PedState.Idle;
   Pedestrian.count[eid] = 0;
   Pedestrian.health[eid] = 10;
-  Pedestrian.hurt[eid] = 0;
+  freshBody(eid);
   placeDriver(eid, x, ground, z, yaw, scale);
   return true;
+}
+
+/** A pooled ped may have been culled mid-fight or as a corpse. Clear what would carry over. */
+function freshBody(eid: number): void {
+  Pedestrian.hurt[eid] = 0;
+  Pedestrian.cool[eid] = 0;
+  Pedestrian.swing[eid] = 0;
+  Pedestrian.corpse[eid] = 0;
+  Pedestrian.stuck[eid] = 0;
+  Pedestrian.speed[eid] = 0;
 }
 
 export function seatDriver(
@@ -659,6 +681,7 @@ export function ejectDriver(world: World, car: number, x: number, z: number, yaw
   Pedestrian.state[eid] = PedState.Flee;
   Pedestrian.wait[eid] = 2.4;
   Pedestrian.count[eid] = 0;
+  freshBody(eid);
   Pedestrian.tx[eid] = px + Math.sin(side) * 8;
   Pedestrian.tz[eid] = pz + Math.cos(side) * 8;
   Transform.ppx[eid] = px;

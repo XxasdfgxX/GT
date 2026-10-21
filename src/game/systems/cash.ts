@@ -16,6 +16,7 @@ import {
 } from '../play/wallet';
 import { layLocalCorpse, tickRemains } from '../features/corpse/remain';
 import { abandonRide } from './interaction';
+import { playerFocus } from '../play/player-focus';
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };
 
@@ -48,25 +49,13 @@ export function cashSystem(ctx: GameContext, world: World): void {
   for (const eid of players(world)) {
     if ((Player.health[eid] ?? 0) > 0) continue;
     if ((Player.life[eid] ?? 0) <= 0 && (Player.hidden[eid] ?? 0) === 0) {
+      const focus = playerFocus(world);
       const dropped = dropCash(Player.cash[eid] ?? 0);
       Player.cash[eid] = dropped.balance;
       if (dropped.dropped > 0) {
-        spawnPickup(
-          ctx,
-          world,
-          Transform.px[eid] ?? 0,
-          Transform.py[eid] ?? 0,
-          Transform.pz[eid] ?? 0,
-          dropped.dropped,
-        );
+        spawnPickup(ctx, world, focus.x, Transform.py[eid] ?? 0, focus.z, dropped.dropped);
       }
-      layLocalCorpse(
-        ctx,
-        Transform.px[eid] ?? 0,
-        Transform.py[eid] ?? 0,
-        Transform.pz[eid] ?? 0,
-        Player.facing[eid] ?? 0,
-      );
+      layLocalCorpse(ctx, focus.x, Transform.py[eid] ?? 0, focus.z, Player.facing[eid] ?? 0);
       abandonRide(ctx, world, eid);
       hideBody(ctx, eid);
       Player.life[eid] = RESPAWN_DELAY;
@@ -92,8 +81,9 @@ function collect(ctx: GameContext, world: World): void {
   let player = -1;
   for (const eid of players(world)) {
     if ((Player.health[eid] ?? 0) <= 0) return;
-    px = Transform.px[eid] ?? 0;
-    pz = Transform.pz[eid] ?? 0;
+    const focus = playerFocus(world);
+    px = focus.x;
+    pz = focus.z;
     player = eid;
     break;
   }

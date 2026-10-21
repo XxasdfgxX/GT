@@ -146,6 +146,18 @@ class RapierPhysics implements PhysicsWorld {
     record.body.setAdditionalMass(mass, true);
   }
 
+  demoteKinematic(id: number): void {
+    const record = this.bodies.get(id);
+    if (!record || record.body.isKinematic()) return;
+    this.linvel.x = 0;
+    this.linvel.y = 0;
+    this.linvel.z = 0;
+    record.body.setLinvel(this.linvel, false);
+    record.body.setAngvel(this.linvel, false);
+    record.body.setAdditionalMass(0, false);
+    record.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+  }
+
   applyImpulse(id: number, impulse: Vec3): void {
     const record = this.bodies.get(id);
     if (!record) return;

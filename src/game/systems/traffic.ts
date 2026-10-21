@@ -27,6 +27,7 @@ import { enginePlayback } from '../play/feel';
 import { attachDriver, ejectDriver, releaseDriver, seatDriver } from './pedestrians';
 import { TRAFFIC_POOL } from '../features/traffic/pool';
 import { Mode } from './player-movement';
+import { playerFocus } from '../play/player-focus';
 import {
   approachSpeed,
   carBoxesOverlap,
@@ -61,25 +62,19 @@ export function trafficSystem(ctx: GameContext, world: World): void {
   const graph = buildCostaVerde().graph;
   const dt = ctx.time.fixedDt;
   const phase = Math.floor((ctx.time.tick * dt) / 6) % 2;
-  let px = 0;
-  let pz = 12;
+  const focus = playerFocus(world);
+  const px = focus.x;
+  const pz = focus.z;
   let camYaw = 0;
   let playerSpeed = 0;
-  let playerX = 0;
-  let playerZ = 0;
   let driving = false;
   let onFoot = false;
   for (const eid of players(world)) {
-    px = Transform.px[eid] ?? 0;
-    pz = Transform.pz[eid] ?? 0;
     camYaw = CameraRig.yaw[eid] ?? 0;
     onFoot = Player.mode[eid] !== Mode.Driving;
     if (Player.mode[eid] === Mode.Driving) {
       driving = true;
-      const vehicleEid = Player.vehicle[eid] ?? 0;
-      playerX = Transform.px[vehicleEid] ?? px;
-      playerZ = Transform.pz[vehicleEid] ?? pz;
-      playerSpeed = Math.abs(Vehicle.speed[vehicleEid] ?? 0);
+      playerSpeed = Math.abs(Vehicle.speed[Player.vehicle[eid] ?? 0] ?? 0);
     }
     break;
   }
@@ -111,7 +106,7 @@ export function trafficSystem(ctx: GameContext, world: World): void {
       continue;
     }
     drive(ctx, world, graph, eid, dt, phase, onFoot ? { x: px, z: pz } : undefined);
-    if (driving) hitPlayer(ctx, world, eid, playerX, playerZ, playerSpeed);
+    if (driving) hitPlayer(ctx, world, eid, px, pz, playerSpeed);
     active += 1;
   }
   unstick(ctx, world, graph);
@@ -218,7 +213,11 @@ function drive(
       if (!edge.oneWay) {
         Traffic.dir[eid] = (Traffic.dir[eid] ?? 0) === 0 ? 1 : 0;
         Traffic.along[eid] = 1;
-      } else park(ctx, world, eid);
+      } else {
+        // place() would seat a fresh driver in the car that was just put away.
+        park(ctx, world, eid);
+        return;
+      }
     } else {
       Traffic.edge[eid] = picked.edge;
       Traffic.dir[eid] = picked.dir;
@@ -404,7 +403,8 @@ function activate(
   return false;
 }
 
-function pickNext(
+/** Straightest way on at the far node. Right angles count; only a turn back past ~120° does not. */
+export function pickNext(
   graph: RoadGraph,
   edge: RoadEdge,
   dir: number,
@@ -417,7 +417,7 @@ function pickNext(
   const fx = dir === 0 ? (b.x - a.x) / edge.length : (a.x - b.x) / edge.length;
   const fz = dir === 0 ? (b.z - a.z) / edge.length : (a.z - b.z) / edge.length;
   let best = -1;
-  let bestDot = 0.2;
+  let bestDot = -0.5;
   let bestDir = 0;
   for (const other of graph.edges) {
     if (other.id === edge.id) continue;
@@ -473,7 +473,10 @@ function park(ctx: GameContext, world: World, eid: number): void {
   releaseDriver(world, eid);
   Traffic.active[eid] = 0;
   Traffic.mode[eid] = 0;
-  ctx.physics.setBodyEnabled(PhysicsRef.body[eid] ?? 0, false);
+  Traffic.speed[eid] = 0;
+  const body = PhysicsRef.body[eid] ?? 0;
+  ctx.physics.demoteKinematic(body);
+  ctx.physics.setBodyEnabled(body, false);
   ctx.renderer.setMeshVisible(RenderRef.mesh[eid] ?? 0, false);
 }
 

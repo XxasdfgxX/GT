@@ -86,6 +86,7 @@ function enterTraffic(ctx: GameContext, world: World, eid: number, car: number):
   const yaw = yawFromQuat(rotation);
   if ((Traffic.mode[car] ?? 0) === MODE_DRIVE) ejectDriver(world, car, position.x, position.z, yaw);
   Traffic.mode[car] = MODE_PARKED;
+  Traffic.speed[car] = 0;
   holdStill(eid);
   armBoard(eid, car, 'traffic');
   Player.mode[eid] = Mode.Boarding;
@@ -112,14 +113,22 @@ export function leaveVehicle(ctx: GameContext, world: World, eid: number): void 
   exitVehicle(ctx, world, eid);
 }
 
+/** A stolen lane car stops where it was left. Its stored speed would launch it on re-entry. */
+function parkRide(world: World, ride: number): void {
+  if (hasComponent(world, ride, Traffic)) {
+    Traffic.mode[ride] = MODE_PARKED;
+    Traffic.speed[ride] = 0;
+    Vehicle.speed[ride] = 0;
+  } else Vehicle.occupied[ride] = 0;
+}
+
 /** Death drops the door walk or the seat. The body is placed by the respawn, not here. */
 export function abandonRide(ctx: GameContext, world: World, eid: number): void {
   const mode = Player.mode[eid];
   if (mode === Mode.Boarding) clearBoard();
   if (mode === Mode.Driving) {
     const ride = Player.vehicle[eid] ?? 0;
-    if (hasComponent(world, ride, Traffic)) Traffic.mode[ride] = MODE_PARKED;
-    else Vehicle.occupied[ride] = 0;
+    parkRide(world, ride);
     CameraRig.distance[eid] = sim.cameraDistanceFoot;
     CameraRig.pivot[eid] = sim.cameraPivotFoot;
     ctx.events.emit('player:exited-vehicle', { vehicle: ride });
@@ -165,8 +174,7 @@ function exitVehicle(ctx: GameContext, world: World, eid: number): void {
   const mesh = RenderRef.mesh[eid] ?? 0;
   if (mesh !== 0) ctx.renderer.setMeshVisible(mesh, true);
   Player.mode[eid] = Mode.OnFoot;
-  if (hasComponent(world, vehicleEid, Traffic)) Traffic.mode[vehicleEid] = MODE_PARKED;
-  else Vehicle.occupied[vehicleEid] = 0;
+  parkRide(world, vehicleEid);
   Velocity.x[eid] = 0;
   Velocity.y[eid] = 0;
   Velocity.z[eid] = 0;

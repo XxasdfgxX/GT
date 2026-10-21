@@ -6,21 +6,23 @@ import { players } from '../ecs/queries';
 import { Mode } from '../systems/player-movement';
 
 const fallback = { x: 0, z: 12 };
+const focus = { x: 0, z: 0 };
 
-export function playerFocus(world: World): { x: number; z: number } {
-  let x = fallback.x;
-  let z = fallback.z;
+/** The only answer to "where is the player". Shared scratch: read it before the next call. */
+export function playerFocus(world: World): Readonly<{ x: number; z: number }> {
+  focus.x = fallback.x;
+  focus.z = fallback.z;
   for (const eid of players(world)) {
-    x = Transform.px[eid] ?? x;
-    z = Transform.pz[eid] ?? z;
+    focus.x = Transform.px[eid] ?? focus.x;
+    focus.z = Transform.pz[eid] ?? focus.z;
     if (Player.mode[eid] === Mode.Driving) {
       const ride = Player.vehicle[eid] ?? 0;
       if (ride > 0) {
-        x = Transform.px[ride] ?? x;
-        z = Transform.pz[ride] ?? z;
+        focus.x = Transform.px[ride] ?? focus.x;
+        focus.z = Transform.pz[ride] ?? focus.z;
       }
     }
     break;
   }
-  return { x, z };
+  return focus;
 }

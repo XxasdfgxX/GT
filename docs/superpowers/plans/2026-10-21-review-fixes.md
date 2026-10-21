@@ -188,79 +188,79 @@ Não é defeito. `vehicleDriveSystem` grava a posição do carro no `Transform` 
 
 ## Fase 3 — Tráfego e pedestres (`fix/traffic-peds`)
 
+Testes novos em `src/tests/traffic-peds.test.ts`. Cada um falha com a correção dele desfeita (conferido arquivo a arquivo).
+
 ### Task 3.1: Pedestres compartilham malha alheia
 
 **Files:** Modify `src/game/features/pedestrians/crowd.ts`
 
-- [ ] Antes de distribuir os slots próximos, zerar `RenderRef.mesh` de **todo** pedestre que não ficou com slot neste quadro, inclusive inativos e motoristas. A forma mais simples: um laço no começo que zera `RenderRef.mesh` de todos e deixa a atribuição repor os de perto. O laço "far" deixa de zerar.
-- [ ] Teste (com um `renderer` falso, como nos testes existentes): pedestre A pega o slot M, vira motorista, e o pedestre B pega M. Expected: `RenderRef.mesh[A] === 0`.
+- [x] O laço "far" zera `RenderRef.mesh` de todo pedestre sem slot neste quadro, antes de pular inativos e motoristas.
+- [x] Teste: um pedestre pega um slot, vira motorista a 200 m, e perde a referência.
 
 ### Task 3.2: Carro estacionado recebe motorista novo
 
 **Files:** Modify `src/game/systems/traffic.ts` (`drive`)
 
-- [ ] Depois de `park(ctx, world, eid)`, dar `return` antes de `place(...)`.
-- [ ] Teste: uma aresta de mão única sem saída, com o carro chegando ao fim. Expected: carro inativo, nenhum pedestre `driving=1` apontando para ele.
+- [x] `return` logo depois de `park()` no beco de mão única.
+- [x] Sem teste direto: com a Task 3.9 a cidade não tem mais beco de mão única (o teste do grafo garante), então o caminho só volta se o mapa mudar.
 
 ### Task 3.3: Carro de tráfego roubado nunca bate em ninguém
 
 **Files:** Modify `src/game/systems/vehicle-drive.ts`
 
-- [ ] Quando o veículo dirigido é de tráfego (cinemático), `Vehicle.speed` recebe `Traffic.speed[ride]` e não `forwardSpeed`. Não chamar `setVehicleInput` nem `setEngine` nele.
-- [ ] Teste: carro roubado a 10 m/s contra um carro na faixa. Expected: o alvo vira destroço e `vehicle:collision` é emitido.
+- [x] `vehicleDriveSystem` pula carros com `Traffic`: `driveStolen` move o carro e é dono da velocidade. Antes, `forwardSpeed` de uma caixa cinemática gravava 0 em `Vehicle.speed` e `hitPlayer` nunca disparava.
+- [x] Teste: `Vehicle.speed` de um carro roubado sobrevive ao sistema.
 
 ### Task 3.4: Carro roubado mantém a velocidade guardada
 
 **Files:** Modify `src/game/systems/interaction.ts`
 
-- [ ] Ao sair e ao roubar, `Traffic.speed[ride] = 0`.
-- [ ] Teste: sair a 30 m/s e entrar de novo sem acelerar. Expected: a velocidade fica em 0.
+- [x] `parkRide` zera `Traffic.speed` e `Vehicle.speed` ao sair e ao morrer. `enterTraffic` zera ao roubar.
+- [x] Teste: roubar um carro a 9 m/s deixa a velocidade em 0.
 
 ### Task 3.5: Destroço continua dinâmico quando reaproveitado
 
 **Files:** Modify `src/engine/physics/physics-world.ts`, `rapier-world.ts`, `src/game/systems/traffic.ts`
 
-- [ ] Acrescentar `demote(body)` à interface: volta a `KinematicPositionBased` e zera velocidades.
-- [ ] `traffic.ts`: chamar `demote` em `park()` e na reativação.
-- [ ] Verificar à mão: bater num carro, se afastar até o pool reciclar e voltar. Os carros andam sem tremer.
+- [x] `demoteKinematic(body)`: zera velocidades e massa extra e volta a `KinematicPositionBased`. `park()` chama sempre (é idempotente) e também zera `Traffic.speed`.
+- [x] Teste: um corpo promovido e rebaixado não cai em 1 s de gravidade.
 
 ### Task 3.6: Pedestres travam frente a frente
 
-**Files:** Modify `src/game/systems/pedestrians.ts`, `src/game/play/overlap.ts`
+**Files:** Modify `src/game/systems/pedestrians.ts`, `src/game/ecs/components.ts`
 
-- [ ] `solidAt` ignora pedestres com `health <= 0`.
-- [ ] Em `Walk` e `Cross`: se `slide` falha por mais de 1,5 s, tentar desviar 90° para a direita por 1 s. Se ainda falhar, sortear um novo destino. Guardar o tempo bloqueado num campo novo do componente `Pedestrian`.
-- [ ] Teste em `ped-ai.test.ts`: dois pedestres em rota de colisão, 5 s de simulação. Expected: os dois andaram mais de 1 m.
+- [x] `solidAt` ignora pedestres mortos.
+- [x] Campo novo `Pedestrian.stuck`. Em `Walk`/`Cross`, 1,5 s bloqueado volta a `Idle` com espera escalonada pelo id, e o pedestre escolhe outro destino. Mais simples que o desvio de 90° do plano e resolve o travamento.
+- [x] Testes: dois pedestres de frente desistem em até 3 s; um pedestre passa por cima de um cadáver.
 
 ### Task 3.7: Fuga e `pedestrian:hit` em cadáveres
 
 **Files:** Modify `src/game/systems/pedestrians.ts`
 
-- [ ] A checagem de fuga pula `health <= 0`.
-- [ ] `pedestrian:hit` só sai na borda do contato: guardar "em contato no tick anterior".
-- [ ] Teste: um carro parado sobre um cadáver a 3 m/s por 1 s. Expected: zero eventos.
+- [x] A checagem de fuga pula mortos. O evento já só saía na transição para `Flee`; o repetido vinha do cadáver alternando `Flee`/`Down`.
+- [x] Teste: um carro a 3 m/s parado sobre um cadáver por 1 s não emite nada.
 
 ### Task 3.8: Estado sujo ao reaproveitar pedestre
 
-**Files:** Modify `src/game/systems/pedestrians.ts` (`attachDriver`, `ejectDriver`)
+**Files:** Modify `src/game/systems/pedestrians.ts`
 
-- [ ] Zerar `corpse`, `cool` e `swing` nas duas funções.
-- [ ] Teste: pedestre com `corpse > 0` vira motorista, é ejetado e morre. Expected: cai $10.
+- [x] `freshBody` zera `hurt`, `cool`, `swing`, `corpse`, `stuck` e `speed`. `wake`, `attachDriver` e `ejectDriver` usam.
+- [x] Teste: um pedestre com `corpse = 4` vira motorista com tudo zerado.
 
-### Task 3.9: Curvas de 90° viram meia-volta (plausível)
+### Task 3.9: Curvas de 90° viram meia-volta
 
-**Files:** Modify `src/game/systems/traffic.ts` (`pickNext`) · Test `src/tests/traffic-ai.test.ts`
+**Files:** Modify `src/game/systems/traffic.ts` (`pickNext`, agora exportado)
 
-- [ ] Confirmar com um teste num grafo em L: o carro deve seguir a aresta perpendicular. Se falhar, trocar o limiar `dot > 0.2` por "qualquer aresta que não seja a de volta" (`dot > -0.7`), preferindo a mais reta.
+- [x] Confirmado e maior que o esperado: com o limiar `dot > 0.2`, 48 pontas de rua de mão dupla davam meia-volta e 3 de mão única caíam no `park()` da Task 3.2. Com `dot > -0.5` (até ~120°), sobram 3 meias-voltas, todas em nós onde a única outra rua é de mão única entrando.
+- [x] Testes: curva em L segue a perpendicular; no grafo real, só há meia-volta onde nenhuma rua sai legalmente, e nenhum carro de mão única fica sem saída.
 
 ### Task 3.10: Uma fonte só para a posição do jogador
 
-**Files:** Modify `src/game/play/player-focus.ts`, `src/game/systems/vehicle-drive.ts`, `sync-transforms.ts`, e quem lê o `Transform` do jogador
+**Files:** Modify `src/game/play/player-focus.ts`, `vehicle-drive.ts`, `traffic.ts`, `pedestrians.ts`, `cash.ts`
 
-- [ ] `playerFocus` devolve um objeto de rascunho do módulo, sem alocar.
-- [ ] `vehicle-drive` deixa de escrever o `Transform` do jogador. Todo sistema que quer "onde está o jogador" (stream, tráfego, pedestres, dinheiro, câmera, HUD) usa `playerFocus`. `grep -n "Transform.p[xz]\[player"` acha os pontos.
-- [ ] Teste em `player-focus.test.ts`: dirigindo, cada sistema de interesse recebe a posição do carro, independente da ordem em `fixedStep`.
-- [ ] Esta task fica por último na fase porque mexe em muitos arquivos.
+- [x] `playerFocus` escreve num objeto do módulo (sem alocar) e devolve `Readonly`.
+- [x] `vehicle-drive` não escreve mais o `Transform` do jogador. Tráfego, pedestres e dinheiro (coleta e o que cai na morte) leem `playerFocus`. Rede, câmera, HUD e missão já liam o carro direto.
+- [x] Teste: dirigindo a 150 m do corpo, `pedestrianSystem` sozinho mantém o pedestre perto do carro ativo.
 
 ---
 

@@ -1,17 +1,15 @@
 /** Throttle, brake, steer, and handbrake for the occupied vehicle. Reverse uses brake at low speed. */
 
-import type { World } from 'bitecs';
+import { hasComponent, type World } from 'bitecs';
 import { sedan } from '../../content/vehicles';
 import type { GameContext } from '../../engine/core/context';
 import { enginePlayback } from '../play/feel';
-import { InputState, PhysicsRef, Player, Transform, Vehicle } from '../ecs/components';
+import { InputState, PhysicsRef, Player, Traffic, Vehicle } from '../ecs/components';
 import { players, vehicles } from '../ecs/queries';
 import { Mode } from './player-movement';
 
 /** Unoccupied cars stay parked. The one that spawns with you must not roll away. */
 const coast = { throttle: 0, brake: 0, steer: 0, handbrake: true };
-const followed: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
-const followedRot = { x: 0, y: 0, z: 0, w: 1 };
 
 export function vehicleDriveSystem(ctx: GameContext, world: World): void {
   let driving = false;
@@ -21,15 +19,14 @@ export function vehicleDriveSystem(ctx: GameContext, world: World): void {
     const body = PhysicsRef.body[vehicleEid] ?? 0;
     if (body === 0) continue;
     driving = true;
+    // A stolen lane car is a kinematic box. driveStolen moves it and owns its speed.
+    if (hasComponent(world, vehicleEid, Traffic)) continue;
     const pressedThrottle = InputState.throttle[eid] ?? 0;
     const pressedBrake = InputState.brake[eid] ?? 0;
     let throttle = pressedThrottle;
     let brake = pressedBrake;
     const speed = ctx.physics.forwardSpeed(body);
     Vehicle.speed[vehicleEid] = speed;
-    ctx.physics.getTransform(body, followed, followedRot);
-    Transform.px[eid] = followed.x;
-    Transform.pz[eid] = followed.z;
     if (brake > 0 && speed <= 0.4) {
       throttle = -brake;
       brake = 0;
