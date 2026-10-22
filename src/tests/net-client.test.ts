@@ -3,7 +3,7 @@ import { characterModel } from '../content/models';
 import type { GameContext, NetCorpse, NetPickup } from '../game/context';
 import type { ModelDesc, Renderer } from '../engine/render/renderer';
 import { resetRemotes, syncRemotes } from '../game/features/net/remotes';
-import { connectRoom } from '../net/session';
+import { JOIN_TIMEOUT_MS, connectRoom } from '../net/session';
 
 function recordingRenderer() {
   const models: string[] = [];
@@ -105,5 +105,16 @@ describe('room session', () => {
     expect(link.connected()).toBe(true);
     FakeSocket.last?.drop();
     expect(link.connected()).toBe(false);
+  });
+
+  it('gives up when the server never sends the welcome', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.stubGlobal('location', { protocol: 'http:', host: 'localhost:6969' });
+    const joining = connectRoom('costa-1', 'Ana');
+    const outcome = expect(joining).rejects.toThrow('O servidor não respondeu');
+    vi.advanceTimersByTime(JOIN_TIMEOUT_MS);
+    await outcome;
+    vi.useRealTimers();
   });
 });

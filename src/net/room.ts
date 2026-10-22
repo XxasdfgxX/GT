@@ -18,6 +18,8 @@ import {
 } from '../game/play/overlap';
 import {
   CORPSE_TIME,
+  DROP_LIFETIME,
+  MAX_DROPS,
   NPC_DROP,
   PICKUP_REACH,
   RESPAWN_DELAY,
@@ -74,8 +76,7 @@ const PUNCH_SLACK = 0.06;
 export const NPC_RESPAWN = 30;
 /** A replacement walker appears at least this far from every player. */
 export const NPC_RESPAWN_CLEAR = 60;
-export const DROP_LIFETIME = 60;
-export const MAX_DROPS = 64;
+export { DROP_LIFETIME, MAX_DROPS };
 
 export const ROOM_DEFS = [
   { id: 'costa-1', name: 'Costa 1' },

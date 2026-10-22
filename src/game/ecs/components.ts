@@ -49,7 +49,8 @@ export const Player = {
   vehicle: new Uint32Array(CAP),
   prompt: new Uint8Array(CAP),
   action: new Float32Array(CAP),
-  punchSerial: new Uint16Array(CAP),
+  // 32 bits: a long session passes 65,535 swings, and a wrapped serial looks old to the server.
+  punchSerial: new Uint32Array(CAP),
   health: new Float32Array(CAP),
   /** Damage of the swing that is in progress. */
   punchPower: new Uint8Array(CAP),
@@ -161,6 +162,8 @@ export const Pedestrian = {
 
 export const Pickup = {
   amount: new Float32Array(CAP),
+  /** Seconds until an uncollected drop disappears. */
+  left: new Float32Array(CAP),
 };
 
 export const CameraRig = {

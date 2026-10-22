@@ -23,6 +23,8 @@ export interface MenuOptions {
   resume?: () => void;
   onSettings?: (settings: GameSettings) => void;
   map?: PauseMap;
+  /** Shown under the buttons when the menu opens, such as why the last game ended. */
+  notice?: string;
 }
 
 export interface StartMenu {
@@ -66,6 +68,7 @@ export function mountStartMenu(
 
   const status = document.createElement('p');
   status.className = 'menu-status';
+  status.textContent = options?.notice ?? '';
 
   const inGame = options?.resume !== undefined;
   const mission = modeButton('Com missão', !inGame);
@@ -150,7 +153,8 @@ export function mountStartMenu(
         busy = false;
         mission.disabled = false;
         free.disabled = false;
-        resume.disabled = false;
+        // The paused game stopped when this one began loading. There is nothing to go back to.
+        resume.hidden = true;
         multi.disabled = false;
         openSettings.disabled = false;
         openMap.disabled = false;

@@ -5,6 +5,10 @@ export const PICKUP_REACH = 1.5;
 export const RESPAWN_DELAY = 1;
 /** How long a dead body stays on the ground. */
 export const CORPSE_TIME = 60;
+/** Seconds an uncollected drop stays on the street. */
+export const DROP_LIFETIME = 60;
+/** Live drops at once. The oldest goes first. */
+export const MAX_DROPS = 64;
 
 export function addCash(balance: number, amount: number): number {
   if (amount <= 0) return balance;
