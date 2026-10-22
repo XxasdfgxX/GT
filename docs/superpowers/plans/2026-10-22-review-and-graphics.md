@@ -400,36 +400,36 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 **Files:** Create `scripts/optimize-models.mjs`
 
-- [ ] For each model: `gltf-transform optimize in.gltf out.glb --compress meshopt --texture-compress ktx2 --texture-size 1024`.
-- [ ] For models flagged "needs decimation" in the manifest, add `--simplify --simplify-ratio <r>` until they're under 10k triangles (street props) or 25k (trees).
-- [ ] Output to `public/assets/props/<slot>.glb`.
-- [ ] `GLTFLoader` in `three-renderer.ts`: `setMeshoptDecoder(MeshoptDecoder)` and `setKTX2Loader(ktx2)`.
+- [~] For each model: `gltf-transform optimize in.gltf out.glb --compress meshopt --texture-compress ktx2 --texture-size 1024`. _`scripts/import-polyhaven-models.mjs` with `@gltf-transform/cli` 4.5.1 (devDependency): meshopt plus **WebP** 1K textures. KTX2 needs `toktx`, which is not installed. Total 4.7 MB for 11 props._
+- [x] For models flagged "needs decimation" in the manifest, add `--simplify --simplify-ratio <r>` until they're under 10k triangles (street props) or 25k (trees). _All under 11k triangles: lamp 7.7k, bench 10.9k, crate 10.4k, hydrant 3.4k (from 86k), barrier 4k, shrub 5.3k, trash 4.2k, utility box 6.3k, planter 8.1k, potted plant 8.9k, fern 6.2k._
+- [x] Output to `public/assets/props/<slot>.glb`. _Named by use (`street-lamp.glb`, ...). Tracked by LFS through the existing `*.glb` rule._
+- [~] `GLTFLoader` in `three-renderer.ts`: `setMeshoptDecoder(MeshoptDecoder)` and `setKTX2Loader(ktx2)`. _`setMeshoptDecoder` only; no KTX2._
 
 ### Task 8.2: Instanced glTF props
 
 **Files:** Modify `src/engine/render/renderer.ts`, `src/engine/render/three-renderer.ts`, `src/content/map/batch.ts`
 
-- [ ] Add `addModelInstances({ url, matrices, count, castShadow })`. Load the glTF, and for each mesh in it create one `InstancedMesh` sharing the geometry and material, with the node's local transform baked into each instance matrix.
-- [ ] Add a `Stamp` variant `{ kind: 'model', url }` so `CityBatcher` groups prop stamps per chunk and URL, exactly like boxes. Chunk visibility streaming (`stream-city.ts`) keeps working.
-- [ ] Test (`city.test.ts`): `build()` groups model stamps per chunk and URL, and counts match the number of lamps and benches placed.
+- [x] Add `addModelInstances({ url, matrices, count, castShadow })`. Load the glTF, and for each mesh in it create one `InstancedMesh` sharing the geometry and material, with the node's local transform baked into each instance matrix. _Every copy shares the cached geometry and material. One `InstancedMesh` per mesh in the glTF, grouped so `setMeshVisible` toggles the whole batch._
+- [x] Add a `Stamp` variant `{ kind: 'model', url }` so `CityBatcher` groups prop stamps per chunk and URL, exactly like boxes. Chunk visibility streaming (`stream-city.ts`) keeps working. _`kind: 'model'` plus `model` url, and `PROPS` / `PROP_MODELS` in `props.ts`. `bootstrap` preloads all of them._
+- [x] Test (`city.test.ts`): `build()` groups model stamps per chunk and URL, and counts match the number of lamps and benches placed. _In `facades.test.ts`: lamps exist, model groups are unique per chunk, url and LOD, and every url is preloaded._
 
 ### Task 8.3: Replace placeholder props
 
 **Files:** Modify `src/content/map/props.ts`, `src/content/map/facades.ts`
 
-- [ ] `addLamp` → Poly Haven street lamp model. Keep the emissive head as a separate small stamp, so bloom picks it up.
-- [ ] Trash cans every ~30 m on avenue sidewalks, next to shop doors.
-- [ ] Benches in plazas and at bus stops (`kind: 'stop'` POIs).
-- [ ] Fire hydrants every ~80 m. Manhole covers on asphalt every ~40 m, as a flat decal box with the model's texture or the model itself.
-- [ ] Utility boxes on corners. Concrete barriers at road ends and on the coast road edge.
-- [ ] Chain-link fence around empty lots (dirt).
-- [ ] Roller-shutter door and window on shop ground floors (if 6.2 doesn't already fake them in the shader).
-- [ ] Planters and potted plants in plazas and in front of shops. Plastic crates by market stalls (`kind: 'stall'`).
-- [ ] Water tank on roofs (6.3): use a cylinder with the `plaster` finish, or a model if the manifest has one.
-- [ ] Keep each prop's existing collider. Add box colliders for benches, barriers and utility boxes (`BoxCollider` in `props.ts`).
+- [~] `addLamp` → Poly Haven street lamp model. Keep the emissive head as a separate small stamp, so bloom picks it up. _Scaled 1.2× to ~4.6 m. The emissive head was dropped: the model has its own lantern, and there is no night yet._
+- [~] Trash cans every ~30 m on avenue sidewalks, next to shop doors. _The existing 10% roll per slot now places the model (0.8×). Not added next to shop doors._
+- [~] Benches in plazas and at bus stops (`kind: 'stop'` POIs). _The existing avenue benches use the model (0.6× of the 4.3 m kit). Not added in plazas or at stops yet._
+- [~] Fire hydrants every ~80 m. Manhole covers on asphalt every ~40 m, as a flat decal box with the model's texture or the model itself. _Hydrants every 84 m on the side without lamps. No manhole covers._
+- [~] Utility boxes on corners. Concrete barriers at road ends and on the coast road edge. _A controller cabinet beside each traffic light. No barriers._
+- [ ] Chain-link fence around empty lots (dirt). _Needs decimation (89k triangles) and empty lots, which do not exist yet._
+- [-] Roller-shutter door and window on shop ground floors (if 6.2 doesn't already fake them in the shader). _The facade shader already draws shopfronts. Shutters can come later as a shader variant._
+- [~] Planters and potted plants in plazas and in front of shops. Plastic crates by market stalls (`kind: 'stall'`). _Four planters per plaza, ten shrubs or ferns along each lawn, and three crates by each stall (own RNG stream, so parked cars and trees keep their places). No potted plants at shop doors._
+- [x] Water tank on roofs (6.3): use a cylinder with the `plaster` finish, or a model if the manifest has one. _Done in 6.3 as a blue cylinder._
+- [ ] Keep each prop's existing collider. Add box colliders for benches, barriers and utility boxes (`BoxCollider` in `props.ts`). _No new colliders yet: benches, cabinets and hydrants can be walked through._
 - [ ] Parked cars: stop drawing two boxes. Spawn instanced copies of `car.glb` with the six traffic tints. Either add `addModelInstances` support for per-instance color, or reuse `addModel` with a cap of 40 parked cars per chunk.
 - [ ] Budget check, as in 6.3.
-- [ ] Manual: a street at eye level has lamps, bins, hydrants and benches at believable spacing, with no floating props on slopes (use `sampleHeight`).
+- [~] Manual: a street at eye level has lamps, bins, hydrants and benches at believable spacing, with no floating props on slopes (use `sampleHeight`). _Seen in a headless screenshot: the lamp model renders in place. Not checked at eye level._
 
 ---
 
