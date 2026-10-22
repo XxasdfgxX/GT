@@ -1,6 +1,6 @@
 # 2026-10-22 review: bug fixes and graphics overhaul — implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Legend: `[x]` done, `[~]` partly done (the note says what is left), `[-]` replaced or skipped (the note says why), `[ ]` to do.
 
 **Goal:** Fix the bugs found in the 2026-10-22 review (client lifecycle, server trust and robustness, tooling), then make the island look realistic. That means post-processing, real facades instead of painted boxes, Poly Haven PBR materials and props, and better vegetation and street furniture.
 
@@ -355,36 +355,36 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 **Files:** Create `scripts/optimize-textures.mjs`. Modify `docs/ASSETS.md`, `.gitattributes`
 
-- [ ] Script: for each slot, read `diff`, `nor_gl`, `rough` and `ao` (or `arm`) 2K JPG. Pack `ao`, `rough` and metal into one ORM texture. Output `color.ktx2` (sRGB, UASTC or ETC1S at quality 128), `normal.ktx2` (UASTC, linear) and `orm.ktx2` (linear) to `public/assets/textures/<slot>/`. Also output 1K versions under `public/assets/textures/<slot>/1k/` for the low preset.
+- [~] Script: for each slot, read `diff`, `nor_gl`, `rough` and `ao` (or `arm`) 2K JPG. Pack `ao`, `rough` and metal into one ORM texture. Output `color.ktx2` (sRGB, UASTC or ETC1S at quality 128), `normal.ktx2` (UASTC, linear) and `orm.ktx2` (linear) to `public/assets/textures/<slot>/`. Also output 1K versions under `public/assets/textures/<slot>/1k/` for the low preset. _First pass: `scripts/import-polyhaven.mjs` (with `sharp`, now a devDependency) writes 1K JPGs: color, normal, roughness and ao, with no ORM packing and no KTX2, because neither `toktx` nor `basisu` is installed. That is about 250 MB of video memory for 13 surfaces (was 134 MB). KTX2 would cut it about 4×. Grass stays ambientCG Grass001, because Poly Haven's `leafy_grass` is a dry, leaf-strewn lawn. Sand uses `sand_01` (1.5 m); `aerial_beach_01` is a 30 m aerial capture. Plaster is desaturated and lifted to a mean of 210 so the building tint still sets the color._
   - Tooling: `npx @gltf-transform/cli` doesn't do standalone images. Use `toktx` (KTX-Software) or `basisu`. Document the install in `docs/ASSETS.md`.
-- [ ] Add `*.ktx2 filter=lfs diff=lfs merge=lfs -text` and the same for `*.jpg` and `*.png` to `.gitattributes`.
-- [ ] Run the script once and commit the outputs through LFS.
+- [-] Add `*.ktx2 filter=lfs diff=lfs merge=lfs -text` and the same for `*.jpg` and `*.png` to `.gitattributes`. _Not yet. Textures stay in normal git like the existing ones. Decide together with KTX2._
+- [x] Run the script once and commit the outputs through LFS. _Committed to normal git._
 
 ### Task 7.2: `MaterialLibrary` reads KTX2 and ORM
 
 **Files:** Modify `src/engine/render/materials/material-library.ts`, `src/engine/render/three-renderer.ts`. Test `src/tests/uv-meters.test.ts` (tile sizes)
 
-- [ ] Use `KTX2Loader` (`three/addons/loaders/KTX2Loader.js`) with the transcoder from `three/examples/jsm/libs/basis/`. Copy it to `public/basis/` in a Vite plugin or as a static copy. Call `detectSupport(renderer)` once.
-- [ ] Map `orm` to `aoMap`, `roughnessMap` and `metalnessMap` (one texture). Keep the old JPG path as a fallback when the `.ktx2` 404s.
-- [ ] Choose 2K or 1K by the Sharpness setting (`low` → 1K).
-- [ ] Add the new finishes to `SurfaceFinish` and `TILE_METERS`, with real-world tile sizes from the Poly Haven info (`dimensions`):
-  - [ ] `asphalt`, `curb` (was `concrete`), `sidewalk`, `sand`, `grass`, `rock` (hills), `dirt` (empty lots), `plaza`
-  - [ ] Wall finishes `plaster`, `concrete-raw`, `brick`, `tile`, `roof-concrete`, `roof-clay`
-- [ ] Map facade styles (6.1) to wall finishes.
-- [ ] Add detail breakup on large surfaces: in the world-UV shader in `three-renderer.ts`, sample the color map a second time at 0.13× scale and multiply, to kill visible tiling on roads and sand.
-- [ ] Manual: no visible tiling from 50 m. Normal maps read correctly, with bumps lit from the sun side (if inverted, the map is DirectX; use `nor_gl`).
+- [-] Use `KTX2Loader` (`three/addons/loaders/KTX2Loader.js`) with the transcoder from `three/examples/jsm/libs/basis/`. Copy it to `public/basis/` in a Vite plugin or as a static copy. Call `detectSupport(renderer)` once. _Waiting on KTX2._
+- [-] Map `orm` to `aoMap`, `roughnessMap` and `metalnessMap` (one texture). Keep the old JPG path as a fallback when the `.ktx2` 404s. _Waiting on KTX2 and ORM packing._
+- [-] Choose 2K or 1K by the Sharpness setting (`low` → 1K). _Only 1K ships for now._
+- [x] Add the new finishes to `SurfaceFinish` and `TILE_METERS`, with real-world tile sizes from the Poly Haven info (`dimensions`): _`TILE_METERS` now uses each scan's real size from Poly Haven `info.json`._
+  - [x] `asphalt`, `curb` (was `concrete`), `sidewalk`, `sand`, `grass`, `rock` (hills), `dirt` (empty lots), `plaza` _The curb keeps its old name, `concrete`._
+  - [x] Wall finishes `plaster`, `concrete-raw`, `brick`, `tile`, `roof-concrete`, `roof-clay` _`plaster` keeps its old name, `paint`._
+- [ ] Map facade styles (6.1) to wall finishes. _The finishes exist. The mapping is part of Phase 6.1._
+- [~] Add detail breakup on large surfaces: in the world-UV shader in `three-renderer.ts`, sample the color map a second time at 0.13× scale and multiply, to kill visible tiling on roads and sand. _Done on the terrain only (a slow brightness swell). Roads still tile._
+- [ ] Manual: no visible tiling from 50 m. Normal maps read correctly, with bumps lit from the sun side (if inverted, the map is DirectX; use `nor_gl`). _Needs real hardware._
 
 ### Task 7.3: Terrain
 
 **Files:** Modify `src/engine/render/three-renderer.ts` (`addTerrain`), `src/content/map/island-shape.ts`
 
-- [ ] The terrain today is vertex colors only. Give it a splat material: `grass`, `rock`, `sand` and `dirt` blended by the existing vertex color channels (or by slope and height computed in the shader), each with world UV and its own tile size.
-- [ ] Manual: hills show rock on steep slopes and grass on gentle ones, and the beach blends into grass without a hard line.
+- [x] The terrain today is vertex colors only. Give it a splat material: `grass`, `rock`, `sand` and `dirt` blended by the existing vertex color channels (or by slope and height computed in the shader), each with world UV and its own tile size. _`materials/terrain-material.ts`: sand, paved (`roof-concrete`), rock and grass blended by a new `splat` vertex attribute from `terrainSplat()` in `island-shape.ts`, with rock on slopes steeper than ~35° in the shader. Falls back to vertex colors if a texture fails to load. Tested: the weights sum to 1, the town floor is paved and the shoreline is sand._
+- [ ] Manual: hills show rock on steep slopes and grass on gentle ones, and the beach blends into grass without a hard line. _Paved town confirmed in a headless screenshot. Hills not checked yet._
 
 ### Task 7.4: HDRI
 
-- [ ] Copy the chosen day HDRI (2K `.hdr`) to `public/assets/hdri/`. Update `COAST_HDRI_URL`, `HDRI_SUN` and `HORIZON_COLOR` (Task 5.3).
-- [ ] Keep the sunset and night HDRIs in `tmp/` until time of day exists.
+- [x] Copy the chosen day HDRI (2K `.hdr`) to `public/assets/hdri/`. Update `COAST_HDRI_URL`, `HDRI_SUN` and `HORIZON_COLOR` (Task 5.3). _Done in Task 5.3. Added here: `SKY_FILL` = 1.5 (`scene.environmentIntensity`), because the clouded sky is ~30% dimmer, and walls in shade went nearly black without it._
+- [x] Keep the sunset and night HDRIs in `tmp/` until time of day exists.
 
 ### Task 7.5: Water
 
