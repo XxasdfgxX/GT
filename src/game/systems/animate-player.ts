@@ -1,12 +1,11 @@
 /** Picks the body clip from speed, sprint, air, and the punch timer. */
 
 import type { World } from 'bitecs';
-import type { GameContext } from '../../engine/core/context';
-import { InputState, PhysicsRef, Player, RenderRef, Velocity } from '../ecs/components';
+import type { GameContext } from '../context';
+import { InputState, PhysicsRef, Player, RenderRef, Velocity, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
 import { chooseClip } from '../play/animate';
-import { boardingClip } from './board-car';
-import { Mode } from './player-movement';
+import { boardingClip } from '../play/board-state';
 
 export function animatePlayer(ctx: GameContext, world: World): void {
   for (const eid of players(world)) {

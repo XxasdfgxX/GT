@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createContext } from '../app/create-context';
 import { buildCostaVerde } from '../content/city';
 import { sampleHeight } from '../content/map/island-shape';
-import type { GameContext } from '../engine/core/context';
+import type { GameContext } from '../game/context';
 import { createRapierWorld } from '../engine/physics/rapier-world';
 import type { Renderer } from '../engine/render/renderer';
 import {
@@ -16,6 +16,7 @@ import {
   Traffic,
   Vehicle,
   writePose,
+  Mode,
 } from '../game/ecs/components';
 import { pedestrians, traffic } from '../game/ecs/queries';
 import { createGameWorld } from '../game/ecs/world';
@@ -26,8 +27,8 @@ import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
 import { clearBoard } from '../game/play/board-state';
 import { interactionSystem } from '../game/systems/interaction';
 import { PedState } from '../game/systems/ped-ai';
-import { attachDriver, pedestrianSystem } from '../game/systems/pedestrians';
-import { Mode } from '../game/systems/player-movement';
+import { attachDriver } from '../game/play/drivers';
+import { pedestrianSystem } from '../game/systems/pedestrians';
 import { pickNext } from '../game/systems/traffic';
 import { vehicleDriveSystem } from '../game/systems/vehicle-drive';
 

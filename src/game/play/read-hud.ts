@@ -1,12 +1,11 @@
 /** Snapshot the DOM overlay reads. The HUD never touches components itself. */
 
 import type { World } from 'bitecs';
-import { CameraRig, Mission, Player, Transform, Vehicle } from '../ecs/components';
+import { CameraRig, Mission, Player, Transform, Vehicle, Mode } from '../ecs/components';
 import { missions, players } from '../ecs/queries';
 import { speedKmh } from './feel';
 import { MissionPhase } from './mission';
-import { compassHeading } from '../systems/camera-follow';
-import { Mode } from '../systems/player-movement';
+import { compassHeading } from './heading';
 
 export interface HudModel {
   prompt: number;

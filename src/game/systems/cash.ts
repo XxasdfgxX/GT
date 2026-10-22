@@ -2,7 +2,7 @@
 
 import { addComponent, addEntity, type World } from 'bitecs';
 import { sim } from '../../content/sim';
-import type { GameContext } from '../../engine/core/context';
+import type { GameContext } from '../context';
 import { Pedestrian, Pickup, Player, RenderRef, Transform, writePose } from '../ecs/components';
 import { pedestrians, pickups, players } from '../ecs/queries';
 import { hideBody, showBody } from '../features/player/place-player';
@@ -15,7 +15,7 @@ import {
   dropCash,
 } from '../play/wallet';
 import { layLocalCorpse, tickRemains } from '../features/corpse/remain';
-import { abandonRide } from './interaction';
+import { abandonRide } from '../play/seat';
 import { playerFocus } from '../play/player-focus';
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };

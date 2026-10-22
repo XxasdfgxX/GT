@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { characterModel } from '../content/models';
-import type { GameContext, NetCorpse, NetPickup } from '../engine/core/context';
+import type { GameContext, NetCorpse, NetPickup } from '../game/context';
 import type { ModelDesc, Renderer } from '../engine/render/renderer';
 import { resetRemotes, syncRemotes } from '../game/features/net/remotes';
 import { connectRoom } from '../net/session';

@@ -1,9 +1,8 @@
 /** Point the city and the crowd follow. On foot this is the body. In a car it is the chassis. */
 
 import type { World } from 'bitecs';
-import { Player, Transform } from '../ecs/components';
+import { Player, Transform, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
-import { Mode } from '../systems/player-movement';
 
 const fallback = { x: 0, z: 12 };
 const focus = { x: 0, z: 0 };

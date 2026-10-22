@@ -9,7 +9,7 @@ As dependências apontam para dentro:
 `app` → `game` → `engine` → APIs do browser
 
 - `app` sobe o canvas, cria os adaptadores e roda o quadro.
-- `game` tem componentes, sistemas e o que spawna o jogador, o carro e o mapa.
+- `game` tem componentes, sistemas e o que spawna o jogador, o carro e o mapa. `game/context.ts` define o `GameContext`, os eventos (`GameEvents`), o estado de depuração e o contrato da rede (`NetLink`, `NetSnapshot`).
 - `engine/core` tem o relógio, o barramento, o logger e a matemática pura.
 - `engine/render`, `engine/physics` e `engine/input` definem a interface e a implementação.
 - `content` é dado validado com Zod. `game` e `app` leem esse dado. `content` só importa `engine/core/math`, que é puro e sem dependências. O ESLint barra o resto.

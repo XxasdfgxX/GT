@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createContext } from '../app/create-context';
 import { sampleHeight } from '../content/map/island-shape';
-import type { GameContext } from '../engine/core/context';
+import type { GameContext } from '../game/context';
 import { createRapierWorld } from '../engine/physics/rapier-world';
 import type { Renderer } from '../engine/render/renderer';
-import { InputState, Player, Vehicle } from '../game/ecs/components';
+import { InputState, Player, Vehicle, Mode } from '../game/ecs/components';
 import { createGameWorld } from '../game/ecs/world';
 import { resetRemains } from '../game/features/corpse/remain';
 import { spawnPlayer } from '../game/features/player/spawn-player';
@@ -13,7 +13,6 @@ import { clearBoard, currentBoard } from '../game/play/board-state';
 import { boardCarSystem } from '../game/systems/board-car';
 import { cashSystem } from '../game/systems/cash';
 import { interactionSystem } from '../game/systems/interaction';
-import { Mode } from '../game/systems/player-movement';
 
 const renderer = {
   addModel: () => 1,

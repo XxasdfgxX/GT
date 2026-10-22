@@ -2,11 +2,10 @@
 
 import type { World } from 'bitecs';
 import { delivery } from '../../content/mission';
-import type { GameContext } from '../../engine/core/context';
-import { Mission, Player, Transform } from '../ecs/components';
+import type { GameContext } from '../context';
+import { Mission, Player, Transform, Mode } from '../ecs/components';
 import { missions, players } from '../ecs/queries';
 import { MissionPhase, stepMission } from '../play/mission';
-import { Mode } from './player-movement';
 
 export function missionSystem(ctx: GameContext, world: World): void {
   for (const mid of missions(world)) {

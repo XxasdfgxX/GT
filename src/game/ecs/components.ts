@@ -2,6 +2,21 @@
 
 export const CAP = 2048;
 
+/** Player.mode. */
+export const Mode = {
+  OnFoot: 0,
+  Driving: 1,
+  Boarding: 2,
+} as const;
+
+/** Traffic.mode. Lane driving, knocked loose, driven by the player, or left at the curb. */
+export const TrafficMode = {
+  Drive: 0,
+  Wreck: 2,
+  Player: 3,
+  Parked: 4,
+} as const;
+
 export const Transform = {
   px: new Float32Array(CAP),
   py: new Float32Array(CAP),
@@ -157,6 +172,32 @@ export const CameraRig = {
   ready: new Uint8Array(CAP),
   lookOffset: new Float32Array(CAP),
 };
+
+const allComponents = [
+  Transform,
+  Velocity,
+  Player,
+  InputState,
+  PhysicsRef,
+  RenderRef,
+  Vehicle,
+  Mission,
+  Wheel,
+  Traffic,
+  Pedestrian,
+  Pickup,
+  CameraRig,
+];
+
+/**
+ * The arrays live as long as the page, and bitecs hands out the same ids again in a
+ * new world. Zeroing them keeps a restart from inheriting the last session's values.
+ */
+export function clearComponents(): void {
+  for (const component of allComponents) {
+    for (const field of Object.values(component)) field.fill(0);
+  }
+}
 
 export function writePose(eid: number, x: number, y: number, z: number): void {
   Transform.px[eid] = x;

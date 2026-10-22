@@ -1,14 +1,14 @@
 /** Dependency bag passed into every system. No service is reached through a global. */
 
-import type { AssetManager } from '../assets/asset-manager';
-import type { AudioBus } from '../audio/audio-bus';
-import type { Input } from '../input/input';
-import type { PhysicsWorld } from '../physics/physics-world';
-import type { NavMesh } from '../nav/nav-mesh';
-import type { Renderer } from '../render/renderer';
-import type { EventBus } from './event-bus';
-import type { Logger } from './logger';
-import type { Clock } from './time';
+import type { AssetManager } from '../engine/assets/asset-manager';
+import type { AudioBus } from '../engine/audio/audio-bus';
+import type { Input } from '../engine/input/input';
+import type { PhysicsWorld } from '../engine/physics/physics-world';
+import type { NavMesh } from '../engine/nav/nav-mesh';
+import type { Renderer } from '../engine/render/renderer';
+import type { EventBus } from '../engine/core/event-bus';
+import type { Logger } from '../engine/core/logger';
+import type { Clock } from '../engine/core/time';
 
 export interface GameEvents {
   'player:entered-vehicle': { vehicle: number };

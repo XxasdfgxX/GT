@@ -7,7 +7,7 @@ import type { RoadEdge, RoadGraph } from '../../content/map/roads';
 import { stepDrivenSpeed } from '../../content/cars';
 import { trafficCatalog } from '../../content/traffic-catalog';
 import { sedan } from '../../content/vehicles';
-import type { GameContext } from '../../engine/core/context';
+import type { GameContext } from '../context';
 import { quatFromYaw } from '../../engine/core/math';
 import {
   CameraRig,
@@ -19,6 +19,8 @@ import {
   Traffic,
   Transform,
   Vehicle,
+  Mode,
+  TrafficMode,
 } from '../ecs/components';
 import { players, traffic, vehicles } from '../ecs/queries';
 import { circleHitsBox, TRIP_SECONDS } from '../play/overlap';
@@ -26,9 +28,8 @@ import { tallBoxesNear } from '../play/collider-grid';
 import { bucketCrowd, crowdNear } from '../play/crowd-grid';
 import { PedState } from './ped-ai';
 import { enginePlayback } from '../play/feel';
-import { attachDriver, ejectDriver, releaseDriver, seatDriver } from './pedestrians';
+import { attachDriver, ejectDriver, releaseDriver, seatDriver } from '../play/drivers';
 import { TRAFFIC_POOL } from '../features/traffic/pool';
-import { Mode } from './player-movement';
 import { playerFocus } from '../play/player-focus';
 import {
   approachSpeed,
@@ -54,11 +55,6 @@ const batchYaw = new Float32Array(BATCH);
 const batchHx = new Float32Array(BATCH);
 const batchHz = new Float32Array(BATCH);
 let batchCount = 0;
-
-const MODE_DRIVE = 0;
-export const MODE_WRECK = 2;
-export const MODE_PLAYER = 3;
-const MODE_PARKED = 4;
 
 export function trafficSystem(ctx: GameContext, world: World): void {
   const graph = buildCostaVerde().graph;
@@ -89,17 +85,17 @@ export function trafficSystem(ctx: GameContext, world: World): void {
     const dx = (Transform.px[eid] ?? 0) - px;
     const dz = (Transform.pz[eid] ?? 0) - pz;
     const distance = Math.hypot(dx, dz);
-    if ((Traffic.mode[eid] ?? 0) === MODE_WRECK) {
+    if ((Traffic.mode[eid] ?? 0) === TrafficMode.Wreck) {
       active += 1;
       if (distance > 100) park(ctx, world, eid);
       continue;
     }
-    if ((Traffic.mode[eid] ?? 0) === MODE_PLAYER) {
+    if ((Traffic.mode[eid] ?? 0) === TrafficMode.Player) {
       driveStolen(ctx, world, eid, dt);
       active += 1;
       continue;
     }
-    if ((Traffic.mode[eid] ?? 0) === MODE_PARKED) {
+    if ((Traffic.mode[eid] ?? 0) === TrafficMode.Parked) {
       active += 1;
       if (distance > 180) park(ctx, world, eid);
       continue;
@@ -344,7 +340,7 @@ function hitPlayer(
     z: (dz / len) * playerSpeed * 80,
   });
   ejectDriver(world, eid, Transform.px[eid] ?? playerX, Transform.pz[eid] ?? playerZ, yawOf(eid));
-  Traffic.mode[eid] = MODE_WRECK;
+  Traffic.mode[eid] = TrafficMode.Wreck;
   ctx.events.emit('vehicle:collision', { vehicle: eid, speed: playerSpeed });
 }
 
@@ -386,7 +382,7 @@ function activate(
     const hz = spec.length / 2;
     if (spotTaken(world, eid, hx, hz)) continue;
     Traffic.active[eid] = 1;
-    Traffic.mode[eid] = MODE_DRIVE;
+    Traffic.mode[eid] = TrafficMode.Drive;
     Traffic.speed[eid] = edge.speed * 0.6;
     const body = PhysicsRef.body[eid] ?? 0;
     const mesh = RenderRef.mesh[eid] ?? 0;
@@ -576,7 +572,10 @@ function gatherSolids(world: World): number {
     solidHx[count] = spec.width / 2;
     solidHz[count] = spec.length / 2;
     solidEid[count] = eid;
-    solidLock[count] = mode === MODE_WRECK || mode === MODE_PLAYER || mode === MODE_PARKED ? 1 : 0;
+    solidLock[count] =
+      mode === TrafficMode.Wreck || mode === TrafficMode.Player || mode === TrafficMode.Parked
+        ? 1
+        : 0;
     count += 1;
   }
   for (const eid of vehicles(world)) {

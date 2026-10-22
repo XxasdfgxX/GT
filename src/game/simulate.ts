@@ -2,7 +2,7 @@
 
 import type { World } from 'bitecs';
 import { sim } from '../content/sim';
-import type { GameContext } from '../engine/core/context';
+import type { GameContext } from './context';
 import { CameraRig } from './ecs/components';
 import { players } from './ecs/queries';
 import { animatePlayer } from './systems/animate-player';

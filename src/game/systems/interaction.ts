@@ -1,35 +1,29 @@
 /** Enter and exit the nearest car with the interact latch. */
 
-import { hasComponent, type World } from 'bitecs';
-import type { GameContext } from '../../engine/core/context';
-import { IDENTITY_QUAT, rotateVec3ByQuat, type Quat, type Vec3 } from '../../engine/core/math';
-import { sampleHeight } from '../../content/map/island-shape';
+import type { World } from 'bitecs';
+import type { GameContext } from '../context';
+import type { Quat, Vec3 } from '../../engine/core/math';
 import { sim } from '../../content/sim';
 import {
-  CameraRig,
   InputState,
   PhysicsRef,
   Player,
-  RenderRef,
   Traffic,
   Transform,
   Vehicle,
   Velocity,
+  Mode,
+  TrafficMode,
 } from '../ecs/components';
 import { players, traffic, vehicles } from '../ecs/queries';
 import { interactPrompt } from '../play/feel';
-import { armBoard, clearBoard } from '../play/board-state';
-import { chaseCameraYaw, yawFromQuat } from './camera-follow';
-import { Mode } from './player-movement';
-import { ejectDriver } from './pedestrians';
-
-const MODE_DRIVE = 0;
-const MODE_PARKED = 4;
+import { armBoard } from '../play/board-state';
+import { yawFromQuat } from '../play/heading';
+import { leaveVehicle } from '../play/seat';
+import { ejectDriver } from '../play/drivers';
 
 const position: Vec3 = { x: 0, y: 0, z: 0 };
 const rotation: Quat = { x: 0, y: 0, z: 0, w: 1 };
-const localLeft: Vec3 = { x: 0, y: 0, z: 0 };
-const offset: Vec3 = { x: 0, y: 0, z: 0 };
 
 export function interactionSystem(ctx: GameContext, world: World): void {
   for (const eid of players(world)) {
@@ -43,7 +37,7 @@ export function interactionSystem(ctx: GameContext, world: World): void {
     Player.prompt[eid] = interactPrompt(driving, distance, sim.interactDistance);
     if (InputState.interact[eid] !== 1) continue;
     InputState.interact[eid] = 0;
-    if (driving) exitVehicle(ctx, world, eid);
+    if (driving) leaveVehicle(ctx, world, eid);
     else enterNearest(ctx, world, eid);
   }
 }
@@ -66,7 +60,7 @@ function nearestRide(
   for (const car of traffic(world)) {
     if ((Traffic.active[car] ?? 0) === 0) continue;
     const mode = Traffic.mode[car] ?? 0;
-    if (mode !== MODE_DRIVE && mode !== MODE_PARKED) continue;
+    if (mode !== TrafficMode.Drive && mode !== TrafficMode.Parked) continue;
     consider(car, 'traffic');
   }
   return best;
@@ -84,8 +78,9 @@ function enterTraffic(ctx: GameContext, world: World, eid: number, car: number):
   if (body === 0) return;
   ctx.physics.getTransform(body, position, rotation);
   const yaw = yawFromQuat(rotation);
-  if ((Traffic.mode[car] ?? 0) === MODE_DRIVE) ejectDriver(world, car, position.x, position.z, yaw);
-  Traffic.mode[car] = MODE_PARKED;
+  if ((Traffic.mode[car] ?? 0) === TrafficMode.Drive)
+    ejectDriver(world, car, position.x, position.z, yaw);
+  Traffic.mode[car] = TrafficMode.Parked;
   Traffic.speed[car] = 0;
   holdStill(eid);
   armBoard(eid, car, 'traffic');
@@ -102,89 +97,4 @@ function holdStill(eid: number): void {
   Velocity.x[eid] = 0;
   Velocity.y[eid] = 0;
   Velocity.z[eid] = 0;
-}
-
-export function boardVehicle(ctx: GameContext, eid: number, ride: number): void {
-  sitDown(ctx, eid, ride);
-  Vehicle.occupied[ride] = 1;
-}
-
-export function leaveVehicle(ctx: GameContext, world: World, eid: number): void {
-  exitVehicle(ctx, world, eid);
-}
-
-/** A stolen lane car stops where it was left. Its stored speed would launch it on re-entry. */
-function parkRide(world: World, ride: number): void {
-  if (hasComponent(world, ride, Traffic)) {
-    Traffic.mode[ride] = MODE_PARKED;
-    Traffic.speed[ride] = 0;
-    Vehicle.speed[ride] = 0;
-  } else Vehicle.occupied[ride] = 0;
-}
-
-/** Death drops the door walk or the seat. The body is placed by the respawn, not here. */
-export function abandonRide(ctx: GameContext, world: World, eid: number): void {
-  const mode = Player.mode[eid];
-  if (mode === Mode.Boarding) clearBoard();
-  if (mode === Mode.Driving) {
-    const ride = Player.vehicle[eid] ?? 0;
-    parkRide(world, ride);
-    CameraRig.distance[eid] = sim.cameraDistanceFoot;
-    CameraRig.pivot[eid] = sim.cameraPivotFoot;
-    ctx.events.emit('player:exited-vehicle', { vehicle: ride });
-  }
-  Player.mode[eid] = Mode.OnFoot;
-  Player.vehicle[eid] = 0;
-}
-
-function sitDown(ctx: GameContext, eid: number, ride: number): void {
-  const body = PhysicsRef.body[eid] ?? 0;
-  const mesh = RenderRef.mesh[eid] ?? 0;
-  if (body !== 0) ctx.physics.setBodyEnabled(body, false);
-  if (mesh !== 0) ctx.renderer.setMeshVisible(mesh, false);
-  Player.mode[eid] = Mode.Driving;
-  Player.vehicle[eid] = ride;
-  CameraRig.distance[eid] = sim.cameraDistanceCar;
-  CameraRig.pivot[eid] = sim.cameraPivotCar;
-  CameraRig.lookOffset[eid] = 0;
-  CameraRig.ready[eid] = 0;
-  const vehicleBody = PhysicsRef.body[ride] ?? 0;
-  if (vehicleBody !== 0) {
-    ctx.physics.getTransform(vehicleBody, position, rotation);
-    CameraRig.yaw[eid] = chaseCameraYaw(yawFromQuat(rotation));
-  }
-  ctx.events.emit('player:entered-vehicle', { vehicle: ride });
-}
-
-function exitVehicle(ctx: GameContext, world: World, eid: number): void {
-  const vehicleEid = Player.vehicle[eid] ?? 0;
-  const vehicleBody = PhysicsRef.body[vehicleEid] ?? 0;
-  const playerBody = PhysicsRef.body[eid] ?? 0;
-  if (vehicleBody === 0 || playerBody === 0) return;
-  ctx.physics.getTransform(vehicleBody, position, rotation);
-  localLeft.x = -sim.exitOffset;
-  localLeft.y = 0;
-  localLeft.z = 0;
-  rotateVec3ByQuat(rotation, localLeft, offset);
-  position.x += offset.x;
-  position.y = sampleHeight(position.x, position.z) + sim.playerRadius + sim.playerHalfHeight;
-  position.z += offset.z;
-  ctx.physics.setBodyEnabled(playerBody, true);
-  ctx.physics.setTransform(playerBody, position, IDENTITY_QUAT);
-  const mesh = RenderRef.mesh[eid] ?? 0;
-  if (mesh !== 0) ctx.renderer.setMeshVisible(mesh, true);
-  Player.mode[eid] = Mode.OnFoot;
-  parkRide(world, vehicleEid);
-  Velocity.x[eid] = 0;
-  Velocity.y[eid] = 0;
-  Velocity.z[eid] = 0;
-  Transform.px[eid] = position.x;
-  Transform.py[eid] = position.y;
-  Transform.pz[eid] = position.z;
-  Transform.ppx[eid] = position.x;
-  Transform.ppy[eid] = position.y;
-  Transform.ppz[eid] = position.z;
-  CameraRig.distance[eid] = sim.cameraDistanceFoot;
-  CameraRig.pivot[eid] = sim.cameraPivotFoot;
-  ctx.events.emit('player:exited-vehicle', { vehicle: vehicleEid });
 }

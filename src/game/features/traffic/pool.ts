@@ -3,7 +3,7 @@
 import { addComponent, addEntity, type World } from 'bitecs';
 import { STREET_LIFT } from '../../../content/map/road-mesh';
 import { trafficCatalog } from '../../../content/traffic-catalog';
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 import { quatFromYaw } from '../../../engine/core/math';
 import { PhysicsRef, RenderRef, Traffic, Transform, writePose } from '../../ecs/components';
 

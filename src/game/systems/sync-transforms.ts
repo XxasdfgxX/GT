@@ -2,7 +2,7 @@
 
 import type { World } from 'bitecs';
 import { lerpVec3, slerpQuat, type Quat, type Vec3 } from '../../engine/core/math';
-import type { GameContext } from '../../engine/core/context';
+import type { GameContext } from '../context';
 import type { WheelPose } from '../../engine/physics/physics-world';
 import { PhysicsRef, RenderRef, Transform, Wheel } from '../ecs/components';
 import { rendered, simulated, vehicles, wheels } from '../ecs/queries';

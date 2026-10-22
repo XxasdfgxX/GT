@@ -2,7 +2,7 @@
 
 import { addComponent, addEntity, type World } from 'bitecs';
 import { delivery } from '../../../content/mission';
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 import { Mission } from '../../ecs/components';
 import { MissionPhase } from '../../play/mission';
 

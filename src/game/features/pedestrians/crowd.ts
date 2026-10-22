@@ -4,7 +4,7 @@ import { addComponent, addEntity, type World } from 'bitecs';
 import { characterAlignYaw, citizens } from '../../../content/models';
 import { STREET_LIFT } from '../../../content/map/road-mesh';
 import { sim } from '../../../content/sim';
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 import { writeTransformMatrix } from '../../../engine/core/math';
 import type { ClipKey } from '../../../engine/render/renderer';
 import { Pedestrian, RenderRef, Transform, writePose } from '../../ecs/components';

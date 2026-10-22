@@ -431,47 +431,40 @@ O perfil mudou a ordem do plano: o custo não era pedestre contra pedestre, era 
 
 ### Task 7.1: Tipos de jogo em `engine/core`
 
-**Files:** Modify `src/engine/core/context.ts`, novos `src/game/events.ts` e `src/net/snapshot.ts`
-
-- [ ] Mover `GameEvents`, `NetSnapshot` e `DebugState` para fora de `engine/core`. `GameContext` fica genérico no tipo dos eventos, ou importa por `import type` de `game`. Escolher o que der menos ciclo e registrar num ADR em `DECISIONS.md`.
+- [x] Nenhum arquivo de `engine/` usava `context.ts`: ele é o saco de dependências do jogo. Foi inteiro para `src/game/context.ts` (`GameContext`, `GameEvents`, `DebugState`, o contrato da rede). 36 imports atualizados; ARCHITECTURE.md diz onde ele mora.
 
 ### Task 7.2: Sistemas que se chamam
 
-**Files:** Modify `src/game/systems/traffic.ts`, `interaction.ts`, `pedestrians.ts`, `cash.ts`
-
-- [ ] `attachDriver` e `ejectDriver` saem de `systems/pedestrians.ts` e vão para `src/game/play/drivers.ts`, que só mexe em componentes. Os três sistemas importam de `play`.
-- [ ] `cash.ts`: `hideBody`, `showBody` e `layLocalCorpse` entram por evento (`player:died`, `player:respawned`) ou também vão para `play`. Seguir a regra do ARCHITECTURE.md e registrar a escolha.
-- [ ] `Mode` sai de `systems/player-movement.ts` e vai para `ecs/components.ts`.
+- [x] `attachDriver`, `seatDriver`, `ejectDriver`, `releaseDriver`, `freshBody` e o pool livre (`idlePedestrian`) foram para `play/drivers.ts`. Tráfego e interação não importam mais o sistema de pedestres.
+- [x] Sentar e levantar (`boardVehicle`, `leaveVehicle`, `abandonRide`) foram para `play/seat.ts`. `interaction.ts` só escolhe o carro mais perto; embarque, rede e morte usam `seat`.
+- [x] `yawFromQuat`, `chaseCameraYaw` e `compassHeading` em `play/heading.ts`; `capsuleFloor` em `play/ground.ts`; `boardingClip` em `play/board-state.ts`.
+- [x] `Mode` e o novo `TrafficMode` em `ecs/components.ts`. Os números `MODE_*` repetidos em três sistemas (`MODE_PARKED = 4` em dois lugares) saíram.
+- [x] Nenhum sistema importa outro sistema, fora `ped-ai` e `traffic-ai`, que são regras puras. `play/drivers.ts` lê `PedState` de `ped-ai` pelo mesmo motivo.
+- [x] `cash.ts` continua chamando `hideBody`/`showBody` de `features/player` e `layLocalCorpse` de `features/corpse`: são o que spawna e esconde o corpo, como `net.ts` já fazia. A regra do ARCHITECTURE.md é entre features.
 
 ### Task 7.3: Regras do ESLint cobrindo o documento
 
-**Files:** Modify `eslint.config.js`
-
-- [ ] Banir Three e Rapier também em `src/ui/**`, `src/net/**` e `server/**/*.ts`.
-- [ ] O bloco de `src/content/**` vem da Task 4.4.
+- [x] Three e Rapier barrados também em `src/app`, `src/ui`, `src/net` e `server`. Conferido com um import de prova em cada um (o de `server` dentro do próprio `index.ts`, que é o único arquivo do tsconfig do servidor).
 
 ### Task 7.4: Testes dos sistemas sem cobertura
 
-**Files:** novos em `src/tests/`
-
-- [ ] `traffic.test.ts`: o carro segue a faixa, estaciona num beco de mão única sem motorista (Task 3.2), e vira destroço ao ser atingido.
-- [ ] `pedestrians.test.ts`: transições idle → walk → wait → cross, fuga de um carro, e morte → drop → reciclagem.
-- [ ] `stream-city.test.ts`: ao dirigir para longe do corpo, carrega os chunks em volta do carro e esconde os de trás.
-- [ ] `mission.test.ts` e `vehicle-drive.test.ts` cobrindo o caminho principal.
-- [ ] Reforçar os testes fracos:
-  - `player-query.test.ts:28`: afirmar algo que a query computa, não o valor recém-escrito.
-  - `boot-island.test.ts`: um raycast no heightfield bate na altura certa, e o navmesh acha caminho entre dois pontos de calçada.
-  - `sky.test.ts`: remover ou trocar por um teste com comportamento.
-
----
+- [x] `systems.test.ts`: o carro acelera com acelerador e o vazio fica no freio de mão; o stream monta os blocos em volta do carro e não do corpo na porta; a missão pega a caixa a pé e termina com o carro no pad; o pool de tráfego enche e a maioria anda pela rua; a multidão acorda perto do jogador e sai para os destinos.
+- [x] `player-query.test.ts`: a consulta acha o jogador completo e pula o incompleto, vê quem nasce depois da primeira consulta (o cache da Fase 6) e separa dois mundos.
+- [x] `boot-island.test.ts`: um raio para baixo no ponto solo acerta o heightfield na altura do terreno. Ver Task 7.6 para o navmesh.
+- [x] `sky.test.ts` fica: confere que a direção do sol calculada continua normalizada.
 
 ### Task 7.5: Componentes sujos entre sessões
 
-**Files:** Modify `src/game/ecs/components.ts`, `src/game/ecs/world.ts` · Test novo `src/tests/world-reset.test.ts`
+- [x] `createGameWorld` zera todos os arrays de componente (`clearComponents`). Teste em `world-reset.test.ts`.
 
-- [ ] Os arrays SoA são do módulo e não zeram quando um mundo novo nasce. bitecs reaproveita os ids a partir de 1, então qualquer campo que o spawn não grava herda o valor da sessão anterior (a Task 2.1 achou `Vehicle.occupied`).
-- [ ] `createGameWorld` zera todos os arrays de `components.ts` (`fill(0)` em cada campo de cada componente, por uma lista exportada). Custa um laço curto na carga, não no quadro.
-- [ ] Teste: escrever lixo em campos de `Player`, `Pedestrian`, `Traffic` e `Vehicle`, criar um mundo, e conferir que estão zerados.
+### Task 7.6: O navmesh das calçadas está em pedaços (aberta, achada na Task 7.4)
+
+- [ ] Medido: 794 quads (196 faixas de pedestre) viram **572 grupos** desconectados, o maior com 8 polígonos. Em 98 pares de calçada a menos de 80 m, **nenhum** caminho é achado. Os quads de calçada, esquina e faixa não compartilham vértices, e o `three-pathfinding` só liga polígonos com vértices em comum.
+- [ ] Efeito: `aim()` nunca recebe caminho; o pedestre anda em linha reta até o destino (se estiver a menos de 80 m) e esbarra em prédio. A desistência por travamento da Task 3.6 esconde parte disso.
+- [ ] Caminho sugerido: trocar o adaptador por um grafo próprio — quads que se tocam ou se sobrepõem (tolerância de ~0,3 m) viram vizinhos, A\* entre centros, e o caminho passa pelos pontos médios das bordas em comum. A interface `NavMesh` não muda.
+- [ ] O teste `joins two blocks downtown with a sidewalk path` está marcado `it.fails`; tirar o `.fails` quando o navmesh ficar conectado.
+
+---
 
 ## Ordem sugerida e tamanho
 

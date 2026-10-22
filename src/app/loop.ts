@@ -2,7 +2,7 @@
 
 import type { World } from 'bitecs';
 import { sim } from '../content/sim';
-import type { GameContext } from '../engine/core/context';
+import type { GameContext } from '../game/context';
 import { beginFrame, consumeStep, endFrame } from '../engine/core/time';
 
 export interface FrameHooks {

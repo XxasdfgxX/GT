@@ -61,6 +61,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/app/**/*.ts', 'src/ui/**/*.ts', 'src/net/**/*.ts', 'server/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [banThree, banRapier] }],
+    },
+  },
+  {
     files: [
       'src/engine/core/**/*.ts',
       'src/engine/input/**/*.ts',

@@ -1,6 +1,6 @@
 /** DOM readout. Gameplay never touches document nodes directly. */
 
-import type { DebugState, NetPlayer, NetRosterEntry } from '../engine/core/context';
+import type { DebugState, NetPlayer, NetRosterEntry } from '../game/context';
 import type { Vec3 } from '../engine/core/math';
 import { PLAYER_TAG_LIFT } from '../game/features/health-bar';
 import type { HudModel } from '../game/play/read-hud';

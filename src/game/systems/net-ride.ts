@@ -5,16 +5,23 @@ import { engineForceFor, maxSpeedMs } from '../../content/cars';
 import { STREET_LIFT } from '../../content/map/road-mesh';
 import { sim } from '../../content/sim';
 import { trafficCatalog } from '../../content/traffic-catalog';
-import type { GameContext, NetCar } from '../../engine/core/context';
+import type { GameContext, NetCar } from '../context';
 import { quatFromYaw } from '../../engine/core/math';
 import { nearestOpenCar } from '../../net/ride';
-import { InputState, PhysicsRef, Player, RenderRef, Transform, Vehicle } from '../ecs/components';
+import {
+  InputState,
+  PhysicsRef,
+  Player,
+  RenderRef,
+  Transform,
+  Vehicle,
+  Mode,
+} from '../ecs/components';
 import { players } from '../ecs/queries';
 import { spawnVehicle } from '../features/vehicles/spawn-vehicle';
 import { hideBody } from '../features/player/place-player';
 import { interactPrompt } from '../play/feel';
-import { boardVehicle, leaveVehicle } from './interaction';
-import { Mode } from './player-movement';
+import { boardVehicle, leaveVehicle } from '../play/seat';
 
 const rotation = { x: 0, y: 0, z: 0, w: 1 };
 const paint = new Map<number, number>();

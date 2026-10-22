@@ -1,6 +1,6 @@
 /** Browser socket for one room. The menu waits on the welcome pose. */
 
-import type { NetLink, NetPose, NetPunch, NetSnapshot } from '../engine/core/context';
+import type { NetLink, NetPose, NetPunch, NetSnapshot } from '../game/context';
 import { parseServerMessage, type ClientMsg, type StateMsg, type WelcomeMsg } from './protocol';
 
 export interface Connected {

@@ -4,7 +4,7 @@ import { STREET_LIFT } from '../../../content/map/road-mesh';
 import { sampleHeight } from '../../../content/map/island-shape';
 import { characterAlignYaw, characterScale, citizens } from '../../../content/models';
 import { sim } from '../../../content/sim';
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 import { quatFromYaw } from '../../../engine/core/math';
 import { CORPSE_TIME } from '../../play/wallet';
 

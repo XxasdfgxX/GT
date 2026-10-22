@@ -2,7 +2,7 @@
 
 import { buildCostaVerde } from '../../../content/city';
 import { writeTransformMatrix } from '../../../engine/core/math';
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 
 let graphMesh = 0;
 let navMesh = 0;

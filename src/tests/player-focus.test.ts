@@ -8,9 +8,9 @@ import {
   RenderRef,
   Transform,
   Velocity,
+  Mode,
 } from '../game/ecs/components';
 import { playerFocus } from '../game/play/player-focus';
-import { Mode } from '../game/systems/player-movement';
 
 function spawnPlayer(world: ReturnType<typeof createWorld>, x: number, z: number): number {
   const eid = addEntity(world);
