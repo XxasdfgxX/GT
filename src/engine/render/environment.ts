@@ -2,7 +2,7 @@
 
 import {
   EquirectangularReflectionMapping,
-  Fog,
+  FogExp2,
   PMREMGenerator,
   type Scene,
   type WebGLRenderer,
@@ -30,7 +30,7 @@ export async function loadCoastEnvironment(
   scene.background = hdr;
   scene.environment = target.texture;
   const fog = scene.fog;
-  if (fog instanceof Fog) fog.color.setHex(HORIZON_COLOR);
+  if (fog instanceof FogExp2) fog.color.setHex(HORIZON_COLOR);
 
   const image = hdr.image as { width?: number; height?: number } | null;
   const hdrBytes = image && image.width && image.height ? image.width * image.height * 4 : 0;

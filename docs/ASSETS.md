@@ -2,11 +2,11 @@
 
 ## Iluminação
 
-| Nome                              | Uso                         | URL                                                  | Licença |
-| --------------------------------- | --------------------------- | ---------------------------------------------------- | ------- |
-| kloofendal_43d_clear_puresky (2k) | Céu e iluminação por imagem | https://polyhaven.com/a/kloofendal_43d_clear_puresky | CC0     |
+| Nome                                      | Uso                         | URL                                                          | Licença |
+| ----------------------------------------- | --------------------------- | ------------------------------------------------------------ | ------- |
+| kloofendal_48d_partly_cloudy_puresky (2k) | Céu e iluminação por imagem | https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky | CC0     |
 
-O arquivo está em `public/assets/hdri/kloofendal_43d_clear_puresky_2k.hdr`. O `PMREMGenerator` gera o ambiente a partir dele. A névoa usa a cor do horizonte dessa imagem.
+O arquivo está em `public/assets/hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr`. O `PMREMGenerator` gera o ambiente a partir dele. A névoa (exponencial) usa a cor do horizonte dessa imagem. O sol (`HDRI_SUN`) é o centróide dos pixels acima de metade do pico, e a cor do horizonte é a média linear da linha do equador convertida para sRGB.
 
 ## Superfícies
 

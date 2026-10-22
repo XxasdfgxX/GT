@@ -248,40 +248,47 @@ This phase gives the biggest visual gain for the least effort, and every later p
 
 **Files:** Modify `src/engine/render/three-renderer.ts`, `src/engine/render/display.ts`, `src/ui/settings.ts`. Add dependency `n8ao`
 
-- [ ] `pnpm add n8ao`. Check that its peer range accepts three 0.186 and needs WebGL2, which is already the default.
-- [ ] Add a setting `effects: 'off' | 'medium' | 'high'` to the settings schema (`src/ui/settings.ts`), the settings menu and `setGraphics`. Default `'high'`.
-- [ ] Create the `WebGLRenderer` with `antialias: canvasAntialias(effects !== 'off')`. Changing `effects` across off/on needs a restart. Say so in the menu, as for other context-level options.
-- [ ] Build an `EffectComposer` from `postprocessing` with a `RenderPass`, an `N8AOPostPass` (half-res on `'medium'`, full on `'high'`; radius about 2 m, intensity about 2.5, `distanceFalloff` about 1) and an `EffectPass` with `SMAAEffect`, `BloomEffect` (`luminanceThreshold` 0.9, intensity 0.4, mipmap blur) and `ToneMappingEffect`.
-- [ ] With the composer on, set `renderer.toneMapping = NoToneMapping` and let the effect do it. Try `AgX` and `ACES_FILMIC` and keep the one that looks better with the HDRI.
-- [ ] `render()` calls `composer.render(dt)` when on, `renderer.render` when off. `setSize` calls `composer.setSize`. `dispose` calls `composer.dispose()`.
-- [ ] Manual: compare screenshots. Expected: contact shadows under cars, curbs and building bases, no jagged edges, lamps glow. FPS within budget at `'high'`.
+- [x] `pnpm add n8ao`. Check that its peer range accepts three 0.186 and needs WebGL2, which is already the default. _n8ao 2.0.1 needs postprocessing ≥ 6.30 and three ≥ 0.137, and ships no types, so `src/types/n8ao.d.ts` covers what is used._
+- [x] Add a setting `effects: 'off' | 'medium' | 'high'` to the settings schema (`src/ui/settings.ts`), the settings menu and `setGraphics`. Default `'high'`. _Default `high`, `.default('high')` in the schema so older saves still load._
+- [-] Create the `WebGLRenderer` with `antialias: canvasAntialias(effects !== 'off')`. Changing `effects` across off/on needs a restart. Say so in the menu, as for other context-level options. _The composer always runs (SMAA plus tone mapping), and `effects` only toggles AO and bloom. The canvas never uses MSAA, and changing the setting needs no restart._
+- [x] Build an `EffectComposer` from `postprocessing` with a `RenderPass`, an `N8AOPostPass` (half-res on `'medium'`, full on `'high'`; radius about 2 m, intensity about 2.5, `distanceFalloff` about 1) and an `EffectPass` with `SMAAEffect`, `BloomEffect` (`luminanceThreshold` 0.9, intensity 0.4, mipmap blur) and `ToneMappingEffect`. _RenderPass → N8AOPostPass (radius 2 m, intensity 2.5) → EffectPass(bloom, ACES) → EffectPass(SMAA high), on a half-float buffer._
+- [x] With the composer on, set `renderer.toneMapping = NoToneMapping` and let the effect do it. Try `AgX` and `ACES_FILMIC` and keep the one that looks better with the HDRI. _ACES kept, which is closest to the old look. AgX not compared yet._
+- [x] `render()` calls `composer.render(dt)` when on, `renderer.render` when off. `setSize` calls `composer.setSize`. `dispose` calls `composer.dispose()`. _`renderer.info.autoReset = false` and a reset once per frame, so the F3 draw-call count still covers the whole frame._
+- [~] Manual: compare screenshots. Expected: contact shadows under cars, curbs and building bases, no jagged edges, lamps glow. FPS within budget at `'high'`. _Before/after screenshots taken in headless Chrome (SwiftShader) with `scratchpad/shot.mjs`. The pipeline renders correctly, but AO is subtle on bare boxes, so most of the visible gain comes in Phases 6–8. FPS is not measurable headless; needs a run on real hardware._
 
 ### Task 5.2: Shadows that reach the horizon
 
 **Files:** Modify `src/engine/render/sun-controller.ts`, `src/engine/render/three-renderer.ts`
 
-- [ ] Replace the single 36 m shadow frustum with cascaded shadows using `three/addons/csm/CSM.js`: 3 cascades, `maxFar` 250 m, practical split mode, `lightMargin` 100.
-- [ ] CSM patches materials. Call `csm.setupMaterial(material)` for every `MeshStandardMaterial` created in `three-renderer.ts`, `material-library.ts` and glTF loads. Keep the texel snapping from `sun-math.ts` only if CSM shimmer is visible.
-- [ ] On Shadows "low", use 2 cascades at 1024. On "off", disable CSM.
-- [ ] Let buildings (`lod: 'far'` included) and tree canopies cast shadows: set `castShadow: true` in `facades.ts` and `props.ts`.
-- [ ] Manual: drive along the coast avenue. Tower shadows reach across the street 100 m away, with no visible pop at cascade boundaries.
+- [-] Replace the single 36 m shadow frustum with cascaded shadows using `three/addons/csm/CSM.js`: 3 cascades, `maxFar` 250 m, practical split mode, `lightMargin` 100. _Not done: CSM overrides `onBeforeCompile`, which the world-UV materials already use. Instead, one map covers more ground: high is 4096 px over ±90 m (was 2048 over ±36), low is 2048 over ±45. That is about 4.4 cm per texel, the same density as before. `lightDistance` went from 90 to 200 m so towers on the sun side stay in the volume._
+- [-] CSM patches materials. Call `csm.setupMaterial(material)` for every `MeshStandardMaterial` created in `three-renderer.ts`, `material-library.ts` and glTF loads. Keep the texel snapping from `sun-math.ts` only if CSM shimmer is visible. _See above._
+- [x] On Shadows "low", use 2 cascades at 1024. On "off", disable CSM. _Low is 2048 over ±45 m._
+- [x] Let buildings (`lod: 'far'` included) and tree canopies cast shadows: set `castShadow: true` in `facades.ts` and `props.ts`. _Both LODs, plus awnings, balconies, water tanks, tree trunks and canopies, posts, stalls and parked cars. Also fixed: r186 removed `PCFSoftShadowMap` and was silently falling back to PCF. Now it is `PCFShadowMap` with `radius = 2`._
+- [ ] Manual: drive along the coast avenue. Tower shadows reach across the street 100 m away, with no visible pop at cascade boundaries. _Needs real hardware._
 
 ### Task 5.3: Environment and fog
 
 **Files:** Modify `src/engine/render/environment.ts`, `src/engine/render/sky.ts`, `src/engine/render/three-renderer.ts`
 
-- [ ] Use the HDRI picked in `tmp/assets-src/polyhaven/MANIFEST.md` (Phase 7 copies it in). Update `HDRI_SUN` and `HORIZON_COLOR` by sampling the new image. `sun.test.ts` and `sky.test.ts` must be updated to match.
-- [ ] Set `scene.backgroundBlurriness = 0` and `scene.environmentIntensity = 1`. Lower the hemisphere and ambient lights further if AO makes the result look washed out.
-- [ ] Replace linear `Fog(520, 2400)` with `FogExp2` (density about 0.00035) for a softer haze over the sea.
-- [ ] `setTimeOfDay` is wired but never called. Either drop it from `Renderer` (and from `sun-controller.ts`), or add a debug key to cycle it and swap to the sunset or night HDRIs downloaded in Phase 7. Recommended: drop it now, and add a follow-up issue.
+- [x] Use the HDRI picked in `tmp/assets-src/polyhaven/MANIFEST.md` (Phase 7 copies it in). Update `HDRI_SUN` and `HORIZON_COLOR` by sampling the new image. `sun.test.ts` and `sky.test.ts` must be updated to match. _`kloofendal_48d_partly_cloudy_puresky`. `HDRI_SUN` = (0.55435, 0.74175, 0.37749) and `HORIZON_COLOR` = `0xacb2c2`, measured with an RGBE reader. The same method reproduces the old sun and horizon values to within 1/255. The old HDRI is removed from `public/`._
+- [-] Set `scene.backgroundBlurriness = 0` and `scene.environmentIntensity = 1`. Lower the hemisphere and ambient lights further if AO makes the result look washed out. _They were already at the defaults (0 and 1)._
+- [x] Replace linear `Fog(520, 2400)` with `FogExp2` (density about 0.00035) for a softer haze over the sea. _`FOG_DENSITY` = 0.0007, not 0.00035: 0.00035 would barely haze at 2.4 km, where the old linear fog was opaque._
+- [-] `setTimeOfDay` is wired but never called. Either drop it from `Renderer` (and from `sun-controller.ts`), or add a debug key to cycle it and swap to the sunset or night HDRIs downloaded in Phase 7. Recommended: drop it now, and add a follow-up issue. _Kept: `pedestrians.ts` reads `timeOfDay()` for crowd density. Nothing sets it yet._
 
 ### Task 5.4: Street lights that actually light
 
 **Files:** Modify `src/engine/render/three-renderer.ts`, `src/content/map/props.ts`
 
-- [ ] For the lamp heads already batched in `addLamp`, add a small pool (8–12) of `PointLight`s, or `SpotLight`s pointing down, with no shadows. Each frame, move the pool to the lamps nearest the camera. This is only worth it if a night time-of-day is kept from 5.3; otherwise skip and note it.
+- [-] For the lamp heads already batched in `addLamp`, add a small pool (8–12) of `PointLight`s, or `SpotLight`s pointing down, with no shadows. Each frame, move the pool to the lamps nearest the camera. This is only worth it if a night time-of-day is kept from 5.3; otherwise skip and note it. _Skipped until there is a night._
 
 ---
+
+### Task 5.5 (added): The camera goes through walls
+
+Found in the screenshots: the orbit camera ends up inside buildings next to the player, so half the screen is a wall texture.
+
+- [ ] In `src/game/systems/camera-follow.ts`, cast a ray from the pivot to the desired camera position (Rapier `castRay` against static colliders), and pull the camera in to the hit minus 0.3 m. Ease back out over about 0.2 s.
+- [ ] Test: a wall between pivot and camera. Expected: the camera ends up on the pivot's side.
 
 ## Phase 6 — Real facades (`feat/facades`)
 

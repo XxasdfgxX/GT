@@ -9,7 +9,7 @@ import {
   CapsuleGeometry,
   CylinderGeometry,
   DirectionalLight,
-  Fog,
+  FogExp2,
   Group,
   HemisphereLight,
   InstancedBufferAttribute,
@@ -73,7 +73,7 @@ import type {
   SurfaceFinish,
   TerrainDesc,
 } from './renderer';
-import { HORIZON_COLOR } from './sky';
+import { FOG_DENSITY, HORIZON_COLOR } from './sky';
 import { createSunController } from './sun-controller';
 
 interface CachedModel {
@@ -115,7 +115,7 @@ export function createThreeRenderer(
   renderer.setClearColor(HORIZON_COLOR, 1);
 
   const scene = new Scene();
-  scene.fog = new Fog(HORIZON_COLOR, 520, 2400);
+  scene.fog = new FogExp2(HORIZON_COLOR, FOG_DENSITY);
 
   const camera = new PerspectiveCamera(fov, 1, 0.3, worldFar);
   const composer = new EffectComposer(renderer, { frameBufferType: HalfFloatType });
