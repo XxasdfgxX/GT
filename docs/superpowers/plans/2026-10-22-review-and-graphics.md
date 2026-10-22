@@ -470,7 +470,7 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 ### Task 10.2: `docs/ASSETS.md` and `CREDITS.txt`
 
 - [x] One table per type listing every Poly Haven asset in `public/` (name, URL, CC0), plus the Sketchfab CC-BY assets with author. _All the Poly Haven textures and props, with triangle counts. No Sketchfab assets were added._
-- [~] Remove anything no longer shipped: Kenney houses, and the old ambientCG textures if all of them were replaced. _The old ambientCG textures that were replaced are gone from `ASSETS.md`; Grass001 stays. The Kenney houses are still placed (Task 6.5), so they stay._
+- [x] Remove anything no longer shipped: Kenney houses, and the old ambientCG textures if all of them were replaced. _The old ambientCG textures that were replaced are gone from `ASSETS.md`; Grass001 stays. The Kenney houses are still placed (Task 6.5), so they stay._
 
 ### Task 10.3: Car licenses
 
