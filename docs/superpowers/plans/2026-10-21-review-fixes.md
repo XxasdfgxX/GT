@@ -340,73 +340,57 @@ Medido antes e depois com uma sonda sobre `buildCostaVerde()`:
 
 ## Fase 5 — Servidor (`fix/server-limits`)
 
-Constantes novas em `src/content/sim.ts` (ou num `net/limits.ts`), para os testes lerem os mesmos números.
+Testes novos em `src/tests/server-limits.test.ts` (15) e `src/tests/net-client.test.ts` (3). Os casos de `multiplayer.test.ts` montam cenas (jogador posto por pose, socos em rajada) e criam a sala com `limits: false`; o padrão é `true`. Conferido também com o servidor de verdade e clientes `ws`: Origin estranho → HTTP 401; 20 KB → fecha com 1009; 400 mensagens de uma vez → fecha com 1008; teleporte de 300 m → anda 6 m e o cliente volta.
 
 ### Task 5.1: Transporte
 
-**Files:** Modify `server/index.ts` · Test `src/tests/multiplayer.test.ts`
+**Files:** Create `src/net/limits.ts` · Modify `server/index.ts`
 
-- [ ] `new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024, verifyClient })`.
-- [ ] `verifyClient` aceita só o Origin da lista (`http://localhost:6969`, `http://127.0.0.1:6969`, a porta do Vite, mais `BAIRRO_ORIGINS` do ambiente, separado por vírgula). O proxy do Vite repassa o Origin do browser. Conferir com `pnpm play`.
-- [ ] Balde de fichas por socket: 60 mensagens/s com rajada de 120. Acima disso, descartar. Fechar com 1008 depois de 5 s seguidos acima do limite.
-- [ ] Tirar o balde e o Origin para funções puras e testar.
+- [x] `maxPayload: 16 KiB` e `verifyClient` com `originAllowed`: aceita `http://localhost:6969`, `http://127.0.0.1:6969`, o que vier em `BAIRRO_ORIGINS`, e conexões sem Origin (ferramentas fora do browser). README explica a variável.
+- [x] Balde por socket: 60 mensagens/s, rajada de 120. Acima disso descarta; 240 descartes em 5 s fecham com 1008.
 
 ### Task 5.2: Posição informada pelo cliente
 
-**Files:** Modify `src/net/room.ts` (`pushPose`, `steerCar`)
+**Files:** Modify `src/net/room.ts` (`pushPose`)
 
-- [ ] Guardar `lastPoseAt` por jogador. Rejeitar (e não aplicar) um deslocamento maior que `maxSpeed × dt + folga`. Usar `maxSpeed` a pé = velocidade de corrida × 1,5. No carro = `maxSpeedKmh / 3,6` do carro × 1,2. Ao rejeitar, mandar a posição do servidor de volta no próximo snapshot `self` para o cliente corrigir.
-- [ ] A mesma regra vale para `steerCar`.
-- [ ] Testes: pose a 500 m de distância em 50 ms é ignorada, e um `pickup` logo depois, longe do drop, não recolhe nada. Uma caminhada normal passa.
+- [x] Orçamento de alcance em vez de "velocidade × tempo desde a última pose + folga": a folga por mensagem deixava andar ~216 m/s mandando 60 poses por segundo. O orçamento enche na velocidade máxima (a pé `sprintSpeed × 1,5`; no carro o `maxSpeedKmh` do carro × 1,25), guarda no máximo 0,5 s, e cada pose gasta o que andou. Pose além disso anda só até onde o orçamento deixa.
+- [x] A pé, passar mais de 5 m do permitido aumenta `placeSerial` com a posição do servidor: o cliente volta para lá (o `applyNetState` já fazia isso no respawn).
+- [x] `steerCar`, soco e coleta usam a posição já limitada.
 
 ### Task 5.3: Soco sem recarga
 
 **Files:** Modify `src/net/room.ts` (`pushPunch`)
 
-- [ ] Guardar `lastPunchAt` por jogador. Exigir 0,42 s entre socos leves e 0,92 s para um pesado, os mesmos números de `ped-ai`. Mover essas constantes para um lugar comum.
-- [ ] Soco pesado só é aceito se o anterior foi há pelo menos 0,92 s. O dano continua vindo da regra do servidor.
-- [ ] O alcance do soco usa a posição do servidor, não o `x/z` da mensagem.
-- [ ] Teste: 40 socos pesados numa rajada dão no máximo um golpe.
+- [x] Um soco por golpe: o próximo só conta depois da duração do golpe atual (`punchProfile`: 0,42 s leve, 0,92 s pesado), menos um tick de folga.
+- [x] Testes: 40 pesados de uma vez → um golpe; leves no ritmo do golpe → todos contam; leve logo depois de um pesado → ignorado.
 
 ### Task 5.4: NPCs não renascem
 
-**Files:** Modify `src/net/room.ts` (`killNpc`, `tick`)
+- [x] `killNpc` agenda a troca para 30 s depois. O morto sai da lista e entra um NPC novo, com id novo, num nó a pelo menos 60 m de todo jogador.
 
-- [ ] Ao morrer, o NPC agenda o renascimento (por exemplo 30 s) num ponto de spawn longe de todos os jogadores, reaproveitando o mesmo id ou um id novo (conferir o que o cliente espera em `remotes.ts`).
-- [ ] Teste: matar todos os NPCs e avançar 31 s. Expected: a contagem volta.
+### Task 5.5: Drops eternos, `hitAt` crescendo, tropeço por antecipação
 
-### Task 5.5: Drops eternos e `hitAt` crescendo
-
-**Files:** Modify `src/net/room.ts`
-
-- [ ] Drops com `expiresAt` (60 s) e limite de 64 por sala, removendo o mais antigo.
-- [ ] `hitAt`: no `leave`, apagar a chave do jogador em todos os carros. Ou trocar o Map por `{ id, at }` com no máximo 8 entradas.
-- [ ] `carPathBlocked`: a checagem antecipada só detecta. Derrubar (`npc.down`) fica no contato real.
-- [ ] Testes: o drop some depois de 60 s, e a sala nunca passa de 64 drops.
+- [x] Drops vencem em 60 s; a sala guarda no máximo 64 e descarta os mais antigos.
+- [x] `hitAt` apaga as entradas mais velhas que `RAM_GAP` a cada atropelamento.
+- [x] `carPathBlocked` só para o carro; ninguém cai por onde o carro ainda não chegou.
 
 ### Task 5.6: Nomes
 
-**Files:** Modify `src/net/room.ts` (`chooseName`)
+- [x] Corta por ponto de código (um emoji não parte ao meio) e tira controles C0/C1, marcas de direção (U+202A–202E, U+2066–2069), larguras zero e BOM.
 
-- [ ] Cortar por ponto de código (`Array.from(name).slice(0, 16).join('')`) e remover `‪-‮`, `⁦-⁩`, `​-‏`.
-- [ ] Teste com um emoji na posição 16 e com `‮`.
+### Task 5.7: Cliente
 
-### Task 5.7: Cliente — fantasmas que nunca saem e desconexão muda
+**Files:** Modify `src/game/features/net/remotes.ts`, `src/net/session.ts`, `src/engine/core/context.ts`, `src/ui/mount-hud.ts`, `src/ui/hud.css`, `src/app/bootstrap.ts`, `src/game/systems/net.ts`
 
-**Files:** Modify `src/game/features/net/remotes.ts`, `src/net/session.ts`, `src/game/systems/net.ts`, `src/game/systems/net-ride.ts`, `src/ui/mount-hud.ts`
-
-- [ ] `remotes.ts`: um fantasma que sai do snapshot (corpo, drop) é removido da cena e tem a malha liberada pelo renderer. Uma alternativa é um pool fixo de malhas para corpos e drops. `resetRemotes` libera todos.
-- [ ] Corpos usam `body.kind`: jogador → modelo do jogador, NPC → `citizens[variant]`.
-- [ ] `session.ts`: estado `connected | lost`. No `close` ou `error` depois do `welcome`, passar a `lost`, emitir `net:lost` no `EventBus`, e o HUD mostra "Conexão perdida" com botão para o menu.
-- [ ] `resetNet` zera `poseWait`. `resetNetRide` libera a entidade de `rideEid` antes de zerar.
+- [x] O renderer não tem como remover malha, então o fantasma que some vai para uma lista de reserva por modelo e é reaproveitado pelo próximo id. 50 corpos e drops seguidos não criam malha nova. `lastHealth`/`hurtUntil` esquecem o NPC que saiu.
+- [x] Corpo de jogador usa o modelo do jogador. (Na prática já saía igual: `citizens[0]` é o mesmo arquivo e o servidor manda variante 0. Ficou explícito.)
+- [x] `NetLink.connected()`; a sessão marca a queda depois do `welcome`, e o HUD mostra "Conexão com a sala perdida · crase volta ao menu".
+- [x] `resetNet` zera `poseWait` no começo da sessão. `rideEid` não vazava: cada sessão cria mundo, física e renderer novos, e `resetNetRide` já zera o id.
 
 ### Task 5.8: Custo por tick
 
-**Files:** Modify `server/index.ts`, `src/net/room.ts`
-
-- [ ] Montar e serializar a parte comum do snapshot (NPCs, carros, drops, corpos, lista de jogadores) uma vez por tick. Cada membro recebe essa string mais o `self` (dois campos, ou uma concatenação de JSON montada à mão).
-- [ ] Sala sem membros não simula NPCs nem tráfego.
-- [ ] Verificar: um teste com 16 membros chama `JSON.stringify` da parte comum uma vez por tick (espiar com `vi.spyOn`).
+- [x] `encodeStates` serializa NPCs, carros, drops, corpos e lista de jogadores uma vez por tick; cada membro recebe essa parte mais o seu `self` e os outros jogadores. `snapshot` continua igual para os testes; um teste confere que as duas saídas batem.
+- [x] Sala vazia não simula.
 
 ---
 

@@ -48,6 +48,10 @@ const nodes = [
 
 const edges = [{ a: 0, b: 1 }];
 
+/**
+ * These cases stage a scene: players are placed by pose and punch in a burst.
+ * The speed and punch-rate limits have their own tests in server-limits.test.ts.
+ */
 function room() {
   return createRoom({
     id: 'costa-1',
@@ -56,6 +60,7 @@ function room() {
     nodes,
     edges,
     rng: () => 0,
+    limits: false,
     npcCount: 1,
     carCount: 0,
     maxPlayers: 2,
@@ -165,6 +170,7 @@ describe('rooms', () => {
       nodes,
       edges,
       rng: () => 0.25,
+      limits: false,
     });
     const id = join(live) ?? 0;
     const view = snapshot(live, id);
@@ -188,6 +194,7 @@ describe('rooms', () => {
       ],
       edges: [{ a: 0, b: 1 }],
       rng: () => 0.2,
+      limits: false,
       npcCount: 0,
       carCount: 8,
       maxPlayers: 2,
@@ -228,6 +235,7 @@ describe('rooms', () => {
       nodes,
       edges,
       rng: () => 0,
+      limits: false,
       npcCount: 0,
       carCount: 1,
       maxPlayers: 2,
@@ -331,6 +339,7 @@ describe('rooms', () => {
         if (call === 6) return 0.6;
         return 0.5;
       },
+      limits: false,
       npcCount: 0,
       carCount: 0,
       maxPlayers: 2,
@@ -403,6 +412,7 @@ describe('rooms', () => {
       nodes,
       edges,
       rng: () => 0,
+      limits: false,
       npcCount: 1,
       carCount: 1,
       maxPlayers: 2,
@@ -441,6 +451,7 @@ describe('rooms', () => {
       nodes,
       edges,
       rng: () => 0,
+      limits: false,
       npcCount: 1,
       carCount: 1,
       maxPlayers: 2,
@@ -589,6 +600,7 @@ describe('rooms', () => {
       nodes,
       edges,
       rng: () => 0,
+      limits: false,
       npcCount: 2,
       carCount: 0,
       maxPlayers: 2,

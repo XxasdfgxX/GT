@@ -4,10 +4,12 @@ import { createServer } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { buildRoadGraph } from '../src/content/map/roads';
 import { bairroSpawns } from '../src/content/spawns';
-import { parseClientMessage, type StateMsg } from '../src/net/protocol';
+import { MAX_MESSAGE_BYTES, createBucket, originAllowed } from '../src/net/limits';
+import { parseClientMessage } from '../src/net/protocol';
 import {
   ROOM_DEFS,
   createRoom,
+  encodeStates,
   join,
   leave,
   listing,
@@ -63,7 +65,13 @@ const server = createServer((req, res) => {
   res.end();
 });
 
-const sockets = new WebSocketServer({ server, path: '/ws' });
+const sockets = new WebSocketServer({
+  server,
+  path: '/ws',
+  maxPayload: MAX_MESSAGE_BYTES,
+  verifyClient: ({ origin }: { origin?: string }) =>
+    originAllowed(origin, process.env['BAIRRO_ORIGINS']),
+});
 
 sockets.on('connection', (socket, request) => {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -95,7 +103,14 @@ sockets.on('connection', (socket, request) => {
     placeSerial: spawned.placeSerial,
   });
 
+  const bucket = createBucket();
   socket.on('message', (data) => {
+    const verdict = bucket.take(performance.now() / 1000);
+    if (verdict === 'close') {
+      socket.close(1008, 'Mensagens demais');
+      return;
+    }
+    if (verdict === 'drop') return;
     const message = parseClientMessage(textOf(data));
     if (!message) return;
     if (message.type === 'pose') pushPose(room.sim, id, message);
@@ -115,10 +130,13 @@ sockets.on('connection', (socket, request) => {
 
 setInterval(() => {
   for (const room of rooms.values()) {
+    // Nobody to see it: the crowd and traffic wait until someone joins.
+    if (room.members.size === 0) continue;
     tick(room.sim, STEP);
+    const states = encodeStates(room.sim, room.members.values());
     for (const [socket, id] of room.members) {
-      const state: StateMsg = { type: 'state', ...snapshot(room.sim, id) };
-      send(socket, state);
+      const state = states.get(id);
+      if (state !== undefined && socket.readyState === WebSocket.OPEN) socket.send(state);
     }
   }
 }, STEP * 1000);

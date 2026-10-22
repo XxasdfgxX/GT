@@ -32,6 +32,8 @@ export interface Hud {
   setPlay(model: HudModel, peers?: readonly WorldPoint[]): void;
   setCarTitle(name: string, detail: string, x: number, y: number, visible: boolean): void;
   setPresence(presence: Presence | null): void;
+  /** Shows that the room dropped. The scene keeps its last state behind the notice. */
+  setOffline(offline: boolean): void;
   updateFps(dt: number): void;
   remove(): void;
 }
@@ -96,6 +98,10 @@ export function mountHud(
   mission.className = 'mission';
   const prompt = document.createElement('p');
   prompt.className = 'prompt';
+  const offline = document.createElement('p');
+  offline.className = 'net-lost';
+  offline.textContent = 'Conexão com a sala perdida · crase volta ao menu';
+  offline.hidden = true;
   const speed = document.createElement('p');
   speed.className = 'speed';
   const carTitle = document.createElement('p');
@@ -150,6 +156,7 @@ export function mountHud(
   aimCursor.hidden = true;
 
   const nodes = [
+    offline,
     radar,
     vitals,
     cash,
@@ -164,6 +171,7 @@ export function mountHud(
     aimCursor,
   ];
   root.append(
+    offline,
     radar,
     vitals,
     cash,
@@ -239,6 +247,10 @@ export function mountHud(
       healthFill.style.width = `${health * 100}%`;
       healthFill.dataset.level = health < 0.25 ? 'low' : health < 0.55 ? 'mid' : 'high';
       cash.textContent = formatCash(model.cash);
+    },
+    setOffline(lost) {
+      if (offline.hidden === !lost) return;
+      offline.hidden = !lost;
     },
     setPresence(presence) {
       board.hidden = presence === null;

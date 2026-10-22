@@ -21,10 +21,15 @@ export function connectRoom(roomId: string, playerName = '', spawnName = ''): Pr
   );
   let latest: StateMsg | null = null;
   let settled = false;
+  let lost = false;
 
   return new Promise((resolve, reject) => {
     const fail = (message: string) => {
-      if (settled) return;
+      if (settled) {
+        // After the welcome there is no promise left to reject: the game asks connected().
+        lost = true;
+        return;
+      }
       settled = true;
       socket.close();
       reject(new Error(message));
@@ -47,7 +52,15 @@ export function connectRoom(roomId: string, playerName = '', spawnName = ''): Pr
       if (message.type === 'welcome') {
         if (settled) return;
         settled = true;
-        resolve({ link: bind(socket, message.id, () => latest), welcome: message });
+        resolve({
+          link: bind(
+            socket,
+            message.id,
+            () => latest,
+            () => !lost,
+          ),
+          welcome: message,
+        });
         return;
       }
       latest = message;
@@ -55,7 +68,12 @@ export function connectRoom(roomId: string, playerName = '', spawnName = ''): Pr
   });
 }
 
-function bind(socket: WebSocket, selfId: number, read: () => StateMsg | null): NetLink {
+function bind(
+  socket: WebSocket,
+  selfId: number,
+  read: () => StateMsg | null,
+  alive: () => boolean,
+): NetLink {
   const send = (payload: ClientMsg) => {
     if (socket.readyState !== WebSocket.OPEN) return;
     socket.send(JSON.stringify(payload));
@@ -79,6 +97,9 @@ function bind(socket: WebSocket, selfId: number, read: () => StateMsg | null): N
     },
     state(): NetSnapshot | null {
       return read();
+    },
+    connected() {
+      return alive();
     },
     close() {
       socket.close();

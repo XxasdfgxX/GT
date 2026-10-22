@@ -122,6 +122,8 @@ export interface NetLink {
   sendEnter(id: number): void;
   sendExit(): void;
   state(): NetSnapshot | null;
+  /** False once the socket drops after the welcome. The last state stays readable. */
+  connected(): boolean;
   close(): void;
 }
 

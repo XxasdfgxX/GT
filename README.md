@@ -14,6 +14,8 @@ pnpm play      # jogo em http://localhost:6969 e servidor de salas em 127.0.0.1:
 
 Separados: `pnpm dev` (só o jogo, modo solo) e `pnpm server` (só as salas).
 
+O servidor só aceita conexões da página do jogo (`http://localhost:6969`). Para abrir a página por outro endereço, liste-o em `BAIRRO_ORIGINS`, separado por vírgula.
+
 ## Checar
 
 ```sh

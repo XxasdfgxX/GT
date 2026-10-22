@@ -29,6 +29,7 @@ import {
   LIGHT_DAMAGE,
   applyDamage,
   punchHits,
+  punchProfile,
 } from '../game/systems/ped-ai';
 import {
   approachSpeed,
@@ -58,6 +59,22 @@ export const ROOM_CARS = 40;
 export const PUNCH_REACH = 1.85;
 export const FIGHT_REACH = 1.7;
 export const AGGRO_RANGE = 9;
+
+/** On foot a body may outrun the sprint a little: jumps, shoves, and late packets. */
+export const FOOT_SPEED_LIMIT = sim.sprintSpeed * 1.5;
+/** A driven car may beat its catalog top speed by this much. */
+export const CAR_SPEED_MARGIN = 1.25;
+/** Seconds of movement a client may bank, so jitter does not clip honest poses. */
+export const REACH_BURST = 0.5;
+/** Meters past the allowed move that snap the client back to where the server has it. */
+export const SNAP_EXCESS = 5;
+/** One server tick: a swing that ends between ticks is not late. */
+const PUNCH_SLACK = 0.06;
+export const NPC_RESPAWN = 30;
+/** A replacement walker appears at least this far from every player. */
+export const NPC_RESPAWN_CLEAR = 60;
+export const DROP_LIFETIME = 60;
+export const MAX_DROPS = 64;
 
 export const ROOM_DEFS = [
   { id: 'costa-1', name: 'Costa 1' },
@@ -146,6 +163,11 @@ interface Guy {
   /** Set when the player picked a bairro. Empty means each revive rolls again. */
   home: { x: number; y: number; z: number } | null;
   car: number;
+  /** Meters this player may still move before the budget refills. */
+  reach: number;
+  reachAt: number;
+  /** Room time when the current swing ends and another punch may land. */
+  punchReady: number;
 }
 
 interface Npc {
@@ -171,6 +193,7 @@ interface Drop {
   y: number;
   z: number;
   amount: number;
+  expires: number;
 }
 
 interface Corpse {
@@ -204,6 +227,10 @@ export interface Room {
   nextDrop: number;
   nextCorpse: number;
   now: number;
+  /** Speed, reach, and punch-rate checks. Off only for tests that stage a scene. */
+  limits: boolean;
+  /** Room times when a killed walker is replaced. */
+  npcDue: number[];
 }
 
 export function createRoom(options: {
@@ -216,6 +243,7 @@ export function createRoom(options: {
   npcCount?: number;
   carCount?: number;
   maxPlayers?: number;
+  limits?: boolean;
 }): Room {
   const nodes = new Map<number, WalkNode>();
   for (const node of options.nodes) nodes.set(node.id, node);
@@ -243,6 +271,8 @@ export function createRoom(options: {
     nextDrop: 1,
     nextCorpse: 1,
     now: 0,
+    limits: options.limits ?? true,
+    npcDue: [],
   };
   const count = options.npcCount ?? ROOM_NPCS;
   for (let i = 0; i < count; i += 1) spawnNpc(room);
@@ -259,17 +289,22 @@ const NAME_LIMIT = 16;
 
 /** Trimmed display name, or `Player N` when the request is blank. */
 export function chooseName(requested: string | undefined, id: number): string {
-  const cleaned = stripControls(requested ?? '')
-    .trim()
-    .slice(0, NAME_LIMIT);
+  // Cut by code point, so a cut never splits an emoji in half.
+  const cleaned = Array.from(stripControls(requested ?? '').trim())
+    .slice(0, NAME_LIMIT)
+    .join('')
+    .trim();
   return cleaned.length > 0 ? cleaned : `Player ${id}`;
 }
 
+/** Control characters, plus the invisible and direction marks that can disguise a name. */
 function stripControls(value: string): string {
   let cleaned = '';
   for (const char of value) {
-    const code = char.charCodeAt(0);
-    if (code <= 31 || code === 127) continue;
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 31 || (code >= 127 && code <= 159)) continue;
+    if ((code >= 0x200b && code <= 0x200f) || (code >= 0x202a && code <= 0x202e)) continue;
+    if ((code >= 0x2066 && code <= 0x2069) || code === 0xfeff) continue;
     cleaned += char;
   }
   return cleaned;
@@ -305,6 +340,9 @@ export function join(room: Room, requestedName?: string, requestedSpawn?: string
     place: { x: spawn.x, y: spawn.y, z: spawn.z },
     home: chosen ? { x: chosen.x, y: chosen.y, z: chosen.z } : null,
     car: 0,
+    reach: FOOT_SPEED_LIMIT * REACH_BURST,
+    reachAt: room.now,
+    punchReady: 0,
   });
   return id;
 }
@@ -320,11 +358,12 @@ export function pushPose(room: Room, id: number, pose: Pose): void {
   if (!player?.alive) return;
   const previousX = player.x;
   const previousZ = player.z;
-  player.x = pose.x;
+  const reach = room.limits ? spendReach(room, player, pose) : 1;
+  player.x = previousX + (pose.x - previousX) * reach;
   player.y = pose.y;
-  player.z = pose.z;
+  player.z = previousZ + (pose.z - previousZ) * reach;
   player.yaw = pose.yaw;
-  const moved = Math.hypot(pose.x - previousX, pose.z - previousZ);
+  const moved = Math.hypot(player.x - previousX, player.z - previousZ);
   if (player.car === 0 && moved > 0.12) {
     for (const other of room.players) {
       if (other.id === id || !other.alive || other.car !== 0) continue;
@@ -349,10 +388,52 @@ export function pushPose(room: Room, id: number, pose: Pose): void {
   steerCar(room, player);
 }
 
+/**
+ * Share of the claimed move this player may make, 0 to 1. The budget refills at top
+ * speed and holds REACH_BURST seconds of it, so sending poses faster buys no distance.
+ */
+function spendReach(room: Room, player: Guy, pose: Pose): number {
+  const limit = speedLimit(room, player);
+  player.reach = Math.min(
+    limit * REACH_BURST,
+    player.reach + limit * Math.max(0, room.now - player.reachAt),
+  );
+  player.reachAt = room.now;
+  const claimed = Math.hypot(pose.x - player.x, pose.z - player.z);
+  if (claimed <= player.reach) {
+    player.reach -= claimed;
+    return 1;
+  }
+  const share = player.reach / claimed;
+  // A client this far off is cheating or badly out of sync: move it back on screen.
+  if (claimed - player.reach > SNAP_EXCESS && player.car === 0) {
+    player.placeSerial += 1;
+    player.place = {
+      x: player.x + (pose.x - player.x) * share,
+      y: player.y,
+      z: player.z + (pose.z - player.z) * share,
+    };
+  }
+  player.reach = 0;
+  return share;
+}
+
+function speedLimit(room: Room, player: Guy): number {
+  if (player.car === 0) return FOOT_SPEED_LIMIT;
+  const car = findCar(room, player.car);
+  const spec = car ? trafficCatalog[car.variant] : undefined;
+  return ((spec?.maxSpeedKmh ?? 150) / 3.6) * CAR_SPEED_MARGIN;
+}
+
 export function pushPunch(room: Room, id: number, punch: Punch): void {
   const player = findPlayer(room, id);
   if (!player?.alive || punch.serial <= player.lastPunch) return;
   player.lastPunch = punch.serial;
+  if (room.limits) {
+    // One punch per swing. A heavy swing is longer, so it also waits longer after.
+    if (room.now < player.punchReady) return;
+    player.punchReady = room.now + punchProfile(punch.heavy).duration - PUNCH_SLACK;
+  }
   player.swing += 1;
   if (player.car !== 0) return;
   pushPose(room, id, punch);
@@ -405,6 +486,10 @@ export function tick(room: Room, dt: number): void {
     body.left -= dt;
     return body.left > 0;
   });
+  if (room.drops.some((drop) => drop.expires <= room.now)) {
+    room.drops = room.drops.filter((drop) => drop.expires > room.now);
+  }
+  replaceFallen(room);
   for (const player of room.players) {
     player.down = Math.max(0, player.down - dt);
     if (player.alive) continue;
@@ -428,10 +513,7 @@ export function tick(room: Room, dt: number): void {
   }
 }
 
-export function snapshot(
-  room: Room,
-  id: number,
-): {
+export interface RoomSnapshot {
   self: SelfView;
   players: PlayerView[];
   npcs: NpcView[];
@@ -439,41 +521,84 @@ export function snapshot(
   pickups: PickupView[];
   corpses: CorpseView[];
   roster: RosterEntry[];
-} {
+}
+
+type SharedViews = Omit<RoomSnapshot, 'self' | 'players'>;
+
+export function snapshot(room: Room, id: number): RoomSnapshot {
+  return { self: selfView(room, id), players: otherPlayers(room, id), ...sharedViews(room) };
+}
+
+/**
+ * The state message for each member. Only `self` and the other players differ per
+ * member, so the crowd, traffic, drops, bodies and roster are encoded once per tick.
+ */
+export function encodeStates(room: Room, ids: Iterable<number>): Map<number, string> {
+  const tail = JSON.stringify(sharedViews(room)).slice(1, -1);
+  const messages = new Map<number, string>();
+  for (const id of ids) {
+    const self = JSON.stringify(selfView(room, id));
+    const players = JSON.stringify(otherPlayers(room, id));
+    messages.set(id, `{"type":"state","self":${self},"players":${players},${tail}}`);
+  }
+  return messages;
+}
+
+function selfView(room: Room, id: number): SelfView {
   const player = findPlayer(room, id);
-  const self: SelfView = player
-    ? {
-        health: player.health,
-        cash: player.cash,
-        alive: player.alive,
-        placeSerial: player.placeSerial,
-        place: player.place,
-        name: player.name,
-        kills: player.kills,
-        npcKills: player.npcKills,
-        deaths: player.deaths,
-        playerDeaths: player.playerDeaths,
-        npcDeaths: player.npcDeaths,
-        car: player.car,
-        down: player.down,
-      }
-    : {
-        health: 0,
-        cash: 0,
-        alive: false,
-        placeSerial: 0,
-        place: { x: 0, y: 0, z: 0 },
-        name: '',
-        kills: 0,
-        npcKills: 0,
-        deaths: 0,
-        playerDeaths: 0,
-        npcDeaths: 0,
-        car: 0,
-        down: 0,
-      };
+  if (!player) {
+    return {
+      health: 0,
+      cash: 0,
+      alive: false,
+      placeSerial: 0,
+      place: { x: 0, y: 0, z: 0 },
+      name: '',
+      kills: 0,
+      npcKills: 0,
+      deaths: 0,
+      playerDeaths: 0,
+      npcDeaths: 0,
+      car: 0,
+      down: 0,
+    };
+  }
   return {
-    self,
+    health: player.health,
+    cash: player.cash,
+    alive: player.alive,
+    placeSerial: player.placeSerial,
+    place: player.place,
+    name: player.name,
+    kills: player.kills,
+    npcKills: player.npcKills,
+    deaths: player.deaths,
+    playerDeaths: player.playerDeaths,
+    npcDeaths: player.npcDeaths,
+    car: player.car,
+    down: player.down,
+  };
+}
+
+function otherPlayers(room: Room, id: number): PlayerView[] {
+  return room.players
+    .filter((other) => other.id !== id && other.alive)
+    .map((other) => ({
+      id: other.id,
+      name: other.name,
+      x: other.x,
+      y: other.y,
+      z: other.z,
+      yaw: other.yaw,
+      swing: other.swing,
+      car: other.car,
+      health: other.health,
+      down: other.down,
+    }));
+}
+
+function sharedViews(room: Room): SharedViews {
+  return {
     roster: room.players.map((person) => ({
       id: person.id,
       name: person.name,
@@ -484,20 +609,6 @@ export function snapshot(
       npcDeaths: person.npcDeaths,
       alive: person.alive,
     })),
-    players: room.players
-      .filter((other) => other.id !== id && other.alive)
-      .map((other) => ({
-        id: other.id,
-        name: other.name,
-        x: other.x,
-        y: other.y,
-        z: other.z,
-        yaw: other.yaw,
-        swing: other.swing,
-        car: other.car,
-        health: other.health,
-        down: other.down,
-      })),
     npcs: room.npcs
       .filter((npc) => npc.alive)
       .map((npc) => ({
@@ -537,13 +648,14 @@ export function snapshot(
   };
 }
 
-function spawnNpc(room: Room): void {
+function spawnNpc(room: Room, clearOfPlayers = 0): void {
   const list = [...room.nodes.values()];
   if (list.length === 0) return;
   const start = Math.floor(room.rng() * list.length);
   for (let n = 0; n < list.length; n += 1) {
     const origin = list[(start + n) % list.length];
     if (!origin) continue;
+    if (clearOfPlayers > 0 && playerWithin(room, origin.x, origin.z, clearOfPlayers)) continue;
     const spot = openSpot(room, origin);
     if (!spot) continue;
     const next = room.links.get(origin.id)?.[0] ?? origin.id;
@@ -566,6 +678,12 @@ function spawnNpc(room: Room): void {
     });
     return;
   }
+}
+
+function playerWithin(room: Room, x: number, z: number, radius: number): boolean {
+  return room.players.some(
+    (player) => player.alive && Math.hypot(player.x - x, player.z - z) < radius,
+  );
 }
 
 function openSpot(
@@ -755,6 +873,16 @@ function killNpc(room: Room, npc: Npc, killerId: number): void {
   spawnDrop(room, npc.x, npc.y, npc.z, NPC_DROP);
   const killer = findPlayer(room, killerId);
   if (killer) killer.npcKills += 1;
+  room.npcDue.push(room.now + NPC_RESPAWN);
+}
+
+/** The room runs for the life of the process, so the dead are replaced, away from players. */
+function replaceFallen(room: Room): void {
+  if (room.npcDue.length === 0 || (room.npcDue[0] ?? Infinity) > room.now) return;
+  room.npcDue.shift();
+  const fallen = room.npcs.findIndex((npc) => !npc.alive);
+  if (fallen >= 0) room.npcs.splice(fallen, 1);
+  spawnNpc(room, NPC_RESPAWN_CLEAR);
 }
 
 function layCorpse(
@@ -786,12 +914,16 @@ function revive(room: Room, player: Guy): void {
   player.z = spawn.z;
   player.placeSerial += 1;
   player.place = { x: spawn.x, y: spawn.y, z: spawn.z };
+  player.reach = FOOT_SPEED_LIMIT * REACH_BURST;
+  player.reachAt = room.now;
 }
 
 function spawnDrop(room: Room, x: number, y: number, z: number, amount: number): void {
   const id = room.nextDrop;
   room.nextDrop += 1;
-  room.drops.push({ id, x, y, z, amount });
+  room.drops.push({ id, x, y, z, amount, expires: room.now + DROP_LIFETIME });
+  // Every snapshot carries every drop, so the oldest go first past the cap.
+  if (room.drops.length > MAX_DROPS) room.drops.splice(0, room.drops.length - MAX_DROPS);
 }
 
 function provoked(room: Room, npc: Npc): Guy | undefined {
@@ -978,6 +1110,8 @@ function ram(room: Room, car: Car, dt: number): void {
   if (!spec || damage <= 0) return;
   const halfWidth = spec.width / 2;
   const halfLength = spec.length / 2;
+  // Only the last RAM_GAP matters, and ids only grow, so drop the rest.
+  for (const [key, at] of car.hitAt) if (room.now - at >= RAM_GAP) car.hitAt.delete(key);
   for (const npc of room.npcs) {
     if (!npc.alive || !overlaps(car, npc.x, npc.z, halfWidth, halfLength)) continue;
     const key = `n${npc.id}`;
@@ -1081,17 +1215,14 @@ function carPathBlocked(room: Room, car: Car, extra: number): boolean {
     if (room.roads.length > 2 && buildingHits(car.x, car.z, car.yaw, hx, hz).size > 0) {
       blocked = true;
     }
+    // A look ahead only stops the car. Nobody is knocked over by where it might be.
     for (const npc of room.npcs) {
       if (!npc.alive || npc.down > 0) continue;
-      if (!circleHitsBox(npc.x, npc.z, 0.35, car.x, car.z, hx, hz, car.yaw)) continue;
-      npc.down = TRIP_SECONDS;
-      blocked = true;
+      if (circleHitsBox(npc.x, npc.z, 0.35, car.x, car.z, hx, hz, car.yaw)) blocked = true;
     }
     for (const player of room.players) {
       if (!player.alive || player.car !== 0 || player.down > 0) continue;
-      if (!circleHitsBox(player.x, player.z, 0.35, car.x, car.z, hx, hz, car.yaw)) continue;
-      player.down = TRIP_SECONDS;
-      blocked = true;
+      if (circleHitsBox(player.x, player.z, 0.35, car.x, car.z, hx, hz, car.yaw)) blocked = true;
     }
   }
   car.along = savedAlong;
