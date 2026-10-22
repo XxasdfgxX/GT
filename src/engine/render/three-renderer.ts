@@ -73,6 +73,7 @@ import {
   facadeVertexHead,
 } from './materials/facade-shader';
 import { createTerrainMaterial } from './materials/terrain-material';
+import { createWater, type Water } from './materials/water-material';
 import { glslFloat } from './materials/uv-meters';
 import type {
   ClipKey,
@@ -172,6 +173,8 @@ export function createThreeRenderer(
   let unitBox: BoxGeometry | undefined;
   let unitCylinder: CylinderGeometry | undefined;
   let dayTime = 0.45;
+  let water: Water | null = null;
+  let elapsed = 0;
 
   const meshes = new Map<number, MeshRecord>();
   const models = new Map<string, CachedModel>();
@@ -314,6 +317,12 @@ export function createThreeRenderer(
     desc: MeshDesc | InstanceBatchDesc,
     geometry: BoxGeometry | CapsuleGeometry | CylinderGeometry,
   ) => {
+    const waves = materials.waterNormal();
+    if ('surface' in desc && desc.surface === 'water' && waves) {
+      water = createWater(waves, desc.size.x, desc.size.z);
+      for (const texture of water.textures) assets.track(texture);
+      return assets.track(water.material);
+    }
     if (desc.finish && geometry instanceof BoxGeometry) {
       const material = materials.resolve(desc.finish, desc.color);
       tileBoxUvs(geometry, desc.size.x, desc.size.y, desc.size.z, TILE_METERS[desc.finish]);
@@ -570,6 +579,8 @@ export function createThreeRenderer(
       record.token = token;
     },
     tick(dt) {
+      elapsed += dt;
+      water?.tick(elapsed);
       // Pooled people and corpses spend most of their time hidden; nobody sees them animate.
       for (const record of meshes.values()) {
         if (record.mixer && record.object.visible) record.mixer.update(dt);

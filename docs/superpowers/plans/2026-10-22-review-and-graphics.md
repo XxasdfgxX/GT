@@ -390,7 +390,7 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 ### Task 7.5: Water
 
-- [ ] Poly Haven has no ocean material. Replace the flat metallic water with `three/addons/objects/Water.js`, using a normal map from a Poly Haven water texture if the manifest has one, otherwise the three.js example `waternormals.jpg` (MIT). Set the sun direction from `sun-controller`.
+- [-] Poly Haven has no ocean material. Replace the flat metallic water with `three/addons/objects/Water.js`, using a normal map from a Poly Haven water texture if the manifest has one, otherwise the three.js example `waternormals.jpg` (MIT). Set the sun direction from `sun-controller`. _Not `Water.js`: it re-renders the scene for reflections, doubling the cost. Instead, `materials/water-material.ts` is a `MeshPhysicalMaterial` (teal, no metalness, low roughness) with two wave layers that drift across each other: a normal map at 9 m and a clearcoat normal map at 23 m. The sky reflects from the env map, strongest at low angles. The tileable wave normal map comes from `scripts/make-water-normal.mjs` (sum of whole-number-frequency sines, seeded). Not seen rendered._
 
 ---
 

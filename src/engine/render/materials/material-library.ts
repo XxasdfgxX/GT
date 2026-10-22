@@ -80,6 +80,7 @@ export class MaterialLibrary {
   private readonly maps = new Map<SurfaceFinish, SurfaceMaps>();
   private readonly materials = new Map<string, MeshStandardMaterial>();
   private bytes = 0;
+  private waves: Texture | null = null;
 
   constructor(
     private readonly assets: AssetManager,
@@ -93,13 +94,22 @@ export class MaterialLibrary {
     return { color: maps.color, normal: maps.normal };
   }
 
+  /** Tileable wave normals from scripts/make-water-normal.mjs. */
+  waterNormal(): Texture | null {
+    return this.waves;
+  }
+
   byteSize(): number {
     return this.bytes;
   }
 
   async load(): Promise<void> {
     const finishes = Object.keys(folders) as Array<Exclude<SurfaceFinish, 'lane'>>;
-    await Promise.all(finishes.map((finish) => this.loadFinish(finish)));
+    const [, waves] = await Promise.all([
+      Promise.all(finishes.map((finish) => this.loadFinish(finish))),
+      this.loadMap('/assets/textures/water/normal.jpg', false),
+    ]);
+    this.waves = waves;
     this.maps.set('lane', {
       color: this.laneTexture(),
       normal: null,
