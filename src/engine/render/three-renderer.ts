@@ -17,6 +17,7 @@ import {
   LoopOnce,
   Matrix4,
   LoopRepeat,
+  Material,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -32,7 +33,6 @@ import {
   WebGLRenderer,
   type AnimationAction,
   type AnimationClip,
-  type Material,
   type Object3D,
 } from 'three';
 import { N8AOPostPass } from 'n8ao';
@@ -394,6 +394,12 @@ export function createThreeRenderer(
           const materials = Array.isArray(object.material) ? object.material : [object.material];
           for (const material of materials) {
             assets.track(material);
+            // Instanced foliage cannot be depth sorted: leaves are cut out, not blended.
+            if (url.includes('/props/') && material instanceof Material && material.transparent) {
+              material.transparent = false;
+              material.alphaTest = 0.5;
+              material.depthWrite = true;
+            }
             const slots: unknown[] = Object.values(material as object);
             for (const value of slots) if (isTexture(value)) textures.add(value);
           }

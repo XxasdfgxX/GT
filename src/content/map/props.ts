@@ -33,6 +33,7 @@ export const PROPS = {
   planter: '/assets/props/planter.glb',
   crate: '/assets/props/crate.glb',
   fern: '/assets/props/fern.glb',
+  tree: '/assets/props/tree.glb',
 } as const;
 
 /** Every prop url, for the loader to fetch before the first chunk streams in. */
@@ -134,7 +135,7 @@ export function buildProps(
         if (lampSlot) {
           addLamp(batch, x, y, z, yaw, chunk);
         } else {
-          addTree(batch, x, y, z, chunk, rng);
+          addTree(batch, x, y, z, chunk, rng, edge.kind === 'coast');
           trees += 1;
         }
         if (edge.kind !== 'coast' && rng() > 0.62 && !lampSlot) {
@@ -241,46 +242,77 @@ function addTree(
   z: number,
   chunk: number,
   rng: () => number,
+  coastal: boolean,
 ): void {
-  const height = 3.4 + rng() * 1.4;
-  batch.add({
-    kind: 'cylinder',
-    finish: 'flat',
-    sx: 0.28,
-    sy: height,
-    sz: 0.28,
-    x,
-    y: y + height / 2,
-    z,
-    yaw: 0,
-    pitch: 0,
-    color: 0x6b4a2f,
-    roughness: 0.9,
-    metalness: 0,
-    emissive: 0,
-    castShadow: true,
-    chunk,
-    lod: 'always',
-  });
-  batch.add({
-    kind: 'cylinder',
-    finish: 'flat',
-    sx: 6.6,
-    sy: 2.2,
-    sz: 6.6,
-    x,
-    y: y + height + 0.4,
-    z,
-    yaw: 0,
-    pitch: 0,
-    color: rng() > 0.5 ? 0x1f7a34 : 0x176b32,
-    roughness: 0.85,
-    metalness: 0,
-    emissive: 0,
-    castShadow: true,
-    chunk,
-    lod: 'always',
-  });
+  // Two draws, as before, so the parked cars and benches after it keep their places.
+  const size = rng();
+  const kind = rng();
+  if (coastal || kind > 0.6) {
+    addPalm(batch, x, y, z, chunk, size, kind);
+    return;
+  }
+  // The Poly Haven island tree is 3.4 m; streets want 4.5 to 6.
+  batch.add(prop(PROPS.tree, x, y, z, kind * Math.PI * 20, 1.3 + size * 0.45, chunk, 'always'));
+}
+
+/** Fern crown offset from its origin, in its own meters: the model is not centered. */
+const FERN_CENTER = { x: 0.455, z: 0.44 };
+
+/** A coconut palm: a leaning, tapering trunk under a fern crown blown up to frond size. */
+function addPalm(
+  batch: CityBatcher,
+  x: number,
+  y: number,
+  z: number,
+  chunk: number,
+  size: number,
+  kind: number,
+): void {
+  const height = 6 + size * 3;
+  const lean = 0.06 + kind * 0.05;
+  const heading = kind * Math.PI * 14;
+  const dx = Math.sin(heading);
+  const dz = Math.cos(heading);
+  const segments = 3;
+  for (let k = 0; k < segments; k += 1) {
+    const along = (k + 0.5) / segments;
+    const width = 0.42 - along * 0.14;
+    batch.add({
+      kind: 'cylinder',
+      finish: 'flat',
+      sx: width,
+      sy: height / segments + 0.05,
+      sz: width,
+      x: x + dx * Math.sin(lean) * height * along * along,
+      y: y + height * along,
+      z: z + dz * Math.sin(lean) * height * along * along,
+      yaw: heading,
+      pitch: lean * along * 2,
+      color: 0x5a4c3e,
+      roughness: 0.95,
+      metalness: 0,
+      emissive: 0,
+      castShadow: true,
+      chunk,
+      lod: 'always',
+    });
+  }
+  const topX = x + dx * Math.sin(lean) * height;
+  const topZ = z + dz * Math.sin(lean) * height;
+  for (const [turn, scale] of [
+    [0, 3.2],
+    [2.1, 2.7],
+  ] as const) {
+    const yaw = heading + turn;
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    // Local x runs along (cos, -sin) and local z along (sin, cos).
+    const ox = (FERN_CENTER.x * cos + FERN_CENTER.z * sin) * scale;
+    const oz = (-FERN_CENTER.x * sin + FERN_CENTER.z * cos) * scale;
+    batch.add(
+      prop(PROPS.fern, topX - ox, y + height - 0.4, topZ - oz, yaw, scale, chunk, 'always'),
+    );
+  }
 }
 
 function addLamp(

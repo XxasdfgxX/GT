@@ -441,12 +441,12 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 ### Task 9.1: Trees
 
-- [ ] Replace `addTree` (trunk plus flat disc) with instanced models.
-  - [ ] Street trees: Poly Haven broadleaf or jacaranda from the manifest, decimated to ≤ 25k triangles. Its foliage material needs `alphaTest: 0.5`, `side: DoubleSide`, and to cast shadows.
-  - [ ] Palms on the coast avenue and the beach. Poly Haven has none, so use a CC-BY Sketchfab palm: "Realistic Palm Tree Low Poly" (about 6k triangles) or "Palm tree Low Poly game ready" (about 1.2k). Download the glTF, put it in `tmp/assets-src/sketchfab/`, run it through `scripts/optimize-models.mjs`, and record the author and URL in `public/assets/CREDITS.txt` and `docs/ASSETS.md`.
-  - [ ] Shrubs from Poly Haven along plazas and house fronts.
-- [ ] Random yaw and ±15% scale per instance from the lot RNG.
-- [ ] Far LOD: a 2-quad billboard (impostor) per species beyond 150 m. Render one from the model at build time with an offscreen render target, or skip if distance culling plus fog is enough within budget.
+- [x] Replace `addTree` (trunk plus flat disc) with instanced models. _Same two RNG draws as before, so parked cars and benches keep their places._
+  - [x] Street trees: Poly Haven broadleaf or jacaranda from the manifest, decimated to ≤ 25k triangles. Its foliage material needs `alphaTest: 0.5`, `side: DoubleSide`, and to cast shadows. _`island_tree_02` simplified from 1.07M to 16k triangles (`keep 0.015`, error 0.05), 1.35 MB, scaled 1.3–1.75× to 4.5–6 m. Blended prop materials are switched to `alphaTest 0.5` at load, because instanced leaves cannot be sorted. Seen in a screenshot: the foliage survives the simplification._
+  - [~] Palms on the coast avenue and the beach. Poly Haven has none, so use a CC-BY Sketchfab palm: "Realistic Palm Tree Low Poly" (about 6k triangles) or "Palm tree Low Poly game ready" (about 1.2k). Download the glTF, put it in `tmp/assets-src/sketchfab/`, run it through `scripts/optimize-models.mjs`, and record the author and URL in `public/assets/CREDITS.txt` and `docs/ASSETS.md`. _No Sketchfab download (it needs a login). Instead, a procedural palm: a leaning, tapering three-segment trunk plus two Poly Haven `fern_02` crowns at 2.7–3.2×, offset for the fern's off-center origin. On every coast slot and 40% of others. Reads as a palm in the screenshot. A real palm model would be better._
+  - [~] Shrubs from Poly Haven along plazas and house fronts. _In plazas (Phase 8). Not along house fronts._
+- [x] Random yaw and ±15% scale per instance from the lot RNG.
+- [-] Far LOD: a 2-quad billboard (impostor) per species beyond 150 m. Render one from the model at build time with an offscreen render target, or skip if distance culling plus fog is enough within budget. _Not needed yet: trees are `always` LOD and instanced, at 16k triangles each. Revisit if FPS on real hardware says so._
 - [ ] Ground cover: instanced grass-clump quads in plazas and lawns near the camera only (≤ 30 m, re-scattered as the camera moves), with fade-out by distance.
 
 ### Task 9.2: Brazilian houses (optional, after 6.5)

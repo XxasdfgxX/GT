@@ -16,6 +16,11 @@ import { chaseCameraYaw, yawFromQuat } from '../play/heading';
 const CAMERA_CLEARANCE = STREET_LIFT + 0.55;
 /** Meters the lens stops short of a wall between it and the player. */
 const WALL_MARGIN = 0.35;
+/**
+ * The lens never comes closer than this. Pulled tighter it looked down on the player's
+ * head; here it may sit inside a building, whose faces are culled from within.
+ */
+const WALL_MIN_DISTANCE = 2;
 
 const cameraPos: Vec3 = { x: 0, y: 0, z: 0 };
 const lookAt: Vec3 = { x: 0, y: 0, z: 0 };
@@ -145,7 +150,9 @@ function pullInFrontOfWalls(eid: number, px: number, py: number, pz: number): vo
   const share = clearShare(buildCostaVerde().colliders, px, py, pz, cx, cy, cz);
   if (share >= 1) return;
   const length = Math.hypot(cx - px, cy - py, cz - pz);
-  const keep = Math.max(0, share - WALL_MARGIN / Math.max(length, 1e-3));
+  if (length <= WALL_MIN_DISTANCE) return;
+  const keep = Math.max(WALL_MIN_DISTANCE / length, share - WALL_MARGIN / length);
+  if (keep >= 1) return;
   CameraRig.x[eid] = px + (cx - px) * keep;
   CameraRig.y[eid] = py + (cy - py) * keep;
   CameraRig.z[eid] = pz + (cz - pz) * keep;

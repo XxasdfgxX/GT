@@ -8,7 +8,10 @@ import { join } from 'node:path';
 const source = 'tmp/assets-src/polyhaven/models';
 const target = 'public/assets/props';
 
-/** Game name, Poly Haven slot and id, and the share of vertices kept (1 keeps the mesh). */
+/**
+ * Game name, Poly Haven slot and id, and the share of vertices kept (1 keeps the mesh).
+ * `error` loosens the simplifier where the default tolerance stops it early.
+ */
 const props = [
   { name: 'street-lamp', slot: 'street_lamp', id: 'street_lamp_01', keep: 0.25 },
   { name: 'trash-can', slot: 'trash_can', id: 'metal_trash_can', keep: 0.3 },
@@ -21,6 +24,8 @@ const props = [
   { name: 'planter', slot: 'planter_box', id: 'planter_box_01', keep: 1 },
   { name: 'crate', slot: 'plastic_crates', id: 'plastic_crate_01', keep: 0.12 },
   { name: 'fern', slot: 'tropical_plant', id: 'fern_02', keep: 1 },
+  // 1.07M triangles as shipped; 16k after this.
+  { name: 'tree', slot: 'street_tree', id: 'island_tree_02', keep: 0.015, error: 0.05 },
 ];
 
 mkdirSync(target, { recursive: true });
@@ -29,7 +34,14 @@ for (const prop of props) {
   const output = join(target, `${prop.name}.glb`);
   const simplify =
     prop.keep < 1
-      ? ['--simplify', 'true', '--simplify-ratio', String(prop.keep), '--simplify-error', '0.01']
+      ? [
+          '--simplify',
+          'true',
+          '--simplify-ratio',
+          String(prop.keep),
+          '--simplify-error',
+          String(prop.error ?? 0.01),
+        ]
       : ['--simplify', 'false'];
   execFileSync(
     'pnpm',
