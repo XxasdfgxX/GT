@@ -55,6 +55,8 @@ export interface InstanceBatchDesc {
   emissive?: number;
   castShadow?: boolean;
   finish?: SurfaceFinish;
+  /** Per-instance window grid, four floats each. Only unit boxes with a wall finish read it. */
+  facade?: Float32Array;
 }
 
 export interface TerrainDesc {

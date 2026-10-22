@@ -63,6 +63,13 @@ import {
 import { loadCoastEnvironment } from './environment';
 import { dressCar } from './materials/car-paint';
 import { MaterialLibrary, TILE_METERS, tileBoxUvs } from './materials/material-library';
+import {
+  WALL_FINISHES,
+  facadeFragmentBody,
+  facadeFragmentHead,
+  facadeVertexBody,
+  facadeVertexHead,
+} from './materials/facade-shader';
 import { createTerrainMaterial } from './materials/terrain-material';
 import { glslFloat } from './materials/uv-meters';
 import type {
@@ -172,6 +179,15 @@ export function createThreeRenderer(
   let calls = 0;
   let pixelCap = MAX_PIXEL_RATIO;
 
+  /** A unit box of its own: the facade attribute is per instance, so per mesh. */
+  const wallGeometry = (desc: InstanceBatchDesc) => {
+    const geometry = assets.track(new BoxGeometry(1, 1, 1));
+    // Walls without a window grid (parapets) still need the attribute; zeros draw none.
+    const facade = desc.facade ?? new Float32Array(desc.count * 4);
+    geometry.setAttribute('facade', new InstancedBufferAttribute(facade, 4));
+    return geometry;
+  };
+
   const sharedUnit = (kind: 'box' | 'cylinder') => {
     if (kind === 'cylinder') {
       unitCylinder ??= assets.track(new CylinderGeometry(0.5, 0.5, 1, 7));
@@ -204,6 +220,7 @@ export function createThreeRenderer(
     const tile = glslFloat(1 / TILE_METERS[desc.finish]);
     const material = assets.track(materials.resolve(desc.finish, 0xffffff).clone());
     material.color.set(0xffffff);
+    const wall = WALL_FINISHES.has(desc.finish);
     material.customProgramCacheKey = () => `world-uv-${desc.finish}`;
     material.onBeforeCompile = (shader) => {
       shader.vertexShader = shader.vertexShader.replace(
@@ -218,10 +235,36 @@ export function createThreeRenderer(
           #ifdef USE_AOMAP
             vAoMapUv = vMapUv;
           #endif
+          // Each map has its own uv. Left alone, these stretch once across the whole face.
+          #ifdef USE_NORMALMAP
+            vNormalMapUv = vMapUv;
+          #endif
+          #ifdef USE_ROUGHNESSMAP
+            vRoughnessMapUv = vMapUv;
+          #endif
         #endif
+        ${wall ? facadeVertexBody : ''}
         #include <project_vertex>
         `,
       );
+      if (!wall) return;
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>\n${facadeVertexHead}`,
+      );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${facadeFragmentHead}`)
+        .replace(
+          '#include <roughnessmap_fragment>',
+          `#include <roughnessmap_fragment>\nfloat wallGlass = 0.0;\n${facadeFragmentBody}`,
+        )
+        .replace(
+          '#include <normal_fragment_maps>',
+          // Glass is flat: the plaster bumps stop at the frame.
+          `if (wallGlass < 0.5) {
+            #include <normal_fragment_maps>
+          }`,
+        );
     };
     worldMaterials.set(desc.finish, material);
     return material;
@@ -404,9 +447,12 @@ export function createThreeRenderer(
       return id;
     },
     addInstances(desc) {
-      const geometry = desc.unit
-        ? sharedUnit(desc.kind ?? 'box')
-        : assets.track(instanceGeometry(desc));
+      const wall = desc.unit && desc.finish !== undefined && WALL_FINISHES.has(desc.finish);
+      const geometry = wall
+        ? wallGeometry(desc)
+        : desc.unit
+          ? sharedUnit(desc.kind ?? 'box')
+          : assets.track(instanceGeometry(desc));
       const material = desc.unit ? worldMaterial(desc) : surfaceMaterial(desc, geometry);
       const mesh = new InstancedMesh(geometry, material, desc.count);
       mesh.castShadow = desc.castShadow === true;

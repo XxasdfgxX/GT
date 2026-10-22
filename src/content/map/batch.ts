@@ -43,7 +43,12 @@ export interface Stamp {
   castShadow: boolean;
   chunk: number;
   lod: MeshLod;
+  /** Window grid for a building wall: floor height, style, ground floor, seed. */
+  facade?: Facade;
 }
+
+/** Floor height in meters, facade style index, ground floor (0 plain, 1 shopfront), seed. */
+export type Facade = readonly [number, number, number, number];
 
 export interface CityMesh {
   kind: 'box' | 'cylinder';
@@ -57,6 +62,8 @@ export interface CityMesh {
   colors: Float32Array;
   chunk: number;
   lod: MeshLod;
+  /** Four floats per instance when any stamp in the group is a wall; zeros draw no windows. */
+  facade: Float32Array | null;
 }
 
 export interface BoxCollider {
@@ -110,6 +117,7 @@ export class CityBatcher {
       if (!first) continue;
       const matrices = new Float32Array(list.length * 16);
       const colors = new Float32Array(list.length * 3);
+      const facade = list.some((stamp) => stamp.facade) ? new Float32Array(list.length * 4) : null;
       for (let i = 0; i < list.length; i += 1) {
         const stamp = list[i];
         if (!stamp) continue;
@@ -128,6 +136,7 @@ export class CityBatcher {
         colors[i * 3] = ((stamp.color >> 16) & 255) / 255;
         colors[i * 3 + 1] = ((stamp.color >> 8) & 255) / 255;
         colors[i * 3 + 2] = (stamp.color & 255) / 255;
+        if (facade && stamp.facade) facade.set(stamp.facade, i * 4);
       }
       meshes.push({
         kind: first.kind,
@@ -141,6 +150,7 @@ export class CityBatcher {
         colors,
         chunk: first.chunk,
         lod: first.lod,
+        facade,
       });
     }
     return meshes;

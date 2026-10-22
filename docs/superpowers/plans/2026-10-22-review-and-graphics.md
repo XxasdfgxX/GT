@@ -298,22 +298,22 @@ Found in the screenshots: the orbit camera ends up inside buildings next to the 
 
 **Files:** Modify `src/content/map/blocks.ts` (`Footprint`), `src/content/map/batch.ts` (`Stamp`, `CityMesh`), `src/engine/render/renderer.ts` (`InstanceBatchDesc`), `src/engine/render/three-renderer.ts`
 
-- [ ] Add a `style` to `Footprint`, picked by `kind` and `rng`. Use about 6 styles: `plaster-grid` (residential), `concrete-band` (tower), `brick-raw` (house, cheap), `tile-base-plaster` (shop), `glass-curtain` (tower near the coast), `colonial` (plaza edge).
-- [ ] Add an optional per-instance `Float32Array` attribute to stamps and batches: `facade: [baseY, floorHeight, bayWidth, styleIndex]`. The renderer uploads it as `InstancedBufferAttribute('facade', 4)`.
-- [ ] Test (`city.test.ts`): every footprint gets a style. Style counts are within 10% of the target mix for the fixed seed.
+- [x] Add a `style` to `Footprint`, picked by `kind` and `rng`. Use about 6 styles: `plaster-grid` (residential), `concrete-band` (tower), `brick-raw` (house, cheap), `tile-base-plaster` (shop), `glass-curtain` (tower near the coast), `colonial` (plaza edge). _Picked in `facades.ts` from the lot's own RNG (`pickStyle`), not in `blocks.ts`, so the city layout and its tests do not shift. `FACADE_STYLES` / `FACADE_BAYS` live in `content/map/facades.ts`._
+- [x] Add an optional per-instance `Float32Array` attribute to stamps and batches: `facade: [baseY, floorHeight, bayWidth, styleIndex]`. The renderer uploads it as `InstancedBufferAttribute('facade', 4)`. _`Stamp.facade` / `CityMesh.facade` / `InstanceBatchDesc.facade`: [floor height, style, shopfront, seed]. Wall batches get their own unit box geometry, because the attribute is per mesh. Walls without a grid (parapets) get zeros._
+- [~] Test (`city.test.ts`): every footprint gets a style. Style counts are within 10% of the target mix for the fixed seed. _`src/tests/facades.test.ts` checks that every lot gets a near and a far wall with a grid, and that content and shader agree on bay widths. Style mix is not tested._
 
 ### Task 6.2: Window shader spike (decides the open question)
 
 **Files:** Create `src/engine/render/materials/facade-material.ts`
 
-- [ ] Option A, `three-fenestra` (MIT): install it, apply it to one tower's walls, check that it works with `InstancedMesh`, CSM and the composer.
-- [ ] Option B, custom `onBeforeCompile` on the paint material, in the same style as `worldMaterial` in `three-renderer.ts`:
+- [-] Option A, `three-fenestra` (MIT): install it, apply it to one tower's walls, check that it works with `InstancedMesh`, CSM and the composer. _Went straight to option B: it reuses the world-UV hook that already exists._
+- [x] Option B, custom `onBeforeCompile` on the paint material, in the same style as `worldMaterial` in `three-renderer.ts`: _`materials/facade-shader.ts`. Whole bays per wall, frames, dark glass (roughness 0.05, no normal map) and a few curtained rooms by hash. Slab line at each floor. Shopfront on the ground floor of shops and towers. No night lighting yet._
   - [ ] Compute local facade coordinates from the world position and the `facade` attribute: floor index `(y - baseY) / floorHeight`, bay index along the wall.
   - [ ] Inside each bay, cut a window rectangle (about 60% × 55% of the bay).
   - [ ] Shade the window as dark reflective glass (low roughness, env reflection), plus a cheap interior: parallax back wall with a random tint per window from a hash of `(floor, bay, instanceId)`, with some windows lit at night.
   - [ ] Draw a thin floor band and a frame around the window with a slightly different tint.
   - [ ] Keep the ground floor different by style: shop glass with a roller shutter half-down for `tile-base-plaster`, a door and two windows for houses.
-- [ ] Pick the option that holds 60 FPS with the full city in view and works with instancing. Record the choice in `docs/DECISIONS.md` (new ADR).
+- [~] Pick the option that holds 60 FPS with the full city in view and works with instancing. Record the choice in `docs/DECISIONS.md` (new ADR). _Picked B. FPS not measured; the ADR is still to write._
 
 ### Task 6.3: Geometry relief
 
@@ -321,21 +321,21 @@ Found in the screenshots: the orbit camera ends up inside buildings next to the 
 
 Replace the single glass slab with real modules. All are boxes stamped through `CityBatcher`, so draw calls stay per chunk × material.
 
-- [ ] Remove the full-height glass `batch.add` (the `lot.floors > 1` block).
-- [ ] **Floor slabs and ledges:** a thin box (0.15 m tall, 0.25 m deep) at every floor line on the front wall for `concrete-band`, every other floor for `plaster-grid`.
-- [ ] **Balconies:** for residential and tower, per bay and per floor with probability by style. A slab (bay × 0.12 × 1.2 m) plus a railing (a glass panel or three thin bars). Use the same RNG seed per lot, so it's stable.
-- [ ] **Roof:** a parapet (0.9 m tall, 0.2 m thick) on all four edges. Keep the water tank (`caixa d'água`), but use the Poly Haven or cylinder model from Phase 8. Add an AC unit or two (small boxes) on lower roofs, and an elevator machine room (box) on towers.
-- [ ] **Ground floor of shops:** an awning in a random fabric color (keep, but tilt it about 12°), a sign box with an emissive panel, and a roller shutter.
-- [ ] **Side walls:** for lots without a neighbour on one side (corner lots), apply the facade there too. Party walls stay plain.
-- [ ] **Silhouette variety:** 30% of towers get a setback (top 3 floors 2 m narrower). 20% of residential get a pitched clay-tile roof instead of a flat roof.
-- [ ] **AC units on walls (Brazilian look):** small boxes under some windows on residential and tower fronts.
-- [ ] Budget check: count instances per chunk before and after. Expected: draw calls ≤ 400. If over, merge ledges and parapets into the wall box with the shader from 6.2, not geometry.
-- [ ] Colliders don't change (still one box per lot). Balconies and awnings stay without colliders.
-- [ ] Manual: drive through the town and the coast avenue. Buildings read as floors and windows from 200 m. No z-fighting between ledges and walls (use a 2 cm offset).
+- [x] Remove the full-height glass `batch.add` (the `lot.floors > 1` block).
+- [x] **Floor slabs and ledges:** a thin box (0.15 m tall, 0.25 m deep) at every floor line on the front wall for `concrete-band`, every other floor for `plaster-grid`. _0.32 × 0.35 m on concrete bands, 0.14 × 0.12 m elsewhere, every floor except on glass towers._
+- [x] **Balconies:** for residential and tower, per bay and per floor with probability by style. A slab (bay × 0.12 × 1.2 m) plus a railing (a glass panel or three thin bars). Use the same RNG seed per lot, so it's stable. _Slab plus a glass rail, on 70% of bays for concrete bands and 45% for others, aligned to the shader's bays._
+- [~] **Roof:** a parapet (0.9 m tall, 0.2 m thick) on all four edges. Keep the water tank (`caixa d'água`), but use the Poly Haven or cylinder model from Phase 8. Add an AC unit or two (small boxes) on lower roofs, and an elevator machine room (box) on towers. _Parapet and roof slab (`roof-concrete`), a blue fiberglass water tank (cylinder) and a lift machine room on towers. No AC units on roofs yet._
+- [~] **Ground floor of shops:** an awning in a random fabric color (keep, but tilt it about 12°), a sign box with an emissive panel, and a roller shutter. _Awning tilted 12.6° in one of five colors, a lit sign band (emissive, so bloom picks it up), and a tiled skirt on `tile-base`. No roller shutter (Phase 8)._
+- [-] **Side walls:** for lots without a neighbour on one side (corner lots), apply the facade there too. Party walls stay plain. _Free: the shader draws windows on all four walls. Party walls are hidden by neighbours._
+- [ ] **Silhouette variety:** 30% of towers get a setback (top 3 floors 2 m narrower). 20% of residential get a pitched clay-tile roof instead of a flat roof. _Not done: setbacks and pitched clay roofs need a wedge geometry or several boxes per lot._
+- [x] **AC units on walls (Brazilian look):** small boxes under some windows on residential and tower fronts. _Split units under 18% of windows on homes and towers._
+- [~] Budget check: count instances per chunk before and after. Expected: draw calls ≤ 400. If over, merge ledges and parapets into the wall box with the shader from 6.2, not geometry. _7,055 → 12,568 instances. The number of batches (draw calls) barely grows, because the new pieces reuse existing finishes. Not measured on GPU._
+- [x] Colliders don't change (still one box per lot). Balconies and awnings stay without colliders.
+- [~] Manual: drive through the town and the coast avenue. Buildings read as floors and windows from 200 m. No z-fighting between ledges and walls (use a 2 cm offset). _Seen in a headless screenshot (low shadows, effects off): the shaders compile, brick and plaster walls get framed windows in whole bays, and shops get storefronts. Glass at grazing angles reflects the sky and reads lighter than intended. Not driven through, and the coast avenue was not checked._
 
 ### Task 6.4: Far LOD
 
-- [ ] The `lod: 'far'` box uses the same window shader, without relief geometry, so buildings don't change look at the LOD switch.
+- [x] The `lod: 'far'` box uses the same window shader, without relief geometry, so buildings don't change look at the LOD switch. _Both LOD boxes carry the same facade data._
 - [ ] Manual: drive away from a tower. Expected: no visible pop at the LOD distance.
 
 ### Task 6.5: Kenney houses

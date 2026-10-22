@@ -115,6 +115,7 @@ function ensureChunk(ctx: GameContext, id: number): void {
       emissive: mesh.emissive,
       castShadow: mesh.castShadow,
       ...(mesh.finish === 'flat' ? {} : { finish: mesh.finish }),
+      ...(mesh.facade ? { facade: mesh.facade } : {}),
     });
     record.meshIds.push(meshId);
     if (mesh.lod === 'near') record.near.push(meshId);
