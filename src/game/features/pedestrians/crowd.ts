@@ -39,6 +39,16 @@ let barMesh = 0;
 let fillMesh = 0;
 let bloodMesh = 0;
 
+/** Mesh ids belong to the last renderer. A multiplayer session never spawns the crowd. */
+export function resetCrowd(): void {
+  nearMesh.length = 0;
+  nearPed.fill(-1);
+  crowdMesh = 0;
+  barMesh = 0;
+  fillMesh = 0;
+  bloodMesh = 0;
+}
+
 export function spawnPedCrowd(ctx: GameContext, world: World): void {
   nearMesh.length = 0;
   for (let i = 0; i < NEAR_SLOTS; i += 1) {

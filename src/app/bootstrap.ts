@@ -17,9 +17,14 @@ import { resetNetRide } from '../game/systems/net-ride';
 import { resetNet } from '../game/systems/net';
 import { clearBoard } from '../game/play/board-state';
 import { spawnPlayer } from '../game/features/player/spawn-player';
-import { spawnPedCrowd } from '../game/features/pedestrians/crowd';
-import { spawnTrafficPool, syncTrafficShells } from '../game/features/traffic/pool';
+import { resetCrowd, spawnPedCrowd } from '../game/features/pedestrians/crowd';
+import {
+  resetTrafficPool,
+  spawnTrafficPool,
+  syncTrafficShells,
+} from '../game/features/traffic/pool';
 import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
+import { resetDebugView } from '../game/features/world/debug-graph';
 import { spawnMap, streamAround, syncBuildingShells } from '../game/features/world/spawn-map';
 import { readCarTitle } from '../game/systems/board-car';
 import { readHud } from '../game/play/read-hud';
@@ -45,6 +50,9 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
   resetRemains();
   resetNetRide();
   resetNet();
+  resetCrowd();
+  resetTrafficPool();
+  resetDebugView();
   clearBoard();
   let running = true;
   const cleanups: Array<() => void> = [];

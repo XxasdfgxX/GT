@@ -8,6 +8,13 @@ let graphMesh = 0;
 let navMesh = 0;
 let built = false;
 
+/** Mesh ids belong to the last renderer. The next session builds the view again. */
+export function resetDebugView(): void {
+  graphMesh = 0;
+  navMesh = 0;
+  built = false;
+}
+
 export function syncDebugView(ctx: GameContext): void {
   if (!built) {
     if (!ctx.debug.showGraph) return;
