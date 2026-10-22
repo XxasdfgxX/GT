@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
-import { indexStreets, routeOnStreets, type StreetMap } from '../ui/street-route';
+import {
+  ROUTE_REFRESH,
+  createRouteCache,
+  indexStreets,
+  routeOnStreets,
+  type StreetMap,
+} from '../ui/street-route';
 
 const corner: StreetMap = {
   nodes: [
@@ -101,3 +107,26 @@ function onSegment(
   const right = Math.hypot(b.x - point.x, b.z - point.z);
   return Math.abs(left + right - span) < 0.05;
 }
+
+describe('route cache', () => {
+  const index = indexStreets(corner);
+
+  it('keeps the planned route while the player walks a little, moving only its start', () => {
+    const route = createRouteCache(index);
+    const first = route(1, 8, 38, 1);
+    const second = route(1, 7, 38, 1);
+    expect(second).toBe(first);
+    expect(second[0]).toEqual({ x: 1, z: 7 });
+    expect(second.slice(1)).toEqual(routeOnStreets(index, 1, 8, 38, 1).slice(1));
+  });
+
+  it('plans again after a real move or a new target', () => {
+    const route = createRouteCache(index);
+    const first = route(1, 8, 38, 1);
+    const moved = route(1, 8 - ROUTE_REFRESH - 0.5, 38, 1);
+    expect(moved).not.toBe(first);
+    expect(moved).toEqual(routeOnStreets(index, 1, 8 - ROUTE_REFRESH - 0.5, 38, 1));
+    const retarget = route(1, 8 - ROUTE_REFRESH - 0.5, 20, 1);
+    expect(retarget).toEqual(routeOnStreets(index, 1, 8 - ROUTE_REFRESH - 0.5, 20, 1));
+  });
+});

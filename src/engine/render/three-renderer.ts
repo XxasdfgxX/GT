@@ -200,14 +200,7 @@ export function createThreeRenderer(
   ) => {
     if (desc.finish && geometry instanceof BoxGeometry) {
       const material = materials.resolve(desc.finish, desc.color);
-      tileBoxUvs(
-        geometry,
-        desc.size.x,
-        desc.size.y,
-        desc.size.z,
-        TILE_METERS[desc.finish],
-        material.aoMap !== null,
-      );
+      tileBoxUvs(geometry, desc.size.x, desc.size.y, desc.size.z, TILE_METERS[desc.finish]);
       return material;
     }
     return addMaterial(
@@ -423,7 +416,10 @@ export function createThreeRenderer(
       record.token = token;
     },
     tick(dt) {
-      for (const record of meshes.values()) record.mixer?.update(dt);
+      // Pooled people and corpses spend most of their time hidden; nobody sees them animate.
+      for (const record of meshes.values()) {
+        if (record.mixer && record.object.visible) record.mixer.update(dt);
+      }
     },
     drawCalls() {
       return calls;

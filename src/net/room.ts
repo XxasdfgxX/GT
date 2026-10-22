@@ -7,6 +7,7 @@ import { findSpawn, pickSpawn, scatterSpawn, type BairroSpawn } from '../content
 import { trafficCatalog } from '../content/traffic-catalog';
 import { sim } from '../content/sim';
 import { meshYaw } from '../game/play/aim-cursor';
+import { tallBoxesNear } from '../game/play/collider-grid';
 import {
   BODY_REACH,
   TRIP_SECONDS,
@@ -796,9 +797,7 @@ function footBlocked(
     }
   }
   buildingBoxes ??= buildCostaVerde().colliders;
-  for (const box of buildingBoxes) {
-    if (box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+  for (const box of tallBoxesNear(buildingBoxes, x, z, 0.5)) {
     if (sinksDeeper(fromX, fromZ, x, z, box.x, box.z, box.hx, box.hz, box.yaw, 0.35)) return true;
   }
   return false;
@@ -806,16 +805,12 @@ function footBlocked(
 
 let buildingBoxes: readonly BoxCollider[] | null = null;
 
-function buildingHits(x: number, z: number, yaw: number, hx: number, hz: number): Set<number> {
+function hitsBuilding(x: number, z: number, yaw: number, hx: number, hz: number): boolean {
   buildingBoxes ??= buildCostaVerde().colliders;
-  const hits = new Set<number>();
-  for (let index = 0; index < buildingBoxes.length; index += 1) {
-    const box = buildingBoxes[index];
-    if (!box || box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
-    if (carBoxesOverlap(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz)) hits.add(index);
+  for (const box of tallBoxesNear(buildingBoxes, x, z, Math.hypot(hx, hz))) {
+    if (carBoxesOverlap(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz)) return true;
   }
-  return hits;
+  return false;
 }
 
 function roomBuildingPush(
@@ -829,9 +824,7 @@ function roomBuildingPush(
   let bestX = 0;
   let bestZ = 0;
   let best = 0;
-  for (const box of buildingBoxes) {
-    if (box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+  for (const box of tallBoxesNear(buildingBoxes, x, z, Math.hypot(hx, hz))) {
     const push = boxExit(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz);
     if (push.depth <= best) continue;
     best = push.depth;
@@ -1212,7 +1205,7 @@ function carPathBlocked(room: Room, car: Car, extra: number): boolean {
   if (spec) {
     const hx = spec.width / 2;
     const hz = spec.length / 2;
-    if (room.roads.length > 2 && buildingHits(car.x, car.z, car.yaw, hx, hz).size > 0) {
+    if (room.roads.length > 2 && hitsBuilding(car.x, car.z, car.yaw, hx, hz)) {
       blocked = true;
     }
     // A look ahead only stops the car. Nobody is knocked over by where it might be.

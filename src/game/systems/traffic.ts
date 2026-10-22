@@ -20,8 +20,10 @@ import {
   Transform,
   Vehicle,
 } from '../ecs/components';
-import { players, pedestrians, traffic, vehicles } from '../ecs/queries';
+import { players, traffic, vehicles } from '../ecs/queries';
 import { circleHitsBox, TRIP_SECONDS } from '../play/overlap';
+import { tallBoxesNear } from '../play/collider-grid';
+import { bucketCrowd, crowdNear } from '../play/crowd-grid';
 import { PedState } from './ped-ai';
 import { enginePlayback } from '../play/feel';
 import { attachDriver, ejectDriver, releaseDriver, seatDriver } from './pedestrians';
@@ -60,6 +62,7 @@ const MODE_PARKED = 4;
 
 export function trafficSystem(ctx: GameContext, world: World): void {
   const graph = buildCostaVerde().graph;
+  bucketCrowd(world, ctx.time.tick);
   const dt = ctx.time.fixedDt;
   const phase = Math.floor((ctx.time.tick * dt) / 6) % 2;
   const focus = playerFocus(world);
@@ -290,7 +293,7 @@ function laneBlocked(world: World, graph: RoadGraph, eid: number, extra: number)
   const aheadZ = a.z + fz * aheadTravel - fx * lateral;
   if (hitsBuilding(aheadX, aheadZ, heading, hx, hz)) return true;
   if (hitsTraffic(world, eid, aheadX, aheadZ, heading, hx, hz)) return true;
-  for (const ped of pedestrians(world)) {
+  for (const ped of crowdNear(aheadX, aheadZ, Math.hypot(hx, hz) + 0.35)) {
     if ((Pedestrian.active[ped] ?? 0) === 0 || (Pedestrian.driving[ped] ?? 0) === 1) continue;
     if ((Pedestrian.health[ped] ?? 0) <= 0) continue;
     if (
@@ -692,9 +695,7 @@ function buildingPush(
   let bestX = 0;
   let bestZ = 0;
   let best = 0;
-  for (const box of buildCostaVerde().colliders) {
-    if (box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, Math.hypot(hx, hz))) {
     const push = boxExit(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz);
     if (push.depth <= best) continue;
     best = push.depth;
@@ -713,9 +714,7 @@ function slideOut(target: { x: number; z: number }, pushX: number, pushZ: number
 }
 
 function hitsBuilding(x: number, z: number, yaw: number, hx: number, hz: number): boolean {
-  for (const box of buildCostaVerde().colliders) {
-    if (box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, Math.hypot(hx, hz))) {
     if (carBoxesOverlap(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz)) return true;
   }
   return false;

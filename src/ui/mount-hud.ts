@@ -12,7 +12,7 @@ import { drawRadar, missionBlip, northMarker, RADAR_SIZE } from './radar-map';
 
 /** Matches the canvas border in hud.css. */
 const RADAR_BORDER = 4;
-import { routeOnStreets, type StreetIndex } from './street-route';
+import { createRouteCache, type StreetIndex } from './street-route';
 import { npcScoreLine, playerScoreLine } from './score-line';
 import type { Waypoint } from './waypoint';
 
@@ -64,6 +64,7 @@ export function mountHud(
   north.textContent = 'N';
   radar.append(radarCanvas, north);
   const radarCtx = radarCanvas.getContext('2d');
+  const routeTo = createRouteCache(streets);
 
   const vitals = document.createElement('div');
   vitals.className = 'vitals';
@@ -218,14 +219,12 @@ export function mountHud(
       carTitle.classList.toggle('is-shown', visible);
     },
     setPlay(model, peers = []) {
-      prompt.textContent = promptLabel(model.prompt);
-      speed.textContent = model.driving ? `${model.speedKmh} km/h` : '';
-      mission.textContent = model.hasMission
-        ? missionLabel(model.missionPhase, model.missionTime)
-        : '';
+      setText(prompt, promptLabel(model.prompt));
+      setText(speed, model.driving ? `${model.speedKmh} km/h` : '');
+      setText(mission, model.hasMission ? missionLabel(model.missionPhase, model.missionTime) : '');
       if (waypoint.arrived(model.x, model.z)) waypoint.clear();
       const pin = waypoint.get();
-      const route = pin ? routeOnStreets(streets, model.x, model.z, pin.x, pin.z) : null;
+      const route = pin ? routeTo(model.x, model.z, pin.x, pin.z) : null;
       if (radarCtx) {
         drawRadar(
           radarCtx,
@@ -246,7 +245,7 @@ export function mountHud(
       const health = Math.max(0, Math.min(1, model.health / 10));
       healthFill.style.width = `${health * 100}%`;
       healthFill.dataset.level = health < 0.25 ? 'low' : health < 0.55 ? 'mid' : 'high';
-      cash.textContent = formatCash(model.cash);
+      setText(cash, formatCash(model.cash));
     },
     setOffline(lost) {
       if (offline.hidden === !lost) return;
@@ -259,9 +258,10 @@ export function mountHud(
         tags.replaceChildren();
         return;
       }
-      fillRoster(scoreBody, presence.roster, presence.selfId);
+      // Read the size before the roster writes, or the read forces a layout every frame.
       const width = root.clientWidth;
       const height = root.clientHeight;
+      fillRoster(scoreBody, presence.roster, presence.selfId);
       while (tags.childElementCount > presence.peers.length) tags.lastElementChild?.remove();
       for (let index = 0; index < presence.peers.length; index += 1) {
         const peer = presence.peers[index];
@@ -344,6 +344,11 @@ function missionLabel(phase: number, time: number): string {
   if (phase === MissionPhase.Pickup) return 'Pegue a caixa amarela';
   if (phase === MissionPhase.Deliver) return `Leve a caixa até a marca  ${formatTime(time)}`;
   return `Entregue  ${formatTime(time)}`;
+}
+
+/** Text writes cost a style recalculation even when the text is the same. */
+function setText(element: HTMLElement, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
 }
 
 export function formatTime(seconds: number): string {
