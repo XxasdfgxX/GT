@@ -35,3 +35,12 @@ export function scaleBoxUv(
     }
   }
 }
+
+/**
+ * A number as a GLSL float literal. GLSL ES has no int-to-float promotion, so
+ * `vec2 * 1` fails to compile where `vec2 * 1.0` works.
+ */
+export function glslFloat(value: number): string {
+  const text = String(value);
+  return /[.eE]/.test(text) ? text : `${text}.0`;
+}

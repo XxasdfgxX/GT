@@ -50,6 +50,7 @@ import {
 import { loadCoastEnvironment } from './environment';
 import { dressCar } from './materials/car-paint';
 import { MaterialLibrary, TILE_METERS, tileBoxUvs } from './materials/material-library';
+import { glslFloat } from './materials/uv-meters';
 import type {
   ClipKey,
   InstanceBatchDesc,
@@ -150,7 +151,8 @@ export function createThreeRenderer(
     }
     const cached = worldMaterials.get(desc.finish);
     if (cached) return cached;
-    const tile = 1 / TILE_METERS[desc.finish];
+    // A float literal: lane paint tiles every 1 m, and `* 1` would not compile.
+    const tile = glslFloat(1 / TILE_METERS[desc.finish]);
     const material = assets.track(materials.resolve(desc.finish, 0xffffff).clone());
     material.color.set(0xffffff);
     material.customProgramCacheKey = () => `world-uv-${desc.finish}`;
