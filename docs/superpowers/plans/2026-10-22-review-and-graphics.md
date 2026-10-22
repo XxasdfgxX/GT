@@ -477,7 +477,63 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 ## Poly Haven asset map
 
-To be filled from `tmp/assets-src/polyhaven/MANIFEST.md`. One line per map element: Poly Haven id, the resolution shipped and which phase uses it.
+Downloaded on 2026-10-22 to `tmp/assets-src/polyhaven/<type>/<slot>/<id>/`: 317.5 MB, all CC0. Full details, including real triangle counts, are in `tmp/assets-src/polyhaven/MANIFEST.md`. The API's `polycount` is often wrong, so use the manifest numbers. Textures are 2K JPG with `diff`, `nor_gl`, `rough` and `ao`. Models are glTF with 1K textures.
+
+**Textures (Phase 7).** Folder `textures/<slot>/`.
+
+| Map element         | Finish          | Slot                 | Poly Haven id                            | Alternate                   |
+| ------------------- | --------------- | -------------------- | ---------------------------------------- | --------------------------- |
+| Road                | `asphalt`       | `asphalt_road`       | `asphalt_02`                             | –                           |
+| Curb                | `curb`          | `road_curb_concrete` | `brushed_concrete`                       | –                           |
+| Sidewalk            | `sidewalk`      | `sidewalk_paving`    | `large_square_pattern_01`                | `hexagonal_concrete_paving` |
+| Beach               | `sand`          | `beach_sand`         | `aerial_beach_01`                        | `sand_01`                   |
+| Lawn, plazas        | `grass`         | `grass_lawn`         | `leafy_grass` (may need more saturation) | –                           |
+| Hills               | `rock`          | `hill_rock_terrain`  | `coast_sand_rocks_02`                    | `forrest_ground_01`         |
+| Empty lots          | `dirt`          | `dirt_empty_lot`     | `red_laterite_soil_stones`               | –                           |
+| Plaza paving        | `plaza`         | `plaza_paving`       | `pavement_02`                            | –                           |
+| Walls, plaster      | `plaster`       | `wall_plaster`       | `beige_wall_001`                         | –                           |
+| Walls, raw concrete | `concrete-raw`  | `wall_concrete_raw`  | `concrete`                               | –                           |
+| Walls, brick        | `brick`         | `wall_brick_red`     | `red_brick`                              | –                           |
+| Shop base tiles     | `tile`          | `wall_ceramic_tiles` | `floor_tiles_08`                         | –                           |
+| Flat roof           | `roof-concrete` | `roof_flat_concrete` | `concrete_floor_worn_001`                | –                           |
+| Pitched roof        | `roof-clay`     | `roof_clay_tiles`    | `clay_roof_tiles_02`                     | –                           |
+
+**HDRIs (Tasks 5.3 and 7.4).** Folder `hdris/<slot>/`, 2K `.hdr`.
+
+| Use             | Slot         | Poly Haven id                                                                                        |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| Day (ship this) | `sky_day`    | `kloofendal_48d_partly_cloudy_puresky`. The current `kloofendal_43d_clear_puresky` is the alternate. |
+| Sunset (later)  | `sky_sunset` | `kloppenheim_06_puresky`                                                                             |
+| Night (later)   | `sky_night`  | `kloppenheim_02_puresky`                                                                             |
+
+**Models (Phases 6, 8 and 9).** Folder `models/<slot>/`. Triangle counts are measured.
+
+| Prop                  | Slot                   | Poly Haven id (triangles)                                                    | Alternate                     | Pipeline note                                                                               |
+| --------------------- | ---------------------- | ---------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Street lamp           | `street_lamp`          | `street_lamp_01` (31k)                                                       | `street_lamp_02` (20k)        | Simplify to ≤ 10k                                                                           |
+| Trash can             | `trash_can`            | `metal_trash_can` (14k)                                                      | –                             | Simplify to ≤ 5k                                                                            |
+| Bench                 | `bench`                | `modular_street_seating` (25k)                                               | –                             | Simplify to ≤ 8k                                                                            |
+| Fire hydrant          | `fire_hydrant`         | `fire_hydrant` (86k)                                                         | –                             | Must decimate, to ≤ 3k                                                                      |
+| Manhole cover         | `manhole_cover`        | `water_manhole_cover` (6k)                                                   | –                             | Or bake to a decal                                                                          |
+| Utility box           | `utility_box`          | `utility_box_02` (6k)                                                        | `utility_box_01` (4k)         | OK                                                                                          |
+| Road barrier          | `concrete_barrier`     | `concrete_road_barrier_02` (24k)                                             | `concrete_road_barrier` (61k) | Simplify to ≤ 4k                                                                            |
+| Chain-link fence      | `chainlink_fence`      | `modular_chainlink_fence` (89k)                                              | –                             | Must decimate, or use an alpha-mesh texture on quads                                        |
+| Roller-shutter door   | `rollershutter_door`   | `rollershutter_door` (1.1k)                                                  | –                             | OK                                                                                          |
+| Roller-shutter window | `rollershutter_window` | `rollershutter_window_01` (1.1k)                                             | `_02`                         | OK                                                                                          |
+| Facade pieces         | `facade_modular`       | `modular_urban_apartments_facade` (270k), `modular_fire_escape` (11k)        | –                             | Reference for 6.3 and texture source. Too heavy to instance as is.                          |
+| Planter box           | `planter_box`          | `planter_box_01` (8k)                                                        | –                             | OK                                                                                          |
+| Crates                | `plastic_crates`       | `plastic_crate_01` (18k)                                                     | `plastic_crate_03` (22k)      | Simplify to ≤ 2k                                                                            |
+| Potted plant          | `potted_plant`         | `potted_plant_02` (70k)                                                      | `potted_plant_04` (9k)        | Use the alternate                                                                           |
+| Shrubs                | `shrub`                | `shrub_04` (27k), `calathea_orbifolia_01` (17k), `anthurium_botany_01` (67k) | –                             | Simplify each to ≤ 5k                                                                       |
+| Street tree           | `street_tree`          | `island_tree_02` (1.07M)                                                     | –                             | Too heavy. Impostor bake only, or replace (Task 9.1). `jacaranda_tree` (3.86M) was deleted. |
+| Tropical plant        | `tropical_plant`       | `pachira_aquatica_01` (77k)                                                  | `fern_02` (6k)                | Use the alternate, or decimate                                                              |
+
+**Gaps Poly Haven cannot fill:**
+
+- **Palms:** none on Poly Haven. Use a CC-BY Sketchfab palm (Task 9.1), Quaternius or Kenney CC0 low-poly palms, or a procedural trunk with instanced frond cards.
+- **Portuguese mosaic sidewalk (calçada):** none exists. Draw it procedurally over the `large_square_pattern_01` normal and roughness maps.
+- **Clean lawn:** none exists. Use `leafy_grass` with more saturation.
+- **Street tree:** none under ~1M triangles (see above).
 
 ## Suggested order and size
 
