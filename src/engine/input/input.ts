@@ -33,5 +33,7 @@ export interface Input extends Disposable {
   readonly pointerLocked: boolean;
   requestPointerLock(): void;
   releasePointer(): void;
+  /** Forgets held and pressed keys. Pause, resume and losing focus call it. */
+  reset(): void;
   endFrame(): void;
 }
