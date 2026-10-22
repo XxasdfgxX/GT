@@ -77,6 +77,8 @@ export interface PhysicsWorld extends Disposable {
   createHeightfield(desc: HeightfieldDesc): number;
   createKinematicBox(desc: KinematicBoxDesc): number;
   promoteDynamic(id: number, mass: number): void;
+  /** Back to kinematic with no velocity, so a recycled wreck follows its lane again. */
+  demoteKinematic(id: number): void;
   applyImpulse(id: number, impulse: Vec3): void;
   createCharacter(desc: CharacterDesc): number;
   moveCharacter(id: number, delta: Vec3): void;

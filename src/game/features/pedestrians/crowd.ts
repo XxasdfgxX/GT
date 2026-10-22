@@ -185,9 +185,10 @@ export function syncCrowd(
   }
   let far = 0;
   for (const eid of pedestrians(world)) {
-    if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
     if (used[eid] === 1) continue;
+    // A slot this ped held last frame may belong to someone else now, drivers and the parked included.
     RenderRef.mesh[eid] = 0;
+    if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
     const tint = farTint[Pedestrian.variant[eid] ?? 0] ?? 0xf7f4ef;
     const dead = (Pedestrian.health[eid] ?? 0) <= 0;
     const y = (Transform.py[eid] ?? 0) + (dead ? 0.16 : 0.85) + STREET_LIFT;

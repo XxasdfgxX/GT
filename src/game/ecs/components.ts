@@ -138,6 +138,8 @@ export const Pedestrian = {
   swingId: new Uint16Array(CAP),
   /** Seconds left before a dead body is cleared. 0 while alive. */
   corpse: new Float32Array(CAP),
+  /** Seconds a walker has been blocked in place. */
+  stuck: new Float32Array(CAP),
 };
 
 export const Pickup = {
