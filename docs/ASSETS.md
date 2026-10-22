@@ -45,7 +45,6 @@ Os créditos completos estão em `public/assets/CREDITS.txt`.
 - `car.glb` — Car, Quaternius, CC0, via poly.pizza. O tráfego usa seis variantes de cor e escala (hatch, sedan, taxi, compact, pickup, van) do mesmo GLB. O eixo traseiro é um nó só (`NormalCar1_BackWheels`); o script `scripts/validate-vehicle.ts` registra isso.
 - `aston-dbr1.glb` — 1958 Aston Martin DBR1, OUTPISTON, CC BY-NC-SA 4.0, https://sketchfab.com/3d-models/1958-aston-martin-dbr1-59f309fe359649b1aa5ac54cf5ba17b3. Uma cópia só: é o carro estacionado, não entra no grupo de tráfego.
 - `ferrari-488.glb`, `nissan-gtr.glb`, `bmw-m340i.glb`, `uaz-452.glb` — modelos Sketchfab fornecidos para o projeto, também uma cópia só cada. Entram no seletor de carro e não no tráfego. A UAZ fica a 130 km/h; Ferrari 280, GT-R 250 e M340i 220.
-- `buildings/house-*.glb` — City Kit Suburban, Kenney, CC0, https://kenney.nl/assets/city-kit-suburban. Fora do miolo urbano: as fachadas da cidade são módulos procedurais.
 
 - `props/*.glb` — Poly Haven, CC0, `https://polyhaven.com/a/<id>`. `scripts/import-polyhaven-models.mjs` simplifica cada um com meshoptimizer, comprime com meshopt e reduz as texturas a WebP 1K. O renderer instancia um draw por malha do glTF, por chunk.
   - `street-lamp.glb` — `street_lamp_01`, 7,7 mil triângulos.

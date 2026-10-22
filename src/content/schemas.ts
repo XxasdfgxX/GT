@@ -40,18 +40,6 @@ export const mapSchema = z.object({
     thickness: z.number().positive(),
     color: z.number().int().nonnegative(),
   }),
-  buildings: z.array(
-    z.object({
-      model: z.string().min(1),
-      x: z.number(),
-      z: z.number(),
-      yaw: z.number(),
-      scale: z.number().positive(),
-      sx: z.number().positive(),
-      sy: z.number().positive(),
-      sz: z.number().positive(),
-    }),
-  ),
   road: z.object({
     x: z.number(),
     z0: z.number(),

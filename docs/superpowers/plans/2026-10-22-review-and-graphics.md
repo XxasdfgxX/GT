@@ -344,8 +344,8 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 **Files:** Modify `src/content/map.ts` (the `house-*.glb` placements)
 
-- [ ] The Kenney houses are a stylized low-poly kit and won't match. Replace them with procedural `brick-raw` and `plaster-grid` houses from the same generator (2 floors, pitched roof), or with the Sketchfab houses from Phase 9.
-- [ ] Remove `public/assets/buildings/` and its entry in `docs/ASSETS.md` and `CREDITS.txt` once nothing references it.
+- [x] The Kenney houses are a stylized low-poly kit and won't match. Replace them with procedural `brick-raw` and `plaster-grid` houses from the same generator (2 floors, pitched roof), or with the Sketchfab houses from Phase 9. _They were never placed: `testMap.buildings` was defined and validated but nothing read it. Removed the entries, the schema field and the five GLBs (628 KB)._
+- [x] Remove `public/assets/buildings/` and its entry in `docs/ASSETS.md` and `CREDITS.txt` once nothing references it.
 
 ---
 
