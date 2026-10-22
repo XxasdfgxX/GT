@@ -56,15 +56,21 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
   };
   const handle = { stop };
   session = handle;
+  /** Registers a cleanup, or runs it now when stop() already happened during a load. */
+  const own = (cleanup: () => void) => {
+    if (running) cleanups.push(cleanup);
+    else cleanup();
+  };
 
   try {
     let connected: Awaited<ReturnType<typeof connectRoom>> | null = null;
     if (launch.mode === 'multiplayer') {
       if (!launch.roomId) throw new Error('Sala ausente');
       connected = await connectRoom(launch.roomId, launch.playerName, launch.spawn ?? '');
-      cleanups.push(() => {
+      own(() => {
         connected?.link.close();
       });
+      if (!running) return;
     }
     const city = buildCostaVerde();
     const center = findSpawn(bairroSpawns(city.graph), launch.spawn ?? '') ?? soloSpawn();
@@ -79,16 +85,16 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
 
     const canvas = document.createElement('canvas');
     root.append(canvas);
-    cleanups.push(() => {
+    own(() => {
       canvas.remove();
     });
 
     const assets = new AssetManager();
-    cleanups.push(() => {
+    own(() => {
       assets.dispose();
     });
     const renderer = createThreeRenderer(canvas, assets, sim.cameraFov);
-    cleanups.push(() => {
+    own(() => {
       renderer.dispose();
     });
     renderer.setGraphics({
@@ -96,16 +102,17 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       sharpness: launch.settings.sharpness,
     });
     const physics = await createRapierWorld(sim.worldGravity);
-    cleanups.push(() => {
+    own(() => {
       physics.dispose();
     });
+    if (!running) return;
     const input = createBrowserInput(canvas);
-    cleanups.push(() => {
+    own(() => {
       input.releasePointer();
       input.dispose();
     });
     const audio = createWebAudioBus(canvas);
-    cleanups.push(() => {
+    own(() => {
       audio.dispose();
     });
     audio.setVolume(launch.settings.volume);
@@ -134,6 +141,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       if (parkedModel !== carModel) urls.push(parkedModel);
     }
     await Promise.all([renderer.prepare(), ...[...urls].map((url) => renderer.preloadModel(url))]);
+    if (!running) return;
     const world = createGameWorld();
     spawnMap(ctx, city);
     for (let guard = 0; guard < 80 && streamAround(ctx, at.x, at.z, 4) > 0; guard += 1) {
@@ -157,8 +165,23 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     };
     resize();
     window.addEventListener('resize', resize);
-    cleanups.push(() => {
+    own(() => {
       window.removeEventListener('resize', resize);
+    });
+    // Dragging the window to a screen with another pixel ratio fires no resize.
+    let ratioQuery: MediaQueryList | null = null;
+    const onRatio = () => {
+      resize();
+      watchRatio();
+    };
+    const watchRatio = () => {
+      ratioQuery?.removeEventListener('change', onRatio);
+      ratioQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      ratioQuery.addEventListener('change', onRatio);
+    };
+    watchRatio();
+    own(() => {
+      ratioQuery?.removeEventListener('change', onRatio);
     });
 
     let paused = false;
@@ -178,10 +201,13 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       paused = false;
       overlay = null;
       last = performance.now();
+      // Keys typed or held in the menu must not fire on the first frame back.
+      input.reset();
     };
     const openMenu = () => {
       if (!running || paused) return;
       paused = true;
+      input.reset();
       input.releasePointer();
       audio.setEngine(0, 0);
       const place = readHud(world);
@@ -207,12 +233,12 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       if (overlay.close()) unpause();
     };
     window.addEventListener('keydown', onMenuKey);
-    cleanups.push(() => {
+    own(() => {
       window.removeEventListener('keydown', onMenuKey);
     });
 
     const hud = mountHud(root, radarMap, streets, waypoint, ctx.debug);
-    cleanups.push(() => {
+    own(() => {
       hud.remove();
     });
     ctx.log.info('pronto');

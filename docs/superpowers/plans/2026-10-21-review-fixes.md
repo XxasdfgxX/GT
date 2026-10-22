@@ -85,67 +85,49 @@
 
 ## Fase 1 — Input e render (`fix/input-render`)
 
+Testes do input em `src/tests/browser-input.test.ts` (7), com `window`, `document` e o canvas falsos que guardam os listeners. Os 7 falham com o `browser-input.ts` antigo. O render não roda em Node: as Tasks 1.5–1.7 e 1.9 ficam para conferir jogando.
+
 ### Task 1.1: O jogo engole teclas digitadas no menu
 
-**Files:** Modify `src/engine/input/browser-input.ts` · Test: `src/tests/menu-key.test.ts` (ou um novo `browser-input.test.ts`)
-
-- [ ] No `onKeyDown` e no `onKeyUp`, sair cedo quando `event.target` é `HTMLInputElement`, `HTMLTextAreaElement`, `HTMLSelectElement` ou `isContentEditable`. Extrair `isTypingTarget(target)` como função pura para testar sem DOM real: um objeto com `tagName` e `isContentEditable`.
-- [ ] Verificar à mão: abrir o menu de pausa, ir em multijogador e digitar um nome com "w a s d" e espaço.
+- [x] `isTypingTarget` (input, textarea, select ou editável; por duck typing) e o `keydown` sai cedo quando o alvo é um deles: nada de `preventDefault`, nada de tecla registrada.
 
 ### Task 1.2: Teclas do menu disparam ao continuar
 
-**Files:** Modify `src/engine/input/input.ts`, `browser-input.ts`, `src/app/bootstrap.ts`
-
-- [ ] Acrescentar `reset(): void` à interface `Input`. Ele limpa `keys`, `pressed`, o estado do toque pesado e os deltas do mouse.
-- [ ] `bootstrap.ts`: chamar `ctx.input.reset()` ao pausar e ao continuar.
-- [ ] Teste: em `loop.test.ts` ou num teste do input, `pressed` com `KeyE` seguido de `reset()` dá um snapshot sem `interact`.
+- [x] `Input.reset()` limpa teclas seguradas e apertadas, o toque pesado, o mouse e o zoom. `bootstrap.ts` chama ao pausar e ao continuar.
 
 ### Task 1.3: Tecla presa depois de alt-tab
 
-**Files:** Modify `browser-input.ts`
-
-- [ ] Ouvir `window` `blur` e `document` `visibilitychange` (quando `hidden`) e chamar `reset()`. Remover os dois listeners em `dispose`.
-- [ ] Verificar à mão: segurar ↑ no carro, alt-tab, soltar e voltar. O carro perde o acelerador.
+- [x] `blur` da janela e `visibilitychange` para `hidden` chamam `reset()`. Os dois saem no `dispose`.
 
 ### Task 1.4: Toque pesado curto e promessa do pointer lock
 
-**Files:** Modify `browser-input.ts`
-
-- [ ] A detecção do toque pesado sai de `snapshot()` e vai para os handlers: gravar o tempo no keydown, decidir no keyup e latchar o resultado em `pressed`. Um toque inteiro entre dois quadros conta.
-- [ ] `void target.requestPointerLock()` passa a `target.requestPointerLock()?.catch(() => {})` nos dois lugares.
+- [x] O tempo do S é marcado no `keydown` e o toque é decidido no `keyup`, latchado até o fim do quadro. Antes o relógio só começava quando um quadro via a tecla.
+- [x] `lockPointer` engole a rejeição do `requestPointerLock` (Chrome recusa o relock logo depois do Esc).
 
 ### Task 1.5: Animação passa pela pose de bind
 
-**Files:** Modify `src/engine/render/three-renderer.ts` (`playClip`)
-
-- [ ] Guardar a ação atual por malha. Na troca, `next.reset().play()` e depois `next.crossFadeFrom(prev, 0.12, false)`, sem `stopAllAction()`. Clipes de uma vez (`punch`, `die`) continuam com `LoopOnce` e `clampWhenFinished`.
-- [ ] Verificar à mão: andar → correr → parar, sem T-pose no meio.
+- [x] `playClip` não chama mais `stopAllAction()` (só no `die`, que congela no fim). O clipe novo entra com peso 1 e `crossFadeFrom` o anterior em 0,12 s.
+- [ ] Conferir jogando: andar → correr → parar → socar sem T-pose no meio.
 
 ### Task 1.6: Texturas e contexto WebGL vazam ao reiniciar
 
-**Files:** Modify `three-renderer.ts` (`preloadModel`, `dispose`)
+- [x] `preloadModel` registra cada textura dos materiais (sem repetir) no `AssetManager`.
+- [x] `dispose` libera os `InstancedMesh`, chama `renderer.dispose()` e `forceContextLoss()`.
+- [ ] Conferir: cinco reinícios pelo menu sem "Too many active WebGL contexts" no console.
 
-- [ ] Em `preloadModel`, percorrer as propriedades de textura de cada material (`map`, `normalMap`, `roughnessMap`, `metalnessMap`, `aoMap`, `emissiveMap`, `alphaMap`) e registrar cada uma em `ctx.assets.track`, sem repetir.
-- [ ] Em `dispose`: `dispose()` nos `InstancedMesh`, depois `renderer.dispose()` e `renderer.forceContextLoss()`.
-- [ ] Verificar à mão: cinco reinícios pelo menu, sem aviso "Too many active WebGL contexts" no console.
+### Task 1.7: Aros das rodas recebem a cor da carroceria
 
-### Task 1.7: Aros das rodas recebem a cor da carroceria (plausível)
-
-**Files:** Modify `three-renderer.ts` (`tintPaint`)
-
-- [ ] Primeiro confirmar: carregar um carro do tráfego com cor e olhar os aros. Se estiverem pintados, pular nós cujo nome case com `/wheel|rim|tire|tyre/i` e materiais marcados por `dressCar` (`userData.keep = true`).
+- [x] `tintPaint` pula malhas com `wheel`, `rim`, `tire` ou `tyre` no nome delas ou de um pai, a mesma regra de `dressCar`.
+- [ ] Conferir: carros de tráfego coloridos com aros na cor original.
 
 ### Task 1.8: `start()` continua depois de `stop()`
 
-**Files:** Modify `src/app/bootstrap.ts`
-
-- [ ] Depois de cada `await` em `start`, `if (!running) return` e desfazer o que já foi criado. Uma alternativa é um `AbortController` por sessão.
+- [x] `own(cleanup)` registra a limpeza ou roda na hora se a sessão já parou, e `start` sai depois de cada `await` (`connectRoom`, `createRapierWorld`, carga dos modelos) se `running` ficou falso.
 
 ### Task 1.9: DPR fixo ao trocar de monitor
 
-**Files:** Modify `three-renderer.ts`
-
-- [ ] Ouvir `matchMedia(\`(resolution: ${devicePixelRatio}dppx)\`)`com`{ once: true }`e registrar de novo a cada troca. Chamar o mesmo caminho do`resize`.
+- [x] `matchMedia('(resolution: Ndppx)')` chama o mesmo `resize` e se registra de novo a cada troca; sai na limpeza da sessão.
+- [ ] Conferir: arrastar a janela para um monitor com outra escala deixa o jogo nítido. (O canvas do radar ainda lê o DPR só ao montar.)
 
 ---
 

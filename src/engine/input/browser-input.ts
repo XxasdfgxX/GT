@@ -3,6 +3,9 @@
 import { stepAimCursor } from './aim-cursor';
 import type { Input, InputSnapshot } from './input';
 
+/** A sprint press shorter than this is a heavy punch. Held longer, it is a sprint. */
+const HEAVY_TAP_MS = 200;
+
 const EMPTY: InputSnapshot = {
   moveX: 0,
   moveZ: 0,
@@ -41,13 +44,40 @@ export function createBrowserInput(target: HTMLElement): Input {
   const snapshot: InputSnapshot = { ...EMPTY };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.repeat) return;
+    // Letters typed into the menu belong to the field, not to the player.
+    if (event.repeat || isTypingTarget(event.target)) return;
     if (isGameKey(event.code)) event.preventDefault();
     keys.add(event.code);
     pressed.add(event.code);
+    if (event.code === 'KeyS') sprintDownAt = performance.now();
   };
   const onKeyUp = (event: KeyboardEvent) => {
     keys.delete(event.code);
+    if (event.code !== 'KeyS' || sprintDownAt < 0) return;
+    // Decided here, not when a frame samples: a tap between two frames still counts.
+    if (performance.now() - sprintDownAt < HEAVY_TAP_MS) heavyAttack = true;
+    sprintDownAt = -1;
+  };
+  const reset = () => {
+    keys.clear();
+    pressed.clear();
+    heavyAttack = false;
+    sprintDownAt = -1;
+    lookX = 0;
+    lookY = 0;
+    zoom = 0;
+  };
+  // A key released while the window is away never sends keyup.
+  const onBlur = () => {
+    reset();
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') reset();
+  };
+  const lockPointer = () => {
+    // Chrome refuses a relock right after Esc and rejects the promise.
+    const request: unknown = target.requestPointerLock();
+    if (request instanceof Promise) request.catch(() => undefined);
   };
   const onMouseMove = (event: MouseEvent) => {
     if (!pointerLocked) return;
@@ -82,7 +112,7 @@ export function createBrowserInput(target: HTMLElement): Input {
     event.preventDefault();
   };
   const onClick = () => {
-    if (document.pointerLockElement !== target) void target.requestPointerLock();
+    if (document.pointerLockElement !== target) lockPointer();
   };
   const onContext = (event: Event) => {
     event.preventDefault();
@@ -97,6 +127,8 @@ export function createBrowserInput(target: HTMLElement): Input {
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mousedown', onMouseDown);
   window.addEventListener('auxclick', onAuxClick);
+  window.addEventListener('blur', onBlur);
+  document.addEventListener('visibilitychange', onVisibility);
   document.addEventListener('pointerlockchange', onLockChange);
   target.addEventListener('click', onClick);
   target.addEventListener('contextmenu', onContext);
@@ -107,7 +139,7 @@ export function createBrowserInput(target: HTMLElement): Input {
       return pointerLocked;
     },
     requestPointerLock() {
-      void target.requestPointerLock();
+      lockPointer();
     },
     releasePointer() {
       if (document.pointerLockElement === target) document.exitPointerLock();
@@ -117,16 +149,7 @@ export function createBrowserInput(target: HTMLElement): Input {
       const right = keys.has('ArrowRight');
       const forward = keys.has('ArrowUp');
       const back = keys.has('ArrowDown');
-      const now = performance.now();
-      const sprintKey = keys.has('KeyS');
-      if (sprintKey) {
-        if (sprintDownAt < 0) sprintDownAt = now;
-        snapshot.sprint = now - sprintDownAt >= 200;
-      } else {
-        if (sprintDownAt >= 0 && now - sprintDownAt < 200) heavyAttack = true;
-        sprintDownAt = -1;
-        snapshot.sprint = false;
-      }
+      snapshot.sprint = sprintDownAt >= 0 && performance.now() - sprintDownAt >= HEAVY_TAP_MS;
       snapshot.moveX = (right ? 1 : 0) - (left ? 1 : 0);
       snapshot.moveZ = (forward ? 1 : 0) - (back ? 1 : 0);
       snapshot.throttle = forward ? 1 : 0;
@@ -154,6 +177,7 @@ export function createBrowserInput(target: HTMLElement): Input {
       snapshot.scoreToggle = pressed.has('KeyH');
       return snapshot;
     },
+    reset,
     endFrame() {
       pressed.clear();
       heavyAttack = false;
@@ -167,12 +191,24 @@ export function createBrowserInput(target: HTMLElement): Input {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('auxclick', onAuxClick);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
       document.removeEventListener('pointerlockchange', onLockChange);
       target.removeEventListener('click', onClick);
       target.removeEventListener('contextmenu', onContext);
       target.removeEventListener('wheel', onWheel);
     },
   };
+}
+
+/** A text field or editable element has the keyboard. Duck-typed so tests need no DOM. */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== 'object') return false;
+  const element = target as { tagName?: unknown; isContentEditable?: unknown };
+  if (element.isContentEditable === true) return true;
+  return (
+    element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT'
+  );
 }
 
 function isGameKey(code: string): boolean {

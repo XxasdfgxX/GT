@@ -26,6 +26,7 @@ import {
   Vector3,
   SkinnedMesh,
   SRGBColorSpace,
+  Texture,
   WebGLRenderer,
   type AnimationAction,
   type AnimationClip,
@@ -273,12 +274,19 @@ export function createThreeRenderer(
       const pending = loading.get(url);
       if (pending) return pending;
       const job = loader.loadAsync(url).then((gltf) => {
+        // Material.dispose() leaves its maps on the GPU, so each texture is owned too.
+        const textures = new Set<Texture>();
         gltf.scene.traverse((object) => {
           if (!(object instanceof Mesh)) return;
           assets.track(object.geometry);
           const materials = Array.isArray(object.material) ? object.material : [object.material];
-          for (const material of materials) assets.track(material);
+          for (const material of materials) {
+            assets.track(material);
+            const slots: unknown[] = Object.values(material as object);
+            for (const value of slots) if (isTexture(value)) textures.add(value);
+          }
         });
+        for (const texture of textures) assets.track(texture);
         models.set(url, { scene: gltf.scene, animations: gltf.animations });
       });
       loading.set(url, job);
@@ -397,18 +405,19 @@ export function createThreeRenderer(
       const action = record?.actions?.get(clip);
       if (!record || !action) return;
       if (record.clip === clip && record.token === token) return;
-      record.mixer?.stopAllAction();
+      const previous = record.clip ? record.actions?.get(record.clip) : undefined;
       const held = clip === 'die';
       const once = held || clip === 'punch' || clip === 'jump';
+      if (held) record.mixer?.stopAllAction();
       action.setLoop(once ? LoopOnce : LoopRepeat, once ? 1 : Infinity);
       action.clampWhenFinished = once;
-      action.reset().play();
+      action.reset().setEffectiveWeight(1).play();
       if (held) {
         action.time = Math.max(0, action.getClip().duration - 0.05);
         action.paused = true;
-        action.setEffectiveWeight(1);
-      } else {
-        action.fadeIn(0.12);
+      } else if (previous && previous !== action) {
+        // Blend from the old clip. Stopping it first blended from the bind pose instead.
+        action.crossFadeFrom(previous, 0.12, false);
       }
       record.clip = clip;
       record.token = token;
@@ -424,7 +433,12 @@ export function createThreeRenderer(
       calls = renderer.info.render.calls;
     },
     dispose() {
+      scene.traverse((object) => {
+        if (object instanceof InstancedMesh) object.dispose();
+      });
       renderer.dispose();
+      // Browsers cap live WebGL contexts; a menu restart must give this one back now.
+      renderer.forceContextLoss();
       scene.clear();
     },
   };
@@ -515,13 +529,25 @@ function bindClips(
 
 function tintPaint(root: Object3D, assets: AssetManager, tint: number): void {
   root.traverse((object) => {
-    if (!(object instanceof Mesh)) return;
+    if (!(object instanceof Mesh) || onWheel(object)) return;
     const source: unknown = object.material;
     if (!(source instanceof MeshStandardMaterial) || source.metalness < 0.4) return;
     const material = assets.track(source.clone());
     material.color.setHex(tint);
     object.material = material;
   });
+}
+
+function isTexture(value: unknown): value is Texture {
+  return value instanceof Texture;
+}
+
+/** Rims are metallic too, but the paint stays on the body. */
+function onWheel(object: Object3D): boolean {
+  for (let node: Object3D | null = object; node; node = node.parent) {
+    if (/wheel|rim|tire|tyre/i.test(node.name)) return true;
+  }
+  return false;
 }
 
 function shade(root: Object3D): void {
