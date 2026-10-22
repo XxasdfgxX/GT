@@ -19,6 +19,14 @@ export function laneOffset(
   return dir === 0 ? fromCenter : -fromCenter;
 }
 
+/** Seconds each light phase lasts. */
+export const LIGHT_SECONDS = 6;
+
+/** 0 lets north-south roads through, 1 east-west. Solo and the room server share the clock rule. */
+export function lightPhase(seconds: number): number {
+  return Math.floor(seconds / LIGHT_SECONDS) % 2;
+}
+
 export function lightOpen(edgeDx: number, edgeDz: number, kind: string, phase: number): boolean {
   const northSouth = Math.abs(edgeDz) >= Math.abs(edgeDx);
   if (kind === 'street') return phase === (northSouth ? 0 : 1);

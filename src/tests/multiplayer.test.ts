@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LIGHT_SECONDS } from '../game/systems/traffic-ai';
 import { buildRoadGraph, SIDEWALK_WIDTH } from '../content/map/roads';
 import { trafficCatalog } from '../content/traffic-catalog';
 import { carBoxesOverlap } from '../game/systems/traffic-ai';
@@ -172,6 +173,8 @@ describe('rooms', () => {
       rng: () => 0.25,
       limits: false,
     });
+    // East-west roads have the green in the second light phase.
+    live.now = LIGHT_SECONDS;
     const id = join(live) ?? 0;
     const view = snapshot(live, id);
     expect(ROOM_NPCS).toBe(100);
@@ -240,6 +243,7 @@ describe('rooms', () => {
       carCount: 1,
       maxPlayers: 2,
     });
+    live.now = LIGHT_SECONDS;
     const id = join(live) ?? 0;
     const car = snapshot(live, id).cars[0];
     expect(car).toBeDefined();
@@ -252,6 +256,31 @@ describe('rooms', () => {
     const clear = snapshot(live, id).cars[0]?.x ?? car.x;
     tick(live, 0.5);
     expect((snapshot(live, id).cars[0]?.x ?? clear) - clear).toBeGreaterThan(1);
+  });
+
+  it('holds a car at a red light and lets it go on green', () => {
+    const live = createRoom({
+      id: 'costa-1',
+      name: 'Costa 1',
+      spawns,
+      nodes,
+      edges,
+      rng: () => 0,
+      limits: false,
+      npcCount: 0,
+      carCount: 1,
+      maxPlayers: 2,
+    });
+    const id = join(live) ?? 0;
+    // Phase 0: the east-west road is red. The car brakes, then waits.
+    for (let step = 0; step < 90; step += 1) tick(live, 1 / 30);
+    const stopped = snapshot(live, id).cars[0]?.x ?? 0;
+    for (let step = 0; step < 30; step += 1) tick(live, 1 / 30);
+    expect(Math.abs((snapshot(live, id).cars[0]?.x ?? 0) - stopped)).toBeLessThan(0.05);
+    live.now = LIGHT_SECONDS;
+    const held = snapshot(live, id).cars[0]?.x ?? 0;
+    tick(live, 0.5);
+    expect(Math.abs((snapshot(live, id).cars[0]?.x ?? held) - held)).toBeGreaterThan(0.5);
   });
 
   it('removes a punched npc and leaves $10', () => {

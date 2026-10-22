@@ -218,9 +218,9 @@ Today a state message is about 15.5 KB, around 310 KB/s per client. **Depends on
 
 **Files:** Create `src/sim/traffic-rules.ts`. Modify `src/game/systems/traffic.ts`, `src/net/room.ts`
 
-- [ ] Move `pickNext` (turn filter, Task 3.9 of the previous plan), traffic-light state, `laneOffset` and parking-on-road into `src/sim/`, with no ECS and no Three imports.
-- [ ] `room.ts` replaces `pickExit` (~1228) and `parkOnRoad` (~963) with the shared ones. Server cars stop taking random U-turns and start obeying lights.
-- [ ] `room.ts` must no longer import from `src/game/systems/*`. Add that rule to the architecture test in `src/tests`.
+- [~] Move `pickNext` (turn filter, Task 3.9 of the previous plan), traffic-light state, `laneOffset` and parking-on-road into `src/sim/`, with no ECS and no Three imports. _The turn rule moved to `exitsAhead()` in `content/map/roads.ts` (pure, on any `{a, b, oneWay}` spans). Solo `pickNext` takes the straightest exit, as before; the server `pickExit` picks randomly among the same exits, so no more hairpins. The light rule is shared through `lightPhase()` / `lightOpen()` in `traffic-ai.ts`: server cars now ease off and stop at red nodes on the same 6 s cycle. Lane offset was already shared. Not moved to a new `src/sim/` folder: `content/map` already holds the pure road code._
+- [~] `room.ts` replaces `pickExit` (~1228) and `parkOnRoad` (~963) with the shared ones. Server cars stop taking random U-turns and start obeying lights. _`pickExit` now uses the shared rule. `parkOnRoad` not touched._
+- [ ] `room.ts` must no longer import from `src/game/systems/*`. Add that rule to the architecture test in `src/tests`. _Not done: it still imports from `game/systems/traffic-ai`, `game/play/*` and others. Moving those pure helpers out of `game/` is a bigger move than this phase took._
 
 ### Task 4.2: Split `room.ts` (1,261 lines)
 

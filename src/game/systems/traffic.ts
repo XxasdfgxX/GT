@@ -3,7 +3,7 @@
 import type { World } from 'bitecs';
 import { buildCostaVerde } from '../../content/city';
 import { sampleHeight } from '../../content/map/island-shape';
-import type { RoadEdge, RoadGraph } from '../../content/map/roads';
+import { exitsAhead, type Exit, type RoadEdge, type RoadGraph } from '../../content/map/roads';
 import { stepDrivenSpeed } from '../../content/cars';
 import { trafficCatalog } from '../../content/traffic-catalog';
 import { sedan } from '../../content/vehicles';
@@ -39,6 +39,7 @@ import {
   followSpeed,
   laneOffset,
   lightOpen,
+  lightPhase,
   mustYield,
   yieldToPedestrian,
 } from './traffic-ai';
@@ -60,7 +61,7 @@ export function trafficSystem(ctx: GameContext, world: World): void {
   const graph = buildCostaVerde().graph;
   bucketCrowd(world, ctx.time.tick);
   const dt = ctx.time.fixedDt;
-  const phase = Math.floor((ctx.time.tick * dt) / 6) % 2;
+  const phase = lightPhase(ctx.time.tick * dt);
   const focus = playerFocus(world);
   const px = focus.x;
   const pz = focus.z;
@@ -408,45 +409,11 @@ export function pickNext(
   edge: RoadEdge,
   dir: number,
 ): { edge: number; dir: number } | undefined {
-  const nodeId = dir === 0 ? edge.b : edge.a;
-  const a = graph.nodes[edge.a];
-  const b = graph.nodes[edge.b];
-  const node = graph.nodes[nodeId];
-  if (!a || !b || !node) return undefined;
-  const fx = dir === 0 ? (b.x - a.x) / edge.length : (a.x - b.x) / edge.length;
-  const fz = dir === 0 ? (b.z - a.z) / edge.length : (a.z - b.z) / edge.length;
-  let best = -1;
-  let bestDot = -0.5;
-  let bestDir = 0;
-  for (const other of graph.edges) {
-    if (other.id === edge.id) continue;
-    let nextDir = -1;
-    let ox = 0;
-    let oz = 0;
-    if (other.a === nodeId) {
-      nextDir = 0;
-      const end = graph.nodes[other.b];
-      if (!end) continue;
-      ox = end.x - node.x;
-      oz = end.z - node.z;
-    } else if (other.b === nodeId && !other.oneWay) {
-      nextDir = 1;
-      const end = graph.nodes[other.a];
-      if (!end) continue;
-      ox = end.x - node.x;
-      oz = end.z - node.z;
-    }
-    if (nextDir < 0) continue;
-    const len = Math.hypot(ox, oz) || 1;
-    const dot = (ox / len) * fx + (oz / len) * fz;
-    if (dot > bestDot) {
-      bestDot = dot;
-      best = other.id;
-      bestDir = nextDir;
-    }
+  let best: Exit | undefined;
+  for (const exit of exitsAhead(graph.edges, (id) => graph.nodes[id], edge.id, dir)) {
+    if (!best || exit.straightness > best.straightness) best = exit;
   }
-  if (best < 0) return undefined;
-  return { edge: best, dir: bestDir };
+  return best && { edge: best.edge, dir: best.dir };
 }
 
 function avenueClose(world: World, graph: RoadGraph, x: number, z: number, self: number): boolean {

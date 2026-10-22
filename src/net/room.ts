@@ -3,6 +3,7 @@
 import { sampleHeight } from '../content/map/island-shape';
 import { buildCostaVerde } from '../content/map/city-data';
 import type { BoxCollider } from '../content/map/batch';
+import { exitsAhead } from '../content/map/roads';
 import { findSpawn, pickSpawn, scatterSpawn, type BairroSpawn } from '../content/spawns';
 import { trafficCatalog } from '../content/traffic-catalog';
 import { sim } from '../content/sim';
@@ -40,6 +41,8 @@ import {
   carBoxesOverlap,
   carImpactDamage,
   laneOffset,
+  lightOpen,
+  lightPhase,
   steppedAlong,
   yieldToPedestrian,
 } from '../game/systems/traffic-ai';
@@ -1210,6 +1213,11 @@ function driveCar(room: Room, car: Car, dt: number): void {
       if (personCap === 0) panic = true;
       limit = Math.min(limit, personCap);
     }
+    // The same lights as solo traffic: ease off near a red node, stop short of it.
+    const remaining = span.length - car.along;
+    if (remaining < 14 && !lightOpen(b.x - a.x, b.z - a.z, 'avenue', lightPhase(room.now))) {
+      limit = remaining < 7 ? 0 : limit * 0.35;
+    }
     car.speed = approachSpeed(car.speed, limit, dt, panic);
   }
   const body = trafficCatalog[car.variant];
@@ -1233,8 +1241,7 @@ function driveCar(room: Room, car: Car, dt: number): void {
   } else if (car.speed > 0 && carPathBlocked(room, car, car.speed * dt)) car.speed = 0;
   else car.along += car.speed * dt;
   if (car.along >= span.length) {
-    const arrived = car.dir === 0 ? span.b : span.a;
-    const next = pickExit(room, car.edge, arrived);
+    const next = pickExit(room, car.edge, car.dir);
     if (next) {
       car.edge = next.edge;
       car.dir = next.dir;
@@ -1279,22 +1286,11 @@ function carPathBlocked(room: Room, car: Car, extra: number): boolean {
   return blocked;
 }
 
-function pickExit(
-  room: Room,
-  fromEdge: number,
-  nodeId: number,
-): { edge: number; dir: number } | null {
-  const options: { edge: number; dir: number }[] = [];
-  for (let index = 0; index < room.roads.length; index += 1) {
-    const span = room.roads[index];
-    if (!span) continue;
-    if (span.a === nodeId) options.push({ edge: index, dir: 0 });
-    if (span.b === nodeId && !span.oneWay) options.push({ edge: index, dir: 1 });
-  }
-  const forward = options.filter((option) => option.edge !== fromEdge);
-  const pool = forward.length > 0 ? forward : options;
-  const choice = pool[Math.min(pool.length - 1, Math.floor(room.rng() * pool.length))];
-  return choice ?? null;
+/** A random way on at the node, never a hairpin: the same turns solo traffic may take. */
+function pickExit(room: Room, fromEdge: number, dir: number): { edge: number; dir: number } | null {
+  const exits = exitsAhead(room.roads, (id) => room.nodes.get(id), fromEdge, dir);
+  const choice = exits[Math.min(exits.length - 1, Math.floor(room.rng() * exits.length))];
+  return choice ? { edge: choice.edge, dir: choice.dir } : null;
 }
 
 function placeCar(room: Room, car: Car): void {
