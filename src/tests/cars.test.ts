@@ -33,6 +33,18 @@ describe('car specs', () => {
     expect(starterCar({ admin: true, car: 'foguete' }).id).toBe('aston');
   });
 
+  it('keeps the UAZ at 130 km/h and the other showcase cars faster', () => {
+    expect(carById('uaz').maxSpeedKmh).toBe(130);
+    expect(carById('bmw').maxSpeedKmh).toBe(220);
+    expect(carById('gtr').maxSpeedKmh).toBe(250);
+    expect(carById('ferrari').maxSpeedKmh).toBe(280);
+    for (const id of ['ferrari', 'gtr', 'bmw', 'uaz'] as const) {
+      expect(trafficCatalog.some((car) => car.id === id)).toBe(false);
+      expect(carBody(id).url.endsWith('.glb')).toBe(true);
+      expect(carBody(id).url).not.toContain('car.glb');
+    }
+  });
+
   it('leaves the Aston out of street traffic', () => {
     expect(trafficCatalog.some((car) => car.id === 'aston')).toBe(false);
     const sedan = trafficCatalog.find((car) => car.id === 'sedan');
@@ -48,5 +60,13 @@ describe('car specs', () => {
     expect(slow).toBeLessThan(fast);
     const capped = stepDrivenSpeed(54, { throttle: 1, brake: 0, handbrake: false }, 1, 80, 200);
     expect(capped).toBeCloseTo(maxSpeedMs(200), 5);
+  });
+
+  it('lets a driven street car roll down after the throttle is released', () => {
+    const held = stepDrivenSpeed(12, { throttle: 0, brake: 0, handbrake: false }, 1, 80, 200);
+    expect(held).toBeLessThan(12);
+    expect(held).toBeGreaterThan(0);
+    const stopped = stepDrivenSpeed(1, { throttle: 0, brake: 0, handbrake: false }, 1, 80, 200);
+    expect(stopped).toBe(0);
   });
 });

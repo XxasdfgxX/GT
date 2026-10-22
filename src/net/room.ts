@@ -7,7 +7,14 @@ import { findSpawn, pickSpawn, scatterSpawn, type BairroSpawn } from '../content
 import { trafficCatalog } from '../content/traffic-catalog';
 import { sim } from '../content/sim';
 import { meshYaw } from '../game/play/aim-cursor';
-import { BODY_REACH, TRIP_SECONDS, circleHitsBox, circlesOverlap } from '../game/play/overlap';
+import {
+  BODY_REACH,
+  TRIP_SECONDS,
+  circleHitsBox,
+  circlesOverlap,
+  pinsCircle,
+  sinksDeeper,
+} from '../game/play/overlap';
 import {
   CORPSE_TIME,
   NPC_DROP,
@@ -25,9 +32,11 @@ import {
 } from '../game/systems/ped-ai';
 import {
   approachSpeed,
+  boxExit,
   carBoxesOverlap,
   carImpactDamage,
   laneOffset,
+  steppedAlong,
   yieldToPedestrian,
 } from '../game/systems/traffic-ai';
 import type {
@@ -319,18 +328,21 @@ export function pushPose(room: Room, id: number, pose: Pose): void {
   if (player.car === 0 && moved > 0.12) {
     for (const other of room.players) {
       if (other.id === id || !other.alive || other.car !== 0) continue;
-      if (!circlesOverlap(player.x, player.z, other.x, other.z, BODY_REACH)) continue;
+      if (!pinsCircle(previousX, previousZ, player.x, player.z, other.x, other.z, BODY_REACH)) {
+        continue;
+      }
+      if (other.down > 0) continue;
       player.x = previousX;
       player.z = previousZ;
-      if (other.down <= 0) other.down = TRIP_SECONDS;
+      other.down = TRIP_SECONDS;
       break;
     }
     for (const npc of room.npcs) {
-      if (!npc.alive) continue;
-      if (!circlesOverlap(player.x, player.z, npc.x, npc.z, BODY_REACH)) continue;
+      if (!npc.alive || npc.down > 0) continue;
+      if (!pinsCircle(previousX, previousZ, player.x, player.z, npc.x, npc.z, BODY_REACH)) continue;
       player.x = previousX;
       player.z = previousZ;
-      if (npc.down <= 0) npc.down = TRIP_SECONDS;
+      npc.down = TRIP_SECONDS;
       break;
     }
   }
@@ -528,26 +540,66 @@ export function snapshot(
 function spawnNpc(room: Room): void {
   const list = [...room.nodes.values()];
   if (list.length === 0) return;
-  const origin = list[Math.min(list.length - 1, Math.floor(room.rng() * list.length))];
-  if (!origin) return;
-  const next = room.links.get(origin.id)?.[0] ?? origin.id;
-  const id = room.nextNpc;
-  room.nextNpc += 1;
-  const y = sampleHeight(origin.x, origin.z) + sim.playerRadius + sim.playerHalfHeight;
-  room.npcs.push({
-    id,
-    x: origin.x,
-    y,
-    z: origin.z,
-    yaw: 0,
-    health: sim.maxHealth,
-    alive: true,
-    from: origin.id,
-    to: next,
-    cool: 0,
-    foe: 0,
-    down: 0,
-  });
+  const start = Math.floor(room.rng() * list.length);
+  for (let n = 0; n < list.length; n += 1) {
+    const origin = list[(start + n) % list.length];
+    if (!origin) continue;
+    const spot = openSpot(room, origin);
+    if (!spot) continue;
+    const next = room.links.get(origin.id)?.[0] ?? origin.id;
+    const id = room.nextNpc;
+    room.nextNpc += 1;
+    const y = sampleHeight(spot.x, spot.z) + sim.playerRadius + sim.playerHalfHeight;
+    room.npcs.push({
+      id,
+      x: spot.x,
+      y,
+      z: spot.z,
+      yaw: 0,
+      health: sim.maxHealth,
+      alive: true,
+      from: origin.id,
+      to: next,
+      cool: 0,
+      foe: 0,
+      down: 0,
+    });
+    return;
+  }
+}
+
+function openSpot(
+  room: Room,
+  origin: { id: number; x: number; z: number },
+): { x: number; z: number } | null {
+  if (!npcNear(room, origin.x, origin.z)) return { x: origin.x, z: origin.z };
+  const nextId = room.links.get(origin.id)?.[0];
+  const next = nextId === undefined ? undefined : room.nodes.get(nextId);
+  let sideX = 1;
+  let sideZ = 0;
+  if (next) {
+    const dx = next.x - origin.x;
+    const dz = next.z - origin.z;
+    const len = Math.hypot(dx, dz) || 1;
+    sideX = -dz / len;
+    sideZ = dx / len;
+  }
+  for (let n = 1; n <= 80; n += 1) {
+    const side = 4 + Math.ceil(n / 2) * 1.05;
+    const sign = n % 2 === 0 ? 1 : -1;
+    const nx = origin.x + sideX * side * sign;
+    const nz = origin.z + sideZ * side * sign;
+    if (!npcNear(room, nx, nz)) return { x: nx, z: nz };
+  }
+  return null;
+}
+
+function npcNear(room: Room, x: number, z: number): boolean {
+  for (const npc of room.npcs) {
+    if (!npc.alive) continue;
+    if (circlesOverlap(x, z, npc.x, npc.z, BODY_REACH)) return true;
+  }
+  return false;
 }
 
 function chase(room: Room, npc: Npc, player: Guy, dt: number): void {
@@ -594,29 +646,44 @@ function slide(
   const step = Math.min(distance, speed * dt);
   const x = npc.x + (dx / distance) * step;
   const z = npc.z + (dz / distance) * step;
-  if (footBlocked(room, x, z, npc.id)) return;
+  if (footBlocked(room, npc.x, npc.z, x, z, npc.id)) return;
   npc.x = x;
   npc.z = z;
   npc.y = sampleHeight(npc.x, npc.z) + sim.playerRadius + sim.playerHalfHeight;
 }
 
-function footBlocked(room: Room, x: number, z: number, self: number): boolean {
+function footBlocked(
+  room: Room,
+  fromX: number,
+  fromZ: number,
+  x: number,
+  z: number,
+  self: number,
+): boolean {
   for (const player of room.players) {
-    if (!player.alive || player.car !== 0) continue;
-    if (circlesOverlap(x, z, player.x, player.z, BODY_REACH)) return true;
+    if (!player.alive || player.car !== 0 || player.down > 0) continue;
+    if (pinsCircle(fromX, fromZ, x, z, player.x, player.z, BODY_REACH)) return true;
   }
   for (const other of room.npcs) {
-    if (other.id === self || !other.alive) continue;
-    if (circlesOverlap(x, z, other.x, other.z, BODY_REACH)) return true;
+    if (other.id === self || !other.alive || other.down > 0) continue;
+    if (pinsCircle(fromX, fromZ, x, z, other.x, other.z, BODY_REACH)) return true;
   }
   for (const car of room.cars) {
     const spec = trafficCatalog[car.variant];
     if (!spec) continue;
-    if (circleHitsBox(x, z, 0.35, car.x, car.z, spec.width / 2, spec.length / 2, car.yaw)) {
+    if (
+      sinksDeeper(fromX, fromZ, x, z, car.x, car.z, spec.width / 2, spec.length / 2, car.yaw, 0.35)
+    ) {
       return true;
     }
   }
-  return hitsBuilding(x, z, 0.35, 24);
+  buildingBoxes ??= buildCostaVerde().colliders;
+  for (const box of buildingBoxes) {
+    if (box.hy < 0.4) continue;
+    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+    if (sinksDeeper(fromX, fromZ, x, z, box.x, box.z, box.hx, box.hz, box.yaw, 0.35)) return true;
+  }
+  return false;
 }
 
 let buildingBoxes: readonly BoxCollider[] | null = null;
@@ -633,16 +700,27 @@ function buildingHits(x: number, z: number, yaw: number, hx: number, hz: number)
   return hits;
 }
 
-function hitsBuilding(x: number, z: number, radius: number, reach: number): boolean {
+function roomBuildingPush(
+  x: number,
+  z: number,
+  yaw: number,
+  hx: number,
+  hz: number,
+): { x: number; z: number; depth: number } {
   buildingBoxes ??= buildCostaVerde().colliders;
-  const reachSq = reach * reach;
+  let bestX = 0;
+  let bestZ = 0;
+  let best = 0;
   for (const box of buildingBoxes) {
-    const dx = x - box.x;
-    const dz = z - box.z;
-    if (dx * dx + dz * dz > reachSq) continue;
-    if (circleHitsBox(x, z, radius, box.x, box.z, box.hx, box.hz, box.yaw)) return true;
+    if (box.hy < 0.4) continue;
+    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+    const push = boxExit(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz);
+    if (push.depth <= best) continue;
+    best = push.depth;
+    bestX = push.x;
+    bestZ = push.z;
   }
-  return false;
+  return { x: bestX, z: bestZ, depth: best };
 }
 
 function hurtPlayer(room: Room, player: Guy, amount: number, attackerId: number | null): void {
@@ -826,32 +904,68 @@ function toRoad(nodes: Map<number, WalkNode>, edge: WalkEdge): RoadSpan[] {
 
 function spawnCar(room: Room, index: number): void {
   if (room.roads.length === 0) return;
-  const edge = Math.min(room.roads.length - 1, Math.floor(room.rng() * room.roads.length));
-  const span = room.roads[edge];
   const spec = trafficCatalog[index % trafficCatalog.length];
-  if (!span || !spec) return;
-  const lanes = Math.max(1, span.oneWay ? span.lanes : Math.floor(span.lanes / 2));
-  const car: Car = {
-    id: index + 1,
-    edge,
-    along: room.rng() * span.length,
-    dir: span.oneWay || room.rng() < 0.5 ? 0 : 1,
-    lane: Math.min(lanes - 1, Math.floor(room.rng() * lanes)),
-    variant: index % trafficCatalog.length,
-    speed: span.speed,
-    x: 0,
-    y: 0,
-    z: 0,
-    yaw: 0,
-    driver: 0,
-    prevX: 0,
-    prevZ: 0,
-    hitAt: new Map(),
-  };
-  placeCar(room, car);
-  car.prevX = car.x;
-  car.prevZ = car.z;
-  room.cars.push(car);
+  if (!spec) return;
+  const gap = spec.length + 2;
+  let chosen: Car | undefined;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const edge = Math.min(room.roads.length - 1, Math.floor(room.rng() * room.roads.length));
+    const span = room.roads[edge];
+    if (!span) continue;
+    const lanes = Math.max(1, span.oneWay ? span.lanes : Math.floor(span.lanes / 2));
+    const car: Car = {
+      id: index + 1,
+      edge,
+      along: steppedAlong(room.rng() * span.length, span.length, attempt, gap),
+      dir: span.oneWay || room.rng() < 0.5 ? 0 : 1,
+      lane: Math.min(lanes - 1, Math.floor(room.rng() * lanes)),
+      variant: index % trafficCatalog.length,
+      speed: span.speed,
+      x: 0,
+      y: 0,
+      z: 0,
+      yaw: 0,
+      driver: 0,
+      prevX: 0,
+      prevZ: 0,
+      hitAt: new Map(),
+    };
+    placeCar(room, car);
+    chosen = car;
+    if (!carInsideAnother(room, car)) break;
+  }
+  if (!chosen) return;
+  chosen.prevX = chosen.x;
+  chosen.prevZ = chosen.z;
+  room.cars.push(chosen);
+}
+
+function carInsideAnother(room: Room, car: Car): boolean {
+  const spec = trafficCatalog[car.variant];
+  if (!spec) return false;
+  const hx = spec.width / 2;
+  const hz = spec.length / 2;
+  for (const other of room.cars) {
+    const body = trafficCatalog[other.variant];
+    if (!body) continue;
+    if (
+      carBoxesOverlap(
+        car.x,
+        car.z,
+        car.yaw,
+        hx,
+        hz,
+        other.x,
+        other.z,
+        other.yaw,
+        body.width / 2,
+        body.length / 2,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const RAM_GAP = 0.6;
@@ -918,13 +1032,23 @@ function driveCar(room: Room, car: Car, dt: number): void {
     car.speed = approachSpeed(car.speed, limit, dt, panic);
   }
   const body = trafficCatalog[car.variant];
-  if (
-    body &&
-    room.roads.length > 2 &&
-    buildingHits(car.x, car.z, car.yaw, body.width / 2, body.length / 2).size > 0
-  ) {
+  const buried =
+    body && room.roads.length > 2
+      ? roomBuildingPush(car.x, car.z, car.yaw, body.width / 2, body.length / 2)
+      : { x: 0, z: 0, depth: 0 };
+  if (buried.depth > 0.05) {
     car.speed = 0;
-    car.along = Math.max(0, car.along - 0.45);
+    const nodeA = room.nodes.get(span.a);
+    const nodeB = room.nodes.get(span.b);
+    let step = -0.45;
+    if (nodeA && nodeB && span.length > 0) {
+      const fx = (nodeB.x - nodeA.x) / span.length;
+      const fz = (nodeB.z - nodeA.z) / span.length;
+      const travelX = car.dir === 0 ? fx : -fx;
+      const travelZ = car.dir === 0 ? fz : -fz;
+      if (buried.x * travelX + buried.z * travelZ >= 0) step = 0.45;
+    }
+    car.along = Math.max(0, Math.min(span.length, car.along + step));
   } else if (car.speed > 0 && carPathBlocked(room, car, car.speed * dt)) car.speed = 0;
   else car.along += car.speed * dt;
   if (car.along >= span.length) {

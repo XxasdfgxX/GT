@@ -218,6 +218,17 @@ class RapierPhysics implements PhysicsWorld {
     if (record.body.isKinematic()) record.body.setNextKinematicTranslation(this.translation);
   }
 
+  shiftBody(id: number, dx: number, dz: number): void {
+    const record = this.bodies.get(id);
+    if (!record || (dx === 0 && dz === 0)) return;
+    const position = record.body.translation(this.translation);
+    this.translation.x = position.x + dx;
+    this.translation.y = position.y;
+    this.translation.z = position.z + dz;
+    record.body.setTranslation(this.translation, true);
+    if (record.body.isKinematic()) record.body.setNextKinematicTranslation(this.translation);
+  }
+
   getTransform(id: number, outPos: Vec3, outRot: Quat): void {
     const record = this.bodies.get(id);
     if (!record) return;

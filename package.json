@@ -17,8 +17,11 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,css,md,json}": "prettier --write",
-    "*.ts": "eslint --fix"
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,md,json}": "prettier --write"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

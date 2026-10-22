@@ -23,6 +23,7 @@ import { vehicleDriveSystem } from './systems/vehicle-drive';
 import { streamCitySystem } from './systems/stream-city';
 import { syncDebugView } from './features/world/debug-graph';
 import { pedestrianSystem, pedestrianVisual } from './systems/pedestrians';
+import { recoverVehicles, releaseFromBuildings } from './systems/recover-vehicle';
 import { trafficSystem } from './systems/traffic';
 import { applyNetState, publishNet } from './systems/net';
 import { cashSystem } from './systems/cash';
@@ -51,8 +52,10 @@ export function fixedStep(ctx: GameContext, world: World): void {
     cashSystem(ctx, world);
   }
   ctx.physics.step(ctx.time.fixedDt);
+  recoverVehicles(ctx, world);
   if (!ctx.net) boardCarSystem(ctx, world);
   separateFromPeers(ctx, world);
+  releaseFromBuildings(ctx, world);
   syncTransforms(ctx, world);
   syncWheels(ctx, world);
   applyPlayerFacing(world);

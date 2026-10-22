@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parkedBehind, scatterSpawn, soloSpawn } from '../content/spawns';
 import { sedan } from '../content/vehicles';
-import { circleHitsBox, circlesOverlap } from '../game/play/overlap';
+import { circleHitsBox, circlesOverlap, pinsCircle, circleBoxDepth } from '../game/play/overlap';
 
 describe('scatterSpawn', () => {
   it('drops a point inside the 10 by 10 square and keeps the name', () => {
@@ -56,5 +56,19 @@ describe('circlesOverlap', () => {
   it('is true only inside the reach', () => {
     expect(circlesOverlap(0, 0, 0.5, 0, 0.8)).toBe(true);
     expect(circlesOverlap(0, 0, 2, 0, 0.8)).toBe(false);
+  });
+});
+
+describe('pinsCircle', () => {
+  it('blocks a step into someone and allows a step back out', () => {
+    expect(pinsCircle(2, 0, 0.4, 0, 0, 0, 0.8)).toBe(true);
+    expect(pinsCircle(0.2, 0, 0.5, 0, 0, 0, 0.8)).toBe(false);
+  });
+});
+
+describe('circleBoxDepth', () => {
+  it('measures how far a circle sits inside a box', () => {
+    expect(circleBoxDepth(0, 0, 0.3, 0, 0, 1, 2, 0)).toBeCloseTo(1.3, 5);
+    expect(circleBoxDepth(5, 0, 0.3, 0, 0, 1, 2, 0)).toBe(0);
   });
 });

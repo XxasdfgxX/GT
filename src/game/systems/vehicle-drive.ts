@@ -8,7 +8,8 @@ import { InputState, PhysicsRef, Player, Transform, Vehicle } from '../ecs/compo
 import { players, vehicles } from '../ecs/queries';
 import { Mode } from './player-movement';
 
-const coast = { throttle: 0, brake: 0, steer: 0, handbrake: false };
+/** Unoccupied cars stay parked. The one that spawns with you must not roll away. */
+const coast = { throttle: 0, brake: 0, steer: 0, handbrake: true };
 const followed: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
 const followedRot = { x: 0, y: 0, z: 0, w: 1 };
 
@@ -20,8 +21,10 @@ export function vehicleDriveSystem(ctx: GameContext, world: World): void {
     const body = PhysicsRef.body[vehicleEid] ?? 0;
     if (body === 0) continue;
     driving = true;
-    let throttle = InputState.throttle[eid] ?? 0;
-    let brake = InputState.brake[eid] ?? 0;
+    const pressedThrottle = InputState.throttle[eid] ?? 0;
+    const pressedBrake = InputState.brake[eid] ?? 0;
+    let throttle = pressedThrottle;
+    let brake = pressedBrake;
     const speed = ctx.physics.forwardSpeed(body);
     Vehicle.speed[vehicleEid] = speed;
     ctx.physics.getTransform(body, followed, followedRot);
@@ -39,11 +42,17 @@ export function vehicleDriveSystem(ctx: GameContext, world: World): void {
     if (speed > 1) steer *= 1.85;
     const tone = enginePlayback(true, speed, Math.abs(throttle));
     ctx.audio.setEngine(tone.frequency, tone.gain);
+    const coasting =
+      pressedThrottle === 0 &&
+      pressedBrake === 0 &&
+      InputState.handbrake[eid] !== 1 &&
+      Math.abs(speed) > 0.35;
     ctx.physics.setVehicleInput(body, {
       throttle,
       brake,
       steer,
       handbrake: InputState.handbrake[eid] === 1,
+      drag: coasting ? -Math.sign(speed) * 1600 : 0,
     });
   }
 

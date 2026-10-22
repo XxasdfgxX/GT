@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   carBoxesOverlap,
+  boxExit,
   carImpactDamage,
   drivenYawRate,
   followSpeed,
   laneOffset,
   lightOpen,
   mustYield,
+  steppedAlong,
   yieldToPedestrian,
 } from '../game/systems/traffic-ai';
 
@@ -52,10 +54,24 @@ describe('traffic lanes', () => {
     expect(drivenYawRate(-1, -2, -1)).toBeLessThan(0);
   });
 
+  it('steps a later car clear of one that just spawned', () => {
+    expect(steppedAlong(2, 100, 0, 6)).toBe(2);
+    expect(steppedAlong(2, 100, 1, 6)).toBe(8);
+    expect(steppedAlong(2, 10, 2, 6)).toBe(4);
+  });
+
   it('keeps car boxes from occupying the same patch of street', () => {
     expect(carBoxesOverlap(0, 0, 0, 0.9, 2.1, 0, 0, 0, 0.9, 2.1)).toBe(true);
     expect(carBoxesOverlap(0, 0, 0, 0.9, 2.1, 3, 0, 0, 0.9, 2.1)).toBe(false);
     expect(carBoxesOverlap(0, 0, 0, 0.9, 2.1, 0, 5, 0, 0.9, 2.1)).toBe(false);
     expect(carBoxesOverlap(0, 0, 0, 0.9, 2.1, 1.2, 0, Math.PI / 2, 0.9, 2.1)).toBe(true);
+  });
+
+  it('pushes a buried car back out along the shallow side', () => {
+    const exit = boxExit(0, 0, 0, 1, 1, 1.5, 0, 0, 1, 1);
+    expect(exit.depth).toBeCloseTo(0.5, 5);
+    expect(exit.x).toBeCloseTo(-0.5, 5);
+    expect(exit.z).toBeCloseTo(0, 5);
+    expect(boxExit(0, 0, 0, 1, 1, 5, 0, 0, 1, 1).depth).toBe(0);
   });
 });

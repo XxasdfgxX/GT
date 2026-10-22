@@ -14,19 +14,36 @@ const banRapier = {
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'public/**', 'eslint.config.js', 'scripts/**', 'server/**/*.mjs'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'public/**',
+      'tmp/**',
+      '.worktrees/**',
+      '.superpowers/**',
+      'coverage/**',
+      'eslint.config.js',
+      'scripts/**',
+      'server/**/*.mjs',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   eslintConfigPrettier,
   {
-    files: ['**/*.ts'],
     languageOptions: {
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
+  },
+  {
+    files: ['**/*.{js,mjs,cjs}'],
+    ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    files: ['**/*.ts'],
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-explicit-any': 'error',

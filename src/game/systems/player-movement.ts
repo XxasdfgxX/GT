@@ -175,6 +175,7 @@ export function separateFromPeers(ctx: GameContext, world: World): void {
       pushOut(ctx, body, other.x, other.z);
     }
     for (const npc of crowd) {
+      if (npc.down > 0) continue;
       pushOut(ctx, body, npc.x, npc.z);
     }
   }

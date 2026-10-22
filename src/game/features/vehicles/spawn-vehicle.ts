@@ -68,7 +68,7 @@ export function spawnVehicle(
     rotation: yaw,
     scale: car.scale,
     offset: { x: 0, y: STREET_LIFT - car.ride, z: 0 },
-    tint: paint?.color,
+    ...(paint ? { tint: paint.color } : {}),
   });
   return eid;
 }

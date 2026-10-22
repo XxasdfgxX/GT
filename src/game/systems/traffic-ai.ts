@@ -95,6 +95,63 @@ function projectedRadius(
   return hx * right + hz * forward;
 }
 
+export interface BoxPush {
+  x: number;
+  z: number;
+  depth: number;
+}
+
+const noPush: BoxPush = { x: 0, z: 0, depth: 0 };
+
+/** Shortest push that walks box A out of box B. Depth is zero when they are clear. */
+export function boxExit(
+  ax: number,
+  az: number,
+  ayaw: number,
+  ahx: number,
+  ahz: number,
+  bx: number,
+  bz: number,
+  byaw: number,
+  bhx: number,
+  bhz: number,
+): BoxPush {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const reach = ahx + ahz + bhx + bhz;
+  if (dx * dx + dz * dz > reach * reach) return noPush;
+  const axes: readonly (readonly [number, number])[] = [
+    [Math.sin(ayaw), Math.cos(ayaw)],
+    [Math.cos(ayaw), -Math.sin(ayaw)],
+    [Math.sin(byaw), Math.cos(byaw)],
+    [Math.cos(byaw), -Math.sin(byaw)],
+  ];
+  let best = Infinity;
+  let bestX = 0;
+  let bestZ = 0;
+  for (const [axisX, axisZ] of axes) {
+    const signed = dx * axisX + dz * axisZ;
+    const limit =
+      projectedRadius(ahx, ahz, ayaw, axisX, axisZ) + projectedRadius(bhx, bhz, byaw, axisX, axisZ);
+    const overlap = limit - Math.abs(signed);
+    if (overlap <= 0) return noPush;
+    if (overlap < best) {
+      best = overlap;
+      const sign = signed > 0 ? -1 : 1;
+      bestX = axisX * sign * overlap;
+      bestZ = axisZ * sign * overlap;
+    }
+  }
+  return { x: bestX, z: bestZ, depth: best };
+}
+
+/** Steps a spawn forward so a later car does not sit on one that just appeared. */
+export function steppedAlong(base: number, length: number, attempt: number, gap: number): number {
+  if (length <= 0) return 0;
+  const shift = base + attempt * gap;
+  return ((shift % length) + length) % length;
+}
+
 export function followSpeed(limit: number, gap: number, top: number): number {
   const cap = Math.min(limit, top);
   if (gap < 6) return 0;

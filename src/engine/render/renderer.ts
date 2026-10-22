@@ -65,6 +65,8 @@ export interface ModelDesc {
   offset?: Vec3;
   alignYaw?: number;
   clips?: Partial<Record<ClipKey, string>>;
+  /** Preloaded model whose clips drive this mesh. The mesh file has the matching skeleton. */
+  clipSource?: string;
   /** Body paint, used by traffic variants. Wheels and glass stay shared. */
   tint?: number;
 }

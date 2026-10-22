@@ -11,7 +11,7 @@ import { SIT_SECONDS, approachPoint, driverDoor, facingYaw } from '../play/board
 import { clearBoard, currentBoard } from '../play/board-state';
 import { yawFromQuat } from './camera-follow';
 import { boardVehicle } from './interaction';
-import { capsuleFloor } from './player-movement';
+import { capsuleFloor, Mode } from './player-movement';
 
 const MODE_PLAYER = 3;
 const WALK_LIMIT = 4;
@@ -53,6 +53,7 @@ export function boardCarSystem(ctx: GameContext, world: World): void {
   const playerBody = PhysicsRef.body[job.player] ?? 0;
   const rideBody = PhysicsRef.body[job.ride] ?? 0;
   if (playerBody === 0 || rideBody === 0) {
+    Player.mode[job.player] = Mode.OnFoot;
     clearBoard();
     return;
   }
@@ -71,14 +72,7 @@ export function boardCarSystem(ctx: GameContext, world: World): void {
   }
 
   if (job.phase === 'walk') {
-    const next = approachPoint(
-      job.fromX,
-      job.fromZ,
-      job.doorX,
-      job.doorZ,
-      sim.walkSpeed,
-      job.time,
-    );
+    const next = approachPoint(job.fromX, job.fromZ, job.doorX, job.doorZ, sim.walkSpeed, job.time);
     const face = facingYaw(job.fromX, job.fromZ, job.doorX, job.doorZ);
     Player.facing[job.player] = face;
     standAt(ctx, playerBody, next.x, next.z, face);
