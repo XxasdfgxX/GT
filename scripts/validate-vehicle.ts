@@ -75,8 +75,8 @@ if (wheels.length < 4) {
 }
 if (bounds) {
   const longest = Math.max(
-    bounds.max[0] - (bounds.min[0] ?? 0),
-    bounds.max[2] - (bounds.min[2] ?? 0),
+    (bounds.max[0] ?? 0) - (bounds.min[0] ?? 0),
+    (bounds.max[2] ?? 0) - (bounds.min[2] ?? 0),
   );
   if (longest > 12 || longest < 1.2) {
     console.error('model is not in meters (expected a car length between 1.2 and 12)');

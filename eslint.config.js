@@ -23,7 +23,6 @@ export default tseslint.config(
       '.superpowers/**',
       'coverage/**',
       'eslint.config.js',
-      'scripts/**',
       'server/**/*.mjs',
     ],
   },
@@ -41,6 +40,12 @@ export default tseslint.config(
   {
     files: ['**/*.{js,mjs,cjs}'],
     ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly', setTimeout: 'readonly' },
+    },
   },
   {
     files: ['**/*.ts'],
