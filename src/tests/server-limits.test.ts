@@ -232,9 +232,9 @@ describe('room upkeep', () => {
     const first = live.npcs[0]?.id;
     knockOut(live, id, 1);
     pushPose(live, id, { x: 0, y: 2, z: 0, yaw: 0 });
-    expect(snapshot(live, id).npcs).toHaveLength(0);
+    expect(live.npcs.filter((npc) => npc.alive)).toHaveLength(0);
     for (let t = 0; t <= NPC_RESPAWN; t += 0.5) tick(live, 0.5);
-    const npcs = snapshot(live, id).npcs;
+    const npcs = live.npcs.filter((npc) => npc.alive);
     expect(npcs).toHaveLength(1);
     expect(npcs[0]?.id).not.toBe(first);
     expect(Math.hypot(npcs[0]?.x ?? 0, npcs[0]?.z ?? 0)).toBeGreaterThanOrEqual(NPC_RESPAWN_CLEAR);

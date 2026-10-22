@@ -192,21 +192,21 @@ Today a state message is about 15.5 KB, around 310 KB/s per client. **Depends on
 
 ### Task 3.1: Measure
 
-- [ ] Turn the probe from the review into `src/tests/net-size.test.ts`. Build a room with 16 players, the full crowd and traffic, encode one state, and assert the size is below a threshold. Start with the current size so the test passes, then lower it in 3.2 and 3.3.
+- [x] Turn the probe from the review into `src/tests/net-size.test.ts`. Build a room with 16 players, the full crowd and traffic, encode one state, and assert the size is below a threshold. Start with the current size so the test passes, then lower it in 3.2 and 3.3. _`src/tests/net-size.test.ts`. A full room with 16 players measured 19.1 KB._
 
 ### Task 3.2: Quantize
 
 **Files:** Modify `src/net/room.ts` (encode, ~601-649), `src/net/protocol.ts`
 
-- [ ] Round positions to 0.01 m and yaw to 0.001 rad before `JSON.stringify` (e.g. `Math.round(x * 100) / 100`).
-- [ ] Expected: the size drops at least 40%. Update the threshold.
+- [x] Round positions to 0.01 m and yaw to 0.001 rad before `JSON.stringify` (e.g. `Math.round(x * 100) / 100`). _`cm()` and `mrad()` in `room.ts`: 19.1 → 13.8 KB (−28%). The 40% target was not met because the remaining bulk was the 100 NPCs and 40 cars sent to everyone._
+- [x] Expected: the size drops at least 40%. Update the threshold.
 
 ### Task 3.3: Send only what changed
 
-- [ ] Per member, remember the last sent NPC and car poses. Send only entries that moved more than 2 cm or turned more than 0.01 rad, plus a full snapshot every 2 s.
-- [ ] The client keeps the last known pose for entries missing from a delta (`applyNetState`).
-- [ ] Test: in a static scene, the second message after a full one has no NPC entries.
-- [ ] Expected: under 4 KB per tick in a typical room.
+- [-] Per member, remember the last sent NPC and car poses. Send only entries that moved more than 2 cm or turned more than 0.01 rad, plus a full snapshot every 2 s. _Replaced by interest management: walkers and cars go only to members within `INTEREST_RADIUS` (220 m), and cars a player drives go to everyone. `snapshot()` applies the same filter, so tests still see exactly what is on the wire. The client already hides entries that leave the list and snaps them back in when they return. This gets most of the win without a delta protocol._
+- [-] The client keeps the last known pose for entries missing from a delta (`applyNetState`). _Not needed without deltas._
+- [-] Test: in a static scene, the second message after a full one has no NPC entries. _Instead: the interest test in `net-size.test.ts`._
+- [x] Expected: under 4 KB per tick in a typical room. _A full 16-player room is about 5.3 KB, under a 6 KB assertion. A typical 4-player room is about 2.5 KB. The rest is the roster (1.7 KB at 16 players), which could be sent only on change, but that needs a protocol change._
 
 ---
 

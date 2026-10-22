@@ -540,22 +540,63 @@ export interface RoomSnapshot {
 type SharedViews = Omit<RoomSnapshot, 'self' | 'players'>;
 
 export function snapshot(room: Room, id: number): RoomSnapshot {
-  return { self: selfView(room, id), players: otherPlayers(room, id), ...sharedViews(room) };
+  const { npcs, cars, ...rest } = sharedViews(room);
+  return {
+    self: selfView(room, id),
+    players: otherPlayers(room, id),
+    ...nearMember(room, id, npcs, cars),
+    ...rest,
+  };
 }
 
+/** Centimeters: positions on the wire need no more, and 15 digits tripled the message. */
+function cm(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Milliradians, for yaw. */
+function mrad(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+/** Meters around a member inside which walkers and cars are sent. Past it they are specks in the fog. */
+export const INTEREST_RADIUS = 220;
+
 /**
- * The state message for each member. Only `self` and the other players differ per
- * member, so the crowd, traffic, drops, bodies and roster are encoded once per tick.
+ * The state message for each member. Drops, bodies and the roster are encoded once per
+ * tick. Walkers and cars go only to members near them, and a car a player drives goes to
+ * everyone, since its driver shows up on the radar.
  */
 export function encodeStates(room: Room, ids: Iterable<number>): Map<number, string> {
-  const tail = JSON.stringify(sharedViews(room)).slice(1, -1);
+  const { npcs, cars, ...rest } = sharedViews(room);
+  const tail = JSON.stringify(rest).slice(1, -1);
   const messages = new Map<number, string>();
   for (const id of ids) {
     const self = JSON.stringify(selfView(room, id));
     const players = JSON.stringify(otherPlayers(room, id));
-    messages.set(id, `{"type":"state","self":${self},"players":${players},${tail}}`);
+    const near = nearMember(room, id, npcs, cars);
+    const crowd = JSON.stringify(near.npcs);
+    const traffic = JSON.stringify(near.cars);
+    messages.set(
+      id,
+      `{"type":"state","self":${self},"players":${players},"npcs":${crowd},"cars":${traffic},${tail}}`,
+    );
   }
   return messages;
+}
+
+function nearMember(
+  room: Room,
+  id: number,
+  npcs: SharedViews['npcs'],
+  cars: SharedViews['cars'],
+): Pick<SharedViews, 'npcs' | 'cars'> {
+  const member = findPlayer(room, id);
+  if (!member) return { npcs, cars };
+  const reach = INTEREST_RADIUS * INTEREST_RADIUS;
+  const near = (item: { x: number; z: number }) =>
+    (item.x - member.x) ** 2 + (item.z - member.z) ** 2 <= reach;
+  return { npcs: npcs.filter(near), cars: cars.filter((car) => car.driver !== 0 || near(car)) };
 }
 
 function selfView(room: Room, id: number): SelfView {
@@ -582,7 +623,7 @@ function selfView(room: Room, id: number): SelfView {
     cash: player.cash,
     alive: player.alive,
     placeSerial: player.placeSerial,
-    place: player.place,
+    place: { x: cm(player.place.x), y: cm(player.place.y), z: cm(player.place.z) },
     name: player.name,
     kills: player.kills,
     npcKills: player.npcKills,
@@ -590,7 +631,7 @@ function selfView(room: Room, id: number): SelfView {
     playerDeaths: player.playerDeaths,
     npcDeaths: player.npcDeaths,
     car: player.car,
-    down: player.down,
+    down: cm(player.down),
   };
 }
 
@@ -600,14 +641,14 @@ function otherPlayers(room: Room, id: number): PlayerView[] {
     .map((other) => ({
       id: other.id,
       name: other.name,
-      x: other.x,
-      y: other.y,
-      z: other.z,
-      yaw: other.yaw,
+      x: cm(other.x),
+      y: cm(other.y),
+      z: cm(other.z),
+      yaw: mrad(other.yaw),
       swing: other.swing,
       car: other.car,
       health: other.health,
-      down: other.down,
+      down: cm(other.down),
     }));
 }
 
@@ -627,35 +668,35 @@ function sharedViews(room: Room): SharedViews {
       .filter((npc) => npc.alive)
       .map((npc) => ({
         id: npc.id,
-        x: npc.x,
-        y: npc.y,
-        z: npc.z,
-        yaw: npc.yaw,
+        x: cm(npc.x),
+        y: cm(npc.y),
+        z: cm(npc.z),
+        yaw: mrad(npc.yaw),
         health: npc.health,
-        down: npc.down,
+        down: cm(npc.down),
       })),
     cars: room.cars.map((car) => ({
       id: car.id,
-      x: car.x,
-      y: car.y,
-      z: car.z,
-      yaw: car.yaw,
+      x: cm(car.x),
+      y: cm(car.y),
+      z: cm(car.z),
+      yaw: mrad(car.yaw),
       variant: car.variant,
       driver: car.driver,
     })),
     pickups: room.drops.map((drop) => ({
       id: drop.id,
-      x: drop.x,
-      y: drop.y,
-      z: drop.z,
+      x: cm(drop.x),
+      y: cm(drop.y),
+      z: cm(drop.z),
       amount: drop.amount,
     })),
     corpses: room.corpses.map((body) => ({
       id: body.id,
-      x: body.x,
-      y: body.y,
-      z: body.z,
-      yaw: body.yaw,
+      x: cm(body.x),
+      y: cm(body.y),
+      z: cm(body.z),
+      yaw: mrad(body.yaw),
       kind: body.kind,
       variant: body.variant,
     })),
