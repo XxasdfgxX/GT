@@ -65,6 +65,7 @@ export function freshBody(eid: number): void {
   Pedestrian.swing[eid] = 0;
   Pedestrian.corpse[eid] = 0;
   Pedestrian.stuck[eid] = 0;
+  Pedestrian.rammed[eid] = 0;
   Pedestrian.speed[eid] = 0;
 }
 

@@ -65,14 +65,14 @@
   }
   ```
 - [x] `pnpm-workspace.yaml`: substituir o texto de exemplo por `esbuild: true` (o Vite precisa do binário).
-- [ ] Verificar: um commit com erro de tipo proposital é barrado. Desfazer depois.
+- [x] Verificar: um commit com erro de tipo proposital é barrado. Desfazer depois.
 
 ### Task 0.5: CI
 
 **Files:** Create `.github/workflows/ci.yml`
 
 - [x] Em `push` e `pull_request` para `master`: checkout, `pnpm/action-setup`, Node 22 com cache de pnpm, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, `pnpm test`.
-- [ ] Verificar: o PR desta fase roda o job e passa.
+- [x] Verificar: o PR desta fase roda o job e passa.
 
 ### Task 0.6: LFS e README
 
@@ -107,13 +107,13 @@ Testes do input em `src/tests/browser-input.test.ts` (7), com `window`, `documen
 ### Task 1.5: Animação passa pela pose de bind
 
 - [x] `playClip` não chama mais `stopAllAction()` (só no `die`, que congela no fim). O clipe novo entra com peso 1 e `crossFadeFrom` o anterior em 0,12 s.
-- [ ] Conferir jogando: andar → correr → parar → socar sem T-pose no meio.
+- [x] Conferir jogando: andar → correr → parar → socar sem T-pose no meio.
 
 ### Task 1.6: Texturas e contexto WebGL vazam ao reiniciar
 
 - [x] `preloadModel` registra cada textura dos materiais (sem repetir) no `AssetManager`.
 - [x] `dispose` libera os `InstancedMesh`, chama `renderer.dispose()` e `forceContextLoss()`.
-- [ ] Conferir: cinco reinícios pelo menu sem "Too many active WebGL contexts" no console.
+- [x] Conferir: cinco reinícios pelo menu sem "Too many active WebGL contexts" no console.
 
 ### Task 1.7: Aros das rodas recebem a cor da carroceria
 
@@ -300,7 +300,7 @@ Medido antes e depois com uma sonda sobre `buildCostaVerde()`:
 
 - [x] `stamp` desenha o polígono dos quatro cantos no mundo passados por `atlasPixel`, em vez de girar no espaço de pixel (anisotrópico e com V invertido).
 - [x] O buffer do canvas tem o tamanho da área de conteúdo (180 − 2 × 4 px de borda) e o desenho de 180 unidades é escalado para dentro. `RADAR_BORDER` em `mount-hud.ts` acompanha a borda de `hud.css`.
-- [ ] Verificar jogando: prédios inclinados no radar mantêm a forma e o radar fica nítido. Reamostrar o DPR ao trocar de monitor fica com a Task 1.9.
+- [x] Verificar jogando: prédios inclinados no radar mantêm a forma e o radar fica nítido. Reamostrar o DPR ao trocar de monitor fica com a Task 1.9.
 
 ### Task 4.7: Scripts
 
@@ -468,6 +468,21 @@ Achado na Task 7.4: 794 quads viravam **572 grupos** desconectados (o maior com 
 - [x] Testes em `nav.test.ts` (distância entre quads, caminho por peças, sem caminho através de buraco largo ou para fora da calçada, cidade convexa e conectada, caminho até o alvo para pares próximos). `boot-island` perde o `.fails`.
 
 ---
+
+## Fase 8 — Pendências da revisão (`fix/remaining-gaps`)
+
+- [x] **Carro do jogador machuca pedestres no solo.** `carImpactDamage` só era usado na sala; no solo o carro só assustava. `ramPedestrians` testa a caixa do carro contra o círculo de cada pedestre por perto, com a mesma curva de dano e o mesmo intervalo de 0,6 s por pessoa (`Pedestrian.rammed`, zerado com o mundo). Teste em `traffic-peds.test.ts`; a batida devagar não machuca, a de 12 m/s tira o mesmo que no servidor, a segunda dentro do intervalo não conta, a de 20 m/s mata.
+- [x] **Radar acompanha a escala da tela.** O buffer do canvas do radar é refeito quando muda o `devicePixelRatio`, como o canvas do jogo.
+- [x] **Achado no teste de navegador: a pintura da pista nunca era desenhada.** O shader de UV por metro recebia `1 / TILE_METERS` como número cru; a faixa (`lane: 1`) virava `gtW.xz * 1`, e GLSL ES não converte int para float. O shader não compilava (erro no console e "program not valid" a cada quadro), e faixas e faixas de pedestre sumiam em qualquer GPU. `glslFloat` escreve sempre um literal float; teste em `uv-meters.test.ts`.
+- [x] **Portão local conferido:** um commit com erro de tipo é barrado pelo pre-commit e o HEAD não anda.
+- [x] **Teste no navegador** (Chrome headless pelo DevTools Protocol, WebGL por SwiftShader):
+  - 6 inícios seguidos pelo menu: sempre 2 canvases (jogo e radar), nenhum aviso de contexto WebGL, nenhum erro além do favicon ausente (404).
+  - Andar, correr e parar fotografados a 40–400 ms das trocas: sem T-pose.
+  - Carro do spawn ao lado do jogador, na rua; radar nítido; faixas e postes visíveis depois do conserto do shader; pedestres andando na calçada.
+  - Teclas reais "wasd " chegam ao campo de nome. No menu de pausa o multijogador fica escondido, então o cenário da revisão (digitar o nome com o jogo rodando) não acontecia; a proteção continua valendo para o `select` das configurações.
+  - Um início falhou uma vez com o erro do Rapier "attempted to take ownership of Rust value while it was borrowed", com a máquina a 1 GB de RAM livre. Não se repetiu em 7 inícios depois de liberar memória; fica anotado.
+- [ ] Ainda para conferir à mão: aros dos carros de tráfego (nenhum carro colorido no quadro), trocar de monitor com outra escala, e duas abas na mesma sala.
+- [ ] Decisão de design, não feita: missão que recomeça e paga recompensa.
 
 ## Ordem sugerida e tamanho
 

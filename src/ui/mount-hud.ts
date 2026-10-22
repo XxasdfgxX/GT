@@ -55,10 +55,26 @@ export function mountHud(
   // The CSS border eats the edge of the box, so the buffer matches the content area
   // and the 180-unit drawing is scaled down into it instead of blurred.
   const radarPixels = RADAR_SIZE - 2 * RADAR_BORDER;
-  const radarScale = (Math.min(window.devicePixelRatio || 1, 2) * radarPixels) / RADAR_SIZE;
   const radarCanvas = document.createElement('canvas');
-  radarCanvas.width = Math.round(RADAR_SIZE * radarScale);
-  radarCanvas.height = Math.round(RADAR_SIZE * radarScale);
+  let radarScale = 1;
+  const sizeRadar = () => {
+    radarScale = (Math.min(window.devicePixelRatio || 1, 2) * radarPixels) / RADAR_SIZE;
+    radarCanvas.width = Math.round(RADAR_SIZE * radarScale);
+    radarCanvas.height = Math.round(RADAR_SIZE * radarScale);
+  };
+  sizeRadar();
+  // A screen with another pixel ratio needs a new buffer, or the radar blurs.
+  let ratioQuery: MediaQueryList | null = null;
+  const watchRatio = () => {
+    ratioQuery?.removeEventListener('change', onRatio);
+    ratioQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    ratioQuery.addEventListener('change', onRatio);
+  };
+  const onRatio = () => {
+    sizeRadar();
+    watchRatio();
+  };
+  watchRatio();
   const north = document.createElement('span');
   north.className = 'radar-n';
   north.textContent = 'N';
@@ -302,6 +318,7 @@ export function mountHud(
       accumulated = 0;
     },
     remove() {
+      ratioQuery?.removeEventListener('change', onRatio);
       for (const node of nodes) node.remove();
     },
   };
