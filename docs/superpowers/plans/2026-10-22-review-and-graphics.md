@@ -235,8 +235,8 @@ Today a state message is about 15.5 KB, around 310 KB/s per client. **Depends on
 
 ### Task 4.4: Tests for the multiplayer glue
 
-- [ ] `src/tests/net-systems.test.ts`: `applyNetState` (spawn, move and remove remotes), `publishNet`, mount and dismount in `net-ride.ts`, and `seat.ts`.
-- [ ] `src/tests/server-dispatch.test.ts`: extract the `connection` handler body from `server/index.ts` into `src/net/dispatch.ts` and test unknown room, room full, bucket close and per-IP cap with fake sockets.
+- [~] `src/tests/net-systems.test.ts`: `applyNetState` (spawn, move and remove remotes), `publishNet`, mount and dismount in `net-ride.ts`, and `seat.ts`. _`applyNetState` (health, cash, trip, hiding a dead body, moving on a new place serial) and `publishNet` (pickup dedupe) are covered. `net-ride.ts` and `seat.ts` are not._
+- [x] `src/tests/server-dispatch.test.ts`: extract the `connection` handler body from `server/index.ts` into `src/net/dispatch.ts` and test unknown room, room full, bucket close and per-IP cap with fake sockets. _`src/net/dispatch.ts` exports `connect()` against a two-method socket interface; `server/index.ts` keeps only the `ws` wiring and the heartbeat. Tests: welcome, unknown room, full room, slots given back after a refusal, per-address cap, flood close (1008), and leaving the room on close (twice is safe)._
 
 ---
 

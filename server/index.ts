@@ -10,27 +10,11 @@ import {
   MAX_MESSAGE_BYTES,
   SLOW_GRACE,
   clientAddress,
-  createBucket,
   createSocketCounter,
   originAllowed,
 } from '../src/net/limits';
-import { parseClientMessage } from '../src/net/protocol';
-import {
-  ROOM_DEFS,
-  createRoom,
-  encodeStates,
-  join,
-  leave,
-  listing,
-  pushEnter,
-  pushExit,
-  pushPickup,
-  pushPose,
-  pushPunch,
-  snapshot,
-  tick,
-  type Room,
-} from '../src/net/room';
+import { connect, type LiveRoom } from '../src/net/dispatch';
+import { ROOM_DEFS, createRoom, encodeStates, listing, tick } from '../src/net/room';
 
 const PORT = 8787;
 const STEP = 1 / 20;
@@ -38,12 +22,7 @@ const STEP = 1 / 20;
 const graph = buildRoadGraph();
 const spawns = bairroSpawns(graph);
 
-interface LiveRoom {
-  sim: Room;
-  members: Map<WebSocket, number>;
-}
-
-const rooms = new Map<string, LiveRoom>();
+const rooms = new Map<string, LiveRoom<WebSocket>>();
 for (const def of ROOM_DEFS) {
   rooms.set(def.id, {
     sim: createRoom({
@@ -94,71 +73,26 @@ sockets.on('connection', (socket, request) => {
     request.socket.remoteAddress,
     Array.isArray(forwarded) ? forwarded.join(',') : forwarded,
   );
-  if (!counter.admit(address)) {
-    send(socket, { type: 'error', message: 'Conexões demais' });
-    socket.close();
-    return;
-  }
-  socket.on('close', () => {
-    counter.release(address);
-  });
+  const session = connect(
+    socket,
+    { url: request.url ?? '/', address },
+    rooms,
+    counter,
+    () => performance.now() / 1000,
+  );
+  if (!session) return;
   answered.set(socket, true);
   socket.on('pong', () => {
     answered.set(socket, true);
   });
-
-  const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-  const roomId = url.searchParams.get('room') ?? '';
-  const room = rooms.get(roomId);
-  if (!room) {
-    send(socket, { type: 'error', message: 'Sala desconhecida' });
-    socket.close();
-    return;
-  }
-  const id = join(
-    room.sim,
-    url.searchParams.get('name') ?? '',
-    url.searchParams.get('spawn') ?? '',
-  );
-  if (id === null) {
-    send(socket, { type: 'error', message: 'Sala cheia' });
-    socket.close();
-    return;
-  }
-  room.members.set(socket, id);
-  const spawned = snapshot(room.sim, id).self;
-  send(socket, {
-    type: 'welcome',
-    id,
-    x: spawned.place.x,
-    y: spawned.place.y,
-    z: spawned.place.z,
-    placeSerial: spawned.placeSerial,
-  });
-
-  const bucket = createBucket();
   socket.on('message', (data) => {
-    const verdict = bucket.take(performance.now() / 1000);
-    if (verdict === 'close') {
-      socket.close(1008, 'Mensagens demais');
-      return;
-    }
-    if (verdict === 'drop') return;
-    const message = parseClientMessage(textOf(data));
-    if (!message) return;
-    if (message.type === 'pose') pushPose(room.sim, id, message);
-    else if (message.type === 'punch') pushPunch(room.sim, id, message);
-    else if (message.type === 'pickup') pushPickup(room.sim, id, message.id);
-    else if (message.type === 'enter') pushEnter(room.sim, id, message.id);
-    else pushExit(room.sim, id);
+    session.message(textOf(data));
   });
-
-  const drop = () => {
-    if (!room.members.delete(socket)) return;
-    leave(room.sim, id);
+  const closed = () => {
+    session.closed();
   };
-  socket.on('close', drop);
-  socket.on('error', drop);
+  socket.on('close', closed);
+  socket.on('error', closed);
 });
 
 setInterval(() => {
@@ -202,11 +136,6 @@ sockets.on('close', () => {
 server.listen(PORT, '127.0.0.1', () => {
   console.info(`[bairro] salas em http://127.0.0.1:${PORT}`);
 });
-
-function send(socket: WebSocket, payload: unknown): void {
-  if (socket.readyState !== WebSocket.OPEN) return;
-  socket.send(JSON.stringify(payload));
-}
 
 function textOf(data: RawData): string {
   if (typeof data === 'string') return data;
