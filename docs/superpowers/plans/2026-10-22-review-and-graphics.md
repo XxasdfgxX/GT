@@ -224,8 +224,8 @@ Today a state message is about 15.5 KB, around 310 KB/s per client. **Depends on
 
 ### Task 4.2: Split `room.ts` (1,261 lines)
 
-- [ ] Into `src/net/room/roster.ts` (join, leave, poses), `combat.ts` (punch, ram, death, drops), `npc.ts`, `traffic.ts` and `encode.ts`, with `room/index.ts` re-exporting the current API.
-- [ ] No behaviour change. `multiplayer.test.ts` and `server-limits.test.ts` must pass unchanged.
+- [x] Into `src/net/room/roster.ts` (join, leave, poses), `combat.ts` (punch, ram, death, drops), `npc.ts`, `traffic.ts` and `encode.ts`, with `room/index.ts` re-exporting the current API. _Eight modules under `src/net/room/`: `types` (limits, defs, shapes), `roster`, `movement`, `combat`, `npc`, `traffic`, `encode`, `tick`, from 39 to 308 lines each. `room.ts` stays as a 27-line facade, not `room/index.ts`, because the server's Node resolve hook only appends `.ts` and Node does not resolve folders. Split by a script that keeps each declaration with its doc comment and computes each module's imports from what it uses._
+- [x] No behaviour change. `multiplayer.test.ts` and `server-limits.test.ts` must pass unchanged. _258/258 tests unchanged, and the server loads every module under Node with type stripping._
 
 ### Task 4.3: Split `traffic.ts` (794) and `pedestrians.ts` (653) by mode
 
