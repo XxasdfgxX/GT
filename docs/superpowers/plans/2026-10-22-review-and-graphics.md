@@ -229,9 +229,9 @@ Today a state message is about 15.5 KB, around 310 KB/s per client. **Depends on
 
 ### Task 4.3: Split `traffic.ts` (794) and `pedestrians.ts` (653) by mode
 
-- [ ] `traffic.ts` → `lane-driving.ts`, `stolen-car.ts`, `wrecks.ts`, `unstick.ts`. Audio calls stay in one place.
-- [ ] `pedestrians.ts` → `ped-ai.ts` (already exists, extend it), `shove.ts`, `ramming.ts`, `ped-combat.ts`.
-- [ ] No behaviour change. `traffic-peds.test.ts`, `traffic-ai.test.ts` and `ped-ai.test.ts` pass unchanged.
+- [x] `traffic.ts` → `lane-driving.ts`, `stolen-car.ts`, `wrecks.ts`, `unstick.ts`. Audio calls stay in one place. _Split differently: `traffic.ts` keeps the system, lane driving and activation (456 lines, down from 761), because those write the module's `let` state (`heading`, `cursor`, `batchCount`, `salt`), which an importing module cannot reassign. `traffic-stolen.ts` holds stolen-car driving; `traffic-unstick.ts` holds the wreck and unstick code and the spawn-spot checks._
+- [x] `pedestrians.ts` → `ped-ai.ts` (already exists, extend it), `shove.ts`, `ramming.ts`, `ped-combat.ts`. _`pedestrians.ts` keeps the system and walking (305 lines, down from 653; it owns `salt`). `ped-ramming.ts`, `ped-shove.ts` and `ped-fight.ts` hold the rest. `ped-ai.ts` is unchanged._
+- [x] No behaviour change. `traffic-peds.test.ts`, `traffic-ai.test.ts` and `ped-ai.test.ts` pass unchanged. _258/258 unchanged._
 
 ### Task 4.4: Tests for the multiplayer glue
 

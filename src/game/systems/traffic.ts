@@ -1,41 +1,33 @@
 /** Kinematic cars follow lanes, stop on red, and turn dynamic when the player hits them. */
 
-import type { World } from 'bitecs';
 import { buildCostaVerde } from '../../content/city';
 import { sampleHeight } from '../../content/map/island-shape';
-import { exitsAhead, type Exit, type RoadEdge, type RoadGraph } from '../../content/map/roads';
-import { stepDrivenSpeed } from '../../content/cars';
+import { type Exit, exitsAhead, type RoadEdge, type RoadGraph } from '../../content/map/roads';
 import { trafficCatalog } from '../../content/traffic-catalog';
-import { sedan } from '../../content/vehicles';
-import type { GameContext } from '../context';
 import { quatFromYaw } from '../../engine/core/math';
+import type { GameContext } from '../context';
 import {
   CameraRig,
-  InputState,
+  Mode,
   Pedestrian,
   PhysicsRef,
   Player,
   RenderRef,
   Traffic,
+  TrafficMode,
   Transform,
   Vehicle,
-  Mode,
-  TrafficMode,
 } from '../ecs/components';
-import { players, traffic, vehicles } from '../ecs/queries';
-import { circleHitsBox, TRIP_SECONDS } from '../play/overlap';
-import { tallBoxesNear } from '../play/collider-grid';
-import { bucketCrowd, crowdNear } from '../play/crowd-grid';
-import { PedState } from './ped-ai';
-import { enginePlayback } from '../play/feel';
-import { attachDriver, ejectDriver, releaseDriver, seatDriver } from '../play/drivers';
+import { players, traffic } from '../ecs/queries';
 import { TRAFFIC_POOL } from '../features/traffic/pool';
+import { bucketCrowd, crowdNear } from '../play/crowd-grid';
+import { attachDriver, ejectDriver, releaseDriver, seatDriver } from '../play/drivers';
+import { circleHitsBox, TRIP_SECONDS } from '../play/overlap';
 import { playerFocus } from '../play/player-focus';
+import type { World } from 'bitecs';
+import { PedState } from './ped-ai';
 import {
   approachSpeed,
-  carBoxesOverlap,
-  boxExit,
-  drivenYawRate,
   followSpeed,
   laneOffset,
   lightOpen,
@@ -43,19 +35,32 @@ import {
   mustYield,
   yieldToPedestrian,
 } from './traffic-ai';
+import { driveStolen } from './traffic-stolen';
+import { buildingPush, hitsBuilding, hitsTraffic, spotTaken, unstick } from './traffic-unstick';
 
-const rot = { x: 0, y: 0, z: 0, w: 1 };
-const pos = { x: 0, y: 0, z: 0 };
-let heading = 0;
+export const rot = { x: 0, y: 0, z: 0, w: 1 };
+
+export const pos = { x: 0, y: 0, z: 0 };
+
+export let heading = 0;
+
 let cursor = 0;
+
 let salt = 1;
+
 const BATCH = 8;
-const batchX = new Float32Array(BATCH);
-const batchZ = new Float32Array(BATCH);
-const batchYaw = new Float32Array(BATCH);
-const batchHx = new Float32Array(BATCH);
-const batchHz = new Float32Array(BATCH);
-let batchCount = 0;
+
+export const batchX = new Float32Array(BATCH);
+
+export const batchZ = new Float32Array(BATCH);
+
+export const batchYaw = new Float32Array(BATCH);
+
+export const batchHx = new Float32Array(BATCH);
+
+export const batchHz = new Float32Array(BATCH);
+
+export let batchCount = 0;
 
 export function trafficSystem(ctx: GameContext, world: World): void {
   const graph = buildCostaVerde().graph;
@@ -227,7 +232,7 @@ function drive(
   place(ctx, world, graph, eid);
 }
 
-function place(ctx: GameContext, world: World, graph: RoadGraph, eid: number): void {
+export function place(ctx: GameContext, world: World, graph: RoadGraph, eid: number): void {
   const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
   if (!spec || !measure(graph, eid)) return;
   const body = PhysicsRef.body[eid] ?? 0;
@@ -446,316 +451,6 @@ function park(ctx: GameContext, world: World, eid: number): void {
   ctx.renderer.setMeshVisible(RenderRef.mesh[eid] ?? 0, false);
 }
 
-function driveStolen(ctx: GameContext, world: World, eid: number, dt: number): void {
-  const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
-  if (!spec) return;
-  let throttle = 0;
-  let brake = 0;
-  let steer = 0;
-  let handbrake = false;
-  for (const player of players(world)) {
-    if ((Player.vehicle[player] ?? 0) !== eid) continue;
-    throttle = InputState.throttle[player] ?? 0;
-    brake = InputState.brake[player] ?? 0;
-    steer = InputState.steer[player] ?? 0;
-    handbrake = InputState.handbrake[player] === 1;
-    break;
-  }
-  let speed = stepDrivenSpeed(
-    Traffic.speed[eid] ?? 0,
-    { throttle, brake, handbrake },
-    dt,
-    spec.torque,
-    spec.maxSpeedKmh,
-  );
-  Traffic.speed[eid] = speed;
-  Vehicle.speed[eid] = speed;
-  const yaw =
-    yawOf(eid) +
-    drivenYawRate(steer, speed, sedan.steerSign) *
-      dt *
-      (0.65 + Math.min(Math.abs(speed), spec.topSpeed) * 0.1);
-  const prevX = Transform.px[eid] ?? 0;
-  const prevZ = Transform.pz[eid] ?? 0;
-  const hx = spec.width / 2;
-  const hz = spec.length / 2;
-  pos.x = prevX + Math.sin(yaw) * speed * dt;
-  pos.z = prevZ + Math.cos(yaw) * speed * dt;
-  const before = obstruction(world, eid, prevX, prevZ, yaw, hx, hz);
-  const after = obstruction(world, eid, pos.x, pos.z, yaw, hx, hz);
-  if (after > before + 0.001) {
-    pos.x = prevX;
-    pos.z = prevZ;
-    speed = 0;
-    Traffic.speed[eid] = 0;
-    Vehicle.speed[eid] = 0;
-    const push = deepestExit(world, eid, pos.x, pos.z, yaw, hx, hz);
-    slideOut(pos, push.x, push.z);
-  }
-  const ground = sampleHeight(pos.x, pos.z);
-  pos.y = ground + spec.height / 2;
-  quatFromYaw(yaw, rot);
-  ctx.physics.setTransform(PhysicsRef.body[eid] ?? 0, pos, rot);
-  const tone = enginePlayback(true, speed, Math.abs(throttle));
-  ctx.audio.setEngine(tone.frequency, tone.gain);
-}
-
-function yawOf(eid: number): number {
+export function yawOf(eid: number): number {
   return 2 * Math.atan2(Transform.qy[eid] ?? 0, Transform.qw[eid] ?? 1);
-}
-
-const SOLID_CAP = 48;
-const solidX = new Float32Array(SOLID_CAP);
-const solidZ = new Float32Array(SOLID_CAP);
-const solidYaw = new Float32Array(SOLID_CAP);
-const solidHx = new Float32Array(SOLID_CAP);
-const solidHz = new Float32Array(SOLID_CAP);
-const solidEid = new Int16Array(SOLID_CAP);
-const solidLock = new Uint8Array(SOLID_CAP);
-
-/** Eases a lane car out of another body. One short step, so a bump does not fling it. */
-function unstick(ctx: GameContext, world: World, graph: RoadGraph): void {
-  const count = gatherSolids(world);
-  for (let i = 0; i < count; i += 1) {
-    if (solidLock[i] === 1) continue;
-    if (!hitsAnother(i, count)) continue;
-    const eid = solidEid[i] ?? 0;
-    Traffic.speed[eid] = 0;
-    Traffic.along[eid] = Math.max(0, (Traffic.along[eid] ?? 0) - 0.35);
-    place(ctx, world, graph, eid);
-  }
-}
-
-function gatherSolids(world: World): number {
-  let count = 0;
-  for (const eid of traffic(world)) {
-    if ((Traffic.active[eid] ?? 0) === 0 || count >= SOLID_CAP - 1) continue;
-    const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
-    if (!spec) continue;
-    const mode = Traffic.mode[eid] ?? 0;
-    solidX[count] = Transform.px[eid] ?? 0;
-    solidZ[count] = Transform.pz[eid] ?? 0;
-    solidYaw[count] = yawOf(eid);
-    solidHx[count] = spec.width / 2;
-    solidHz[count] = spec.length / 2;
-    solidEid[count] = eid;
-    solidLock[count] =
-      mode === TrafficMode.Wreck || mode === TrafficMode.Player || mode === TrafficMode.Parked
-        ? 1
-        : 0;
-    count += 1;
-  }
-  for (const eid of vehicles(world)) {
-    if (count >= SOLID_CAP) break;
-    solidX[count] = Transform.px[eid] ?? 0;
-    solidZ[count] = Transform.pz[eid] ?? 0;
-    solidYaw[count] = yawOf(eid);
-    solidHx[count] = sedan.halfExtents.x;
-    solidHz[count] = sedan.halfExtents.z;
-    solidEid[count] = eid;
-    solidLock[count] = 1;
-    count += 1;
-  }
-  return count;
-}
-
-function hitsAnother(index: number, count: number): boolean {
-  for (let j = 0; j < count; j += 1) {
-    if (j === index) continue;
-    if (
-      carBoxesOverlap(
-        solidX[index] ?? 0,
-        solidZ[index] ?? 0,
-        solidYaw[index] ?? 0,
-        solidHx[index] ?? 0,
-        solidHz[index] ?? 0,
-        solidX[j] ?? 0,
-        solidZ[j] ?? 0,
-        solidYaw[j] ?? 0,
-        solidHx[j] ?? 0,
-        solidHz[j] ?? 0,
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function obstruction(
-  world: World,
-  self: number,
-  x: number,
-  z: number,
-  yaw: number,
-  hx: number,
-  hz: number,
-): number {
-  return deepestExit(world, self, x, z, yaw, hx, hz).depth;
-}
-
-function deepestExit(
-  world: World,
-  self: number,
-  x: number,
-  z: number,
-  yaw: number,
-  hx: number,
-  hz: number,
-): { x: number; z: number; depth: number } {
-  let bestX = 0;
-  let bestZ = 0;
-  let best = 0;
-  const consider = (push: { x: number; z: number; depth: number }) => {
-    if (push.depth <= best) return;
-    best = push.depth;
-    bestX = push.x;
-    bestZ = push.z;
-  };
-  for (const other of traffic(world)) {
-    if (other === self || (Traffic.active[other] ?? 0) === 0) continue;
-    const spec = trafficCatalog[Traffic.variant[other] ?? 0];
-    if (!spec) continue;
-    consider(
-      boxExit(
-        x,
-        z,
-        yaw,
-        hx,
-        hz,
-        Transform.px[other] ?? 0,
-        Transform.pz[other] ?? 0,
-        yawOf(other),
-        spec.width / 2,
-        spec.length / 2,
-      ),
-    );
-  }
-  for (const car of vehicles(world)) {
-    consider(
-      boxExit(
-        x,
-        z,
-        yaw,
-        hx,
-        hz,
-        Transform.px[car] ?? 0,
-        Transform.pz[car] ?? 0,
-        yawOf(car),
-        sedan.halfExtents.x,
-        sedan.halfExtents.z,
-      ),
-    );
-  }
-  consider(buildingPush(x, z, yaw, hx, hz));
-  return { x: bestX, z: bestZ, depth: best };
-}
-
-function buildingPush(
-  x: number,
-  z: number,
-  yaw: number,
-  hx: number,
-  hz: number,
-): { x: number; z: number; depth: number } {
-  let bestX = 0;
-  let bestZ = 0;
-  let best = 0;
-  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, Math.hypot(hx, hz))) {
-    const push = boxExit(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz);
-    if (push.depth <= best) continue;
-    best = push.depth;
-    bestX = push.x;
-    bestZ = push.z;
-  }
-  return { x: bestX, z: bestZ, depth: best };
-}
-
-function slideOut(target: { x: number; z: number }, pushX: number, pushZ: number): void {
-  const len = Math.hypot(pushX, pushZ);
-  if (len < 1e-4) return;
-  const scale = len > 0.45 ? 0.45 / len : 1;
-  target.x += pushX * scale;
-  target.z += pushZ * scale;
-}
-
-function hitsBuilding(x: number, z: number, yaw: number, hx: number, hz: number): boolean {
-  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, Math.hypot(hx, hz))) {
-    if (carBoxesOverlap(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz)) return true;
-  }
-  return false;
-}
-
-function spotTaken(world: World, eid: number, hx: number, hz: number): boolean {
-  if (hitsTraffic(world, eid, pos.x, pos.z, heading, hx, hz)) return true;
-  for (let i = 0; i < batchCount; i += 1) {
-    if (
-      carBoxesOverlap(
-        pos.x,
-        pos.z,
-        heading,
-        hx,
-        hz,
-        batchX[i] ?? 0,
-        batchZ[i] ?? 0,
-        batchYaw[i] ?? 0,
-        batchHx[i] ?? 0,
-        batchHz[i] ?? 0,
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function hitsTraffic(
-  world: World,
-  self: number,
-  x: number,
-  z: number,
-  yaw: number,
-  hx: number,
-  hz: number,
-): boolean {
-  for (const other of traffic(world)) {
-    if (other === self || (Traffic.active[other] ?? 0) === 0) continue;
-    const spec = trafficCatalog[Traffic.variant[other] ?? 0];
-    if (!spec) continue;
-    if (
-      carBoxesOverlap(
-        x,
-        z,
-        yaw,
-        hx,
-        hz,
-        Transform.px[other] ?? 0,
-        Transform.pz[other] ?? 0,
-        yawOf(other),
-        spec.width / 2,
-        spec.length / 2,
-      )
-    ) {
-      return true;
-    }
-  }
-  for (const car of vehicles(world)) {
-    if (
-      carBoxesOverlap(
-        x,
-        z,
-        yaw,
-        hx,
-        hz,
-        Transform.px[car] ?? 0,
-        Transform.pz[car] ?? 0,
-        yawOf(car),
-        sedan.halfExtents.x,
-        sedan.halfExtents.z,
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
 }

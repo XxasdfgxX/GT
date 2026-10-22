@@ -1,59 +1,39 @@
 /** Sidewalk agents: idle, walk, wait, cross, flee. Paths come from the navmesh. */
 
-import { hasComponent, type World } from 'bitecs';
-import { carBody, carIds } from '../../content/cars';
 import { buildCostaVerde } from '../../content/city';
 import { sampleHeight } from '../../content/map/island-shape';
 import type { WalkQuad } from '../../content/map/road-mesh';
-import { trafficCatalog } from '../../content/traffic-catalog';
 import type { GameContext } from '../context';
-import { quatFromYaw } from '../../engine/core/math';
-import { meshYaw } from '../play/aim-cursor';
 import {
-  BODY_REACH,
-  circleHitsBox,
-  circlesOverlap,
-  pinsCircle,
-  shouldTrip,
-  sinksDeeper,
-  TRIP_SECONDS,
-} from '../play/overlap';
-import {
-  CAP,
   CameraRig,
+  CAP,
+  Mode,
   Pedestrian,
-  PhysicsRef,
   Player,
-  Traffic,
   Transform,
   Vehicle,
   Velocity,
-  Mode,
 } from '../ecs/components';
+import { pedestrians, players } from '../ecs/queries';
 import { syncCrowd } from '../features/pedestrians/crowd';
-import { playerFocus } from '../play/player-focus';
-import { tallBoxesNear } from '../play/collider-grid';
+import { bucketCrowd } from '../play/crowd-grid';
 import { freshBody, idlePedestrian } from '../play/drivers';
-import { bucketCrowd, crowdNear } from '../play/crowd-grid';
-import { yawFromQuat } from '../play/heading';
-import { carImpactDamage } from './traffic-ai';
-import { pedestrians, players, traffic } from '../ecs/queries';
-import {
-  COUNTER_DAMAGE,
-  HURT_SECONDS,
-  PedState,
-  applyDamage,
-  canCross,
-  hurtRemaining,
-  nightFactor,
-  punchHits,
-  shouldFlee,
-} from './ped-ai';
+import { BODY_REACH, circlesOverlap } from '../play/overlap';
+import { playerFocus } from '../play/player-focus';
+import type { World } from 'bitecs';
+import { canCross, hurtRemaining, nightFactor, PedState, shouldFlee } from './ped-ai';
+import { connectPunch, fight, STUCK_SECONDS } from './ped-fight';
+import { carClose, ramPedestrians } from './ped-ramming';
+import { insideCross, shove, slide } from './ped-shove';
 
 const POINTS = 12;
+
 const pathX = new Float32Array(CAP * POINTS);
+
 const pathZ = new Float32Array(CAP * POINTS);
-const rot = { x: 0, y: 0, z: 0, w: 1 };
+
+export const rot = { x: 0, y: 0, z: 0, w: 1 };
+
 let salt = 3;
 
 export function pedestrianSystem(ctx: GameContext, world: World): void {
@@ -144,53 +124,6 @@ export function pedestrianVisual(ctx: GameContext, world: World): void {
     break;
   }
   syncCrowd(ctx, world, focus.x, focus.z, yaw);
-}
-
-/** Same gap the room server keeps between two hits on one person. */
-const RAM_GAP = 0.6;
-const rideRot = { x: 0, y: 0, z: 0, w: 1 };
-
-/**
- * The player's car hurts whoever its body runs into, on the damage curve the room
- * server uses, so a car is as dangerous offline as online.
- */
-function ramPedestrians(ctx: GameContext, world: World, ride: number, speed: number): void {
-  const damage = carImpactDamage(speed);
-  if (ride <= 0 || damage <= 0) return;
-  let hx: number;
-  let hz: number;
-  if (hasComponent(world, ride, Traffic)) {
-    const spec = trafficCatalog[Traffic.variant[ride] ?? 0];
-    hx = (spec?.width ?? 1.8) / 2;
-    hz = (spec?.length ?? 4.2) / 2;
-  } else {
-    const body = carBody(carIds[Vehicle.model[ride] ?? 0] ?? 'aston').halfExtents;
-    hx = body.x;
-    hz = body.z;
-  }
-  const x = Transform.px[ride] ?? 0;
-  const z = Transform.pz[ride] ?? 0;
-  rideRot.x = Transform.qx[ride] ?? 0;
-  rideRot.y = Transform.qy[ride] ?? 0;
-  rideRot.z = Transform.qz[ride] ?? 0;
-  rideRot.w = Transform.qw[ride] ?? 1;
-  const yaw = yawFromQuat(rideRot);
-  for (const eid of crowdNear(x, z, Math.hypot(hx, hz) + 0.35)) {
-    if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
-    if ((Pedestrian.health[eid] ?? 0) <= 0 || (Pedestrian.rammed[eid] ?? 0) > 0) continue;
-    const px = Transform.px[eid] ?? 0;
-    const pz = Transform.pz[eid] ?? 0;
-    if (!circleHitsBox(px, pz, 0.35, x, z, hx, hz, yaw)) continue;
-    Pedestrian.rammed[eid] = RAM_GAP;
-    const health = applyDamage(Pedestrian.health[eid] ?? 10, damage);
-    Pedestrian.health[eid] = health;
-    Pedestrian.hurt[eid] = HURT_SECONDS;
-    if (health <= 0) {
-      Pedestrian.state[eid] = PedState.Down;
-      Pedestrian.speed[eid] = 0;
-    }
-    ctx.events.emit('pedestrian:hit', { pedestrian: eid, speed });
-  }
 }
 
 function step(
@@ -369,285 +302,4 @@ function spotBusy(world: World, x: number, z: number): boolean {
     }
   }
   return false;
-}
-
-function shove(
-  ctx: GameContext,
-  world: World,
-  playerEid: number,
-  foot: { x: number; z: number },
-  speed: number,
-): void {
-  const body = PhysicsRef.body[playerEid] ?? 0;
-  const pose = { x: 0, y: 0, z: 0, w: 1 };
-  for (const eid of pedestrians(world)) {
-    if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
-    if ((Pedestrian.health[eid] ?? 0) <= 0) continue;
-    const state = Pedestrian.state[eid] ?? 0;
-    if (state === PedState.Trip || state === PedState.Down) continue;
-    const nx = Transform.px[eid] ?? 0;
-    const nz = Transform.pz[eid] ?? 0;
-    if (!circlesOverlap(foot.x, foot.z, nx, nz, BODY_REACH)) continue;
-    const dx = foot.x - nx;
-    const dz = foot.z - nz;
-    const dist = Math.hypot(dx, dz) || 0.001;
-    const gap = BODY_REACH - dist;
-    if (gap > 0 && body !== 0) {
-      const nextX = foot.x + (dx / dist) * gap;
-      const nextZ = foot.z + (dz / dist) * gap;
-      pose.x = Transform.qx[playerEid] ?? 0;
-      pose.y = Transform.qy[playerEid] ?? 0;
-      pose.z = Transform.qz[playerEid] ?? 0;
-      pose.w = Transform.qw[playerEid] ?? 1;
-      ctx.physics.setTransform(body, { x: nextX, y: Transform.py[playerEid] ?? 0, z: nextZ }, pose);
-      Transform.px[playerEid] = nextX;
-      Transform.pz[playerEid] = nextZ;
-      foot.x = nextX;
-      foot.z = nextZ;
-    }
-    if (!shouldTrip(speed, 0)) continue;
-    Pedestrian.state[eid] = PedState.Trip;
-    Pedestrian.wait[eid] = TRIP_SECONDS;
-    Pedestrian.speed[eid] = 0;
-  }
-}
-
-function solidAt(
-  world: World,
-  x: number,
-  z: number,
-  self: number,
-  fromX: number,
-  fromZ: number,
-): boolean {
-  for (const eid of players(world)) {
-    if (Player.mode[eid] === Mode.Driving) break;
-    if (
-      pinsCircle(fromX, fromZ, x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH)
-    ) {
-      return true;
-    }
-    break;
-  }
-  for (const eid of crowdNear(x, z, BODY_REACH)) {
-    if (
-      eid === self ||
-      (Pedestrian.active[eid] ?? 0) === 0 ||
-      (Pedestrian.driving[eid] ?? 0) === 1 ||
-      (Pedestrian.health[eid] ?? 0) <= 0
-    ) {
-      continue;
-    }
-    if (
-      pinsCircle(fromX, fromZ, x, z, Transform.px[eid] ?? 0, Transform.pz[eid] ?? 0, BODY_REACH)
-    ) {
-      return true;
-    }
-  }
-  for (const eid of traffic(world)) {
-    if ((Traffic.active[eid] ?? 0) === 0) continue;
-    const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
-    if (!spec) continue;
-    // Lane cars only turn about Y, so the yaw reads straight off the quaternion.
-    const yaw = 2 * Math.atan2(Transform.qy[eid] ?? 0, Transform.qw[eid] ?? 1);
-    if (
-      sinksDeeper(
-        fromX,
-        fromZ,
-        x,
-        z,
-        Transform.px[eid] ?? 0,
-        Transform.pz[eid] ?? 0,
-        spec.width / 2,
-        spec.length / 2,
-        yaw,
-        0.35,
-      )
-    ) {
-      return true;
-    }
-  }
-  // The step ends at (x, z) with a 0.35 m body. Big boxes count by their edges, not centers.
-  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, 0.5)) {
-    if (sinksDeeper(fromX, fromZ, x, z, box.x, box.z, box.hx, box.hz, box.yaw, 0.35)) return true;
-  }
-  return false;
-}
-
-function slide(
-  world: World,
-  eid: number,
-  tx: number,
-  tz: number,
-  speed: number,
-  dt: number,
-): boolean {
-  const x = Transform.px[eid] ?? 0;
-  const z = Transform.pz[eid] ?? 0;
-  const dx = tx - x;
-  const dz = tz - z;
-  const len = Math.hypot(dx, dz);
-  Transform.ppx[eid] = x;
-  Transform.ppy[eid] = Transform.py[eid] ?? 0;
-  Transform.ppz[eid] = z;
-  Transform.pqx[eid] = Transform.qx[eid] ?? 0;
-  Transform.pqy[eid] = Transform.qy[eid] ?? 0;
-  Transform.pqz[eid] = Transform.qz[eid] ?? 0;
-  Transform.pqw[eid] = Transform.qw[eid] ?? 1;
-  if (len < 0.45) return true;
-  const stepDistance = Math.min(len, speed * dt);
-  const nx = x + (dx / len) * stepDistance;
-  const nz = z + (dz / len) * stepDistance;
-  if (solidAt(world, nx, nz, eid, x, z)) {
-    Pedestrian.speed[eid] = 0;
-    return false;
-  }
-  Transform.px[eid] = nx;
-  Transform.pz[eid] = nz;
-  Transform.py[eid] = sampleHeight(nx, nz);
-  Pedestrian.yaw[eid] = meshYaw(dx, dz);
-  Pedestrian.speed[eid] = speed;
-  quatFromYaw(Pedestrian.yaw[eid] ?? 0, rot);
-  Transform.qx[eid] = rot.x;
-  Transform.qy[eid] = rot.y;
-  Transform.qz[eid] = rot.z;
-  Transform.qw[eid] = rot.w;
-  return false;
-}
-
-function carClose(world: World, x: number, z: number): boolean {
-  for (const eid of traffic(world)) {
-    if ((Traffic.active[eid] ?? 0) === 0) continue;
-    const dx = (Transform.px[eid] ?? 0) - x;
-    const dz = (Transform.pz[eid] ?? 0) - z;
-    if (dx * dx + dz * dz < 16 * 16) return true;
-  }
-  return false;
-}
-
-function insideCross(walks: WalkQuad[], x: number, z: number): boolean {
-  for (let i = 0; i < walks.length; i += 1) {
-    const quad = walks[i];
-    if (!quad?.crosswalk) continue;
-    const midX = (quad.ax + quad.cx) / 2;
-    const midZ = (quad.az + quad.cz) / 2;
-    if (Math.hypot(midX - x, midZ - z) > 22) continue;
-    if (
-      pointInTri(x, z, quad.ax, quad.az, quad.bx, quad.bz, quad.cx, quad.cz) ||
-      pointInTri(x, z, quad.ax, quad.az, quad.cx, quad.cz, quad.dx, quad.dz)
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function pointInTri(
-  px: number,
-  pz: number,
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-  cx: number,
-  cz: number,
-): boolean {
-  const c1 = (bx - ax) * (pz - az) - (bz - az) * (px - ax);
-  const c2 = (cx - bx) * (pz - bz) - (cz - bz) * (px - bx);
-  const c3 = (ax - cx) * (pz - cz) - (az - cz) * (px - cx);
-  return (c1 >= 0 && c2 >= 0 && c3 >= 0) || (c1 <= 0 && c2 <= 0 && c3 <= 0);
-}
-
-const STUCK_SECONDS = 1.5;
-const PUNCH_REACH = 1.85;
-const FIGHT_REACH = 1.7;
-
-function fight(
-  world: World,
-  eid: number,
-  dt: number,
-  px: number,
-  pz: number,
-  playerEid: number,
-  playerDriving: boolean,
-): void {
-  const x = Transform.px[eid] ?? 0;
-  const z = Transform.pz[eid] ?? 0;
-  const dx = px - x;
-  const dz = pz - z;
-  const distance = Math.hypot(dx, dz);
-  Pedestrian.cool[eid] = hurtRemaining(Pedestrian.cool[eid] ?? 0, dt);
-  const playerDown = playerEid < 0 || (Player.health[playerEid] ?? 0) <= 0;
-  if (playerDriving || playerDown || distance > 9) {
-    Pedestrian.state[eid] = PedState.Idle;
-    Pedestrian.speed[eid] = 0;
-    Pedestrian.wait[eid] = 0.4;
-    return;
-  }
-  if (distance > FIGHT_REACH) {
-    slide(world, eid, px, pz, 2.6, dt);
-    return;
-  }
-  Pedestrian.speed[eid] = 0;
-  Pedestrian.yaw[eid] = meshYaw(dx, dz);
-  quatFromYaw(Pedestrian.yaw[eid] ?? 0, rot);
-  Transform.qx[eid] = rot.x;
-  Transform.qy[eid] = rot.y;
-  Transform.qz[eid] = rot.z;
-  Transform.qw[eid] = rot.w;
-  if ((Pedestrian.cool[eid] ?? 0) > 0) return;
-  Player.health[playerEid] = applyDamage(Player.health[playerEid] ?? 10, COUNTER_DAMAGE);
-  Pedestrian.cool[eid] = 1.05;
-  Pedestrian.swing[eid] = 0.48;
-  Pedestrian.swingId[eid] = (Pedestrian.swingId[eid] ?? 0) + 1;
-}
-
-function connectPunch(
-  ctx: GameContext,
-  world: World,
-  px: number,
-  pz: number,
-  facing: number,
-  damage: number,
-): void {
-  let best = -1;
-  let bestDistance = PUNCH_REACH;
-  for (const eid of pedestrians(world)) {
-    if ((Pedestrian.active[eid] ?? 0) === 0 || (Pedestrian.driving[eid] ?? 0) === 1) continue;
-    const tx = Transform.px[eid] ?? 0;
-    const tz = Transform.pz[eid] ?? 0;
-    if (!punchHits(px, pz, facing, tx, tz, PUNCH_REACH)) continue;
-    const distance = Math.hypot(tx - px, tz - pz);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = eid;
-    }
-  }
-  if (best < 0) return;
-  const tx = Transform.px[best] ?? px;
-  const tz = Transform.pz[best] ?? pz;
-  const away = Math.atan2(tx - px, tz - pz);
-  const nx = Math.sin(away);
-  const nz = Math.cos(away);
-  const x = tx + nx * 0.7;
-  const z = tz + nz * 0.7;
-  const y = sampleHeight(x, z);
-  Transform.ppx[best] = tx;
-  Transform.ppz[best] = tz;
-  Transform.ppy[best] = Transform.py[best] ?? y;
-  Transform.px[best] = x;
-  Transform.pz[best] = z;
-  Transform.py[best] = y;
-  const health = applyDamage(Pedestrian.health[best] ?? 10, damage);
-  Pedestrian.health[best] = health;
-  Pedestrian.hurt[best] = HURT_SECONDS;
-  Pedestrian.speed[best] = 0;
-  if (health <= 0) {
-    Pedestrian.state[best] = PedState.Down;
-  } else {
-    Pedestrian.state[best] = PedState.Fight;
-    Pedestrian.cool[best] = 0.45;
-    Pedestrian.swingId[best] = (Pedestrian.swingId[best] ?? 0) + 1;
-  }
-  ctx.events.emit('pedestrian:hit', { pedestrian: best, speed: 0 });
 }
