@@ -33,7 +33,7 @@ import { lookSensitivity, type GameSettings } from '../ui/settings';
 import { fixedStep, renderScene, sampleInput, updateLook } from '../game/simulate';
 import { isMenuChord } from '../ui/menu-key';
 import { mountHud } from '../ui/mount-hud';
-import { createPathNav } from '../engine/nav/three-pathfinding-nav';
+import { createQuadNav } from '../engine/nav/quad-graph-nav';
 import { createContext } from './create-context';
 import { runFrame } from './loop';
 
@@ -116,7 +116,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       audio.dispose();
     });
     audio.setVolume(launch.settings.volume);
-    const nav = createPathNav();
+    const nav = createQuadNav();
     nav.load(city.walks);
     const ctx = createContext({
       input,

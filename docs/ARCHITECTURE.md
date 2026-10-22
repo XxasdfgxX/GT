@@ -41,7 +41,7 @@ O minimapa lê o contorno, a altura, o grafo e as pegadas.
 
 O tráfego é um pool de corpos cinemáticos que seguem a faixa da direita. No impacto do jogador o corpo vira dinâmico e o `EventBus` emite `vehicle:collision`.
 
-Pedestres andam num navmesh de calçada e faixa (`engine/nav`, `three-pathfinding`). O jogo só vê a interface `NavMesh`. Estados: idle, walk, wait, cross, flee. `pedestrian:hit` sai quando o carro encosta. Não há missão nem polícia em cima desses eventos.
+Pedestres andam num grafo de quads de calçada, esquina e faixa (`engine/nav/quad-graph-nav.ts`): quads que se tocam são vizinhos, o A* corre entre os centros e o caminho passa pelo ponto entre um quad e o próximo. O jogo só vê a interface `NavMesh`. Estados: idle, walk, wait, cross, flee. `pedestrian:hit` sai quando o carro encosta. Não há missão nem polícia em cima desses eventos.
 
 ## Como adicionar um sistema
 

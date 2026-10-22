@@ -32,7 +32,109 @@ export function buildRoadMeshes(
     layEdge(graph, edge, batch, colliders, walks);
   }
   for (const node of graph.nodes) layJunction(graph, node, batch);
+  for (const node of graph.nodes) layCorners(graph, node, walks);
   return walks;
+}
+
+/**
+ * Sidewalks stop where the junction square starts, so each corner is a gap of asphalt.
+ * One walk quad per corner joins the end of a sidewalk to the end of the next street's
+ * sidewalk around the node. Gaps wider than a half turn would cut through the junction.
+ */
+function layCorners(graph: RoadGraph, node: RoadNode, walks: WalkQuad[]): void {
+  const y = sampleHeight(node.x, node.z);
+  if (y < 0.2) return;
+  const ends: { angle: number; dx: number; dz: number; trim: number; width: number }[] = [];
+  for (const edge of graph.edges) {
+    if (edge.a !== node.id && edge.b !== node.id) continue;
+    const other = graph.nodes[edge.a === node.id ? edge.b : edge.a];
+    if (!other) continue;
+    const length = Math.hypot(other.x - node.x, other.z - node.z);
+    if (length < 1) continue;
+    const dx = (other.x - node.x) / length;
+    const dz = (other.z - node.z) / length;
+    const trim = Math.min(nodeReach(graph, node.id), length * 0.35);
+    ends.push({ angle: Math.atan2(dz, dx), dx, dz, trim, width: edge.width });
+  }
+  if (ends.length < 2) return;
+  ends.sort((a, b) => a.angle - b.angle);
+  for (let i = 0; i < ends.length; i += 1) {
+    const from = ends[i];
+    const to = ends[(i + 1) % ends.length];
+    if (!from || !to) continue;
+    let turn = to.angle - from.angle;
+    if (turn <= 0) turn += Math.PI * 2;
+    if (turn > (190 * Math.PI) / 180) continue;
+    // The side of `from` that faces `to` (turning counterclockwise), and the side of `to` facing back.
+    const fromSideX = -from.dz;
+    const fromSideZ = from.dx;
+    const toSideX = to.dz;
+    const toSideZ = -to.dx;
+    const fromNear = from.width / 2 + 0.32;
+    const toNear = to.width / 2 + 0.32;
+    const fromBaseX = node.x + from.dx * from.trim;
+    const fromBaseZ = node.z + from.dz * from.trim;
+    const toBaseX = node.x + to.dx * to.trim;
+    const toBaseZ = node.z + to.dz * to.trim;
+    const outerFrom = [
+      fromBaseX + fromSideX * (fromNear + SIDEWALK_WIDTH),
+      fromBaseZ + fromSideZ * (fromNear + SIDEWALK_WIDTH),
+    ] as const;
+    const outerTo = [
+      toBaseX + toSideX * (toNear + SIDEWALK_WIDTH),
+      toBaseZ + toSideZ * (toNear + SIDEWALK_WIDTH),
+    ] as const;
+    if (sampleHeight(outerFrom[0], outerFrom[1]) < 0.2) continue;
+    if (sampleHeight(outerTo[0], outerTo[1]) < 0.2) continue;
+    // Sharp or lopsided corners can fold the four points; walk on their convex hull.
+    const hull = convexHull([
+      [fromBaseX + fromSideX * fromNear, fromBaseZ + fromSideZ * fromNear],
+      outerFrom,
+      outerTo,
+      [toBaseX + toSideX * toNear, toBaseZ + toSideZ * toNear],
+    ]);
+    const [a, b, c] = hull;
+    if (!a || !b || !c) continue;
+    const d = hull[3] ?? c;
+    walks.push({
+      ax: a[0],
+      az: a[1],
+      bx: b[0],
+      bz: b[1],
+      cx: c[0],
+      cz: c[1],
+      dx: d[0],
+      dz: d[1],
+      y: y + 0.1,
+      crosswalk: false,
+    });
+  }
+}
+
+/** Counterclockwise hull of a few points (monotone chain). Three points when one is inside. */
+function convexHull(
+  points: ReadonlyArray<readonly [number, number]>,
+): Array<readonly [number, number]> {
+  const sorted = [...points].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const cross = (
+    o: readonly [number, number],
+    p: readonly [number, number],
+    q: readonly [number, number],
+  ) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+  const chain = (input: ReadonlyArray<readonly [number, number]>) => {
+    const out: Array<readonly [number, number]> = [];
+    for (const point of input) {
+      for (;;) {
+        const last = out[out.length - 1];
+        const before = out[out.length - 2];
+        if (!last || !before || cross(before, last, point) > 0) break;
+        out.pop();
+      }
+      out.push(point);
+    }
+    return out.slice(0, -1);
+  };
+  return [...chain(sorted), ...chain([...sorted].reverse())];
 }
 
 function nodeReach(graph: RoadGraph, id: number): number {
