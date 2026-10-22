@@ -30,6 +30,7 @@ import { PedState } from '../game/systems/ped-ai';
 import { attachDriver } from '../game/play/drivers';
 import { pedestrianSystem } from '../game/systems/pedestrians';
 import { pickNext } from '../game/systems/traffic';
+import { carImpactDamage } from '../game/systems/traffic-ai';
 import { vehicleDriveSystem } from '../game/systems/vehicle-drive';
 
 let nextMesh = 0;
@@ -306,6 +307,41 @@ describe('pedestrians', () => {
     Pedestrian.wait[ped] = 5;
     walk(ctx, world);
     expect(Pedestrian.active[ped]).toBe(1);
+    physics.dispose();
+  });
+
+  it('hurts a person the car drives into, like the room server does', async () => {
+    const { physics, ctx, world } = await scene();
+    const [ped] = pool(world);
+    if (ped === undefined) throw new Error('sem pedestre');
+    const street = openStreet();
+    const ground = sampleHeight(street.x, street.z);
+    const ride = spawnVehicle(ctx, world, { x: street.x, y: ground + 1, z: street.z, yaw: 0 });
+    const player = spawnPlayer(ctx, world, { name: 'test', x: street.x, y: 3, z: street.z });
+    Player.mode[player] = Mode.Driving;
+    Player.vehicle[player] = ride;
+    stand(ped, street.x, street.z + 1);
+    let hits = 0;
+    ctx.events.on('pedestrian:hit', () => (hits += 1));
+
+    Vehicle.speed[ride] = 2;
+    walk(ctx, world);
+    expect(Pedestrian.health[ped]).toBe(10);
+
+    Vehicle.speed[ride] = 12;
+    walk(ctx, world);
+    expect(Pedestrian.health[ped]).toBe(10 - carImpactDamage(12));
+    walk(ctx, world);
+    expect(Pedestrian.health[ped]).toBe(10 - carImpactDamage(12));
+    expect(hits).toBe(1);
+
+    Vehicle.speed[ride] = 20;
+    for (let step = 0; step < 40; step += 1) {
+      writePose(ped, street.x, ground, street.z + 1);
+      walk(ctx, world);
+    }
+    expect(Pedestrian.health[ped]).toBe(0);
+    expect(Pedestrian.state[ped]).toBe(PedState.Down);
     physics.dispose();
   });
 

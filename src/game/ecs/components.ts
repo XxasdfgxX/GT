@@ -155,6 +155,8 @@ export const Pedestrian = {
   corpse: new Float32Array(CAP),
   /** Seconds a walker has been blocked in place. */
   stuck: new Float32Array(CAP),
+  /** Seconds before the player's car can hurt this person again. */
+  rammed: new Float32Array(CAP),
 };
 
 export const Pickup = {
