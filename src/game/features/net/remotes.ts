@@ -34,10 +34,14 @@ interface Ghost {
   swing: number;
   blood: number;
   roof: number;
+  /** Which spare list this ghost returns to: the same model can stand in for a new id. */
+  model: string;
 }
 
 const BAR_CAP = 64;
 const ghosts = new Map<string, Ghost>();
+/** Hidden ghosts by model. Ids only grow, so a gone ghost is reused instead of kept. */
+const spare = new Map<string, Ghost[]>();
 const seen = new Set<string>();
 const lastHealth = new Map<number, number>();
 const hurtUntil = new Map<number, number>();
@@ -67,6 +71,7 @@ export function remotePlayerMark(
 
 export function resetRemotes(): void {
   ghosts.clear();
+  spare.clear();
   seen.clear();
   lastHealth.clear();
   hurtUntil.clear();
@@ -122,17 +127,32 @@ export function syncRemotes(
     move(ctx, ghost, drop.x, drop.y - sim.playerRadius - sim.playerHalfHeight + 0.2, drop.z, 0, dt);
   }
   for (const body of corpses) {
-    const ghost = ensure(ctx, `d${body.id}`, 'corpse', body.variant);
+    // kind 0 is a player body, which wears the player model, not a citizen.
+    const ghost = ensure(ctx, `d${body.id}`, 'corpse', body.kind === 0 ? -1 : body.variant);
     move(ctx, ghost, body.x, body.y, body.z, body.yaw, dt, true);
     ctx.renderer.playClip(ghost.mesh, 'die', 1);
     parkBlood(ctx, ghost.blood, body.x, body.z, body.yaw);
   }
   for (const [key, ghost] of ghosts) {
-    if (seen.has(key) || !ghost.shown) continue;
+    if (seen.has(key)) continue;
     ghost.shown = false;
     ctx.renderer.setMeshVisible(ghost.mesh, false);
     if (ghost.blood !== 0) ctx.renderer.setMeshVisible(ghost.blood, false);
+    ghosts.delete(key);
+    const list = spare.get(ghost.model);
+    if (list) list.push(ghost);
+    else spare.set(ghost.model, [ghost]);
+    if (key.startsWith('n')) {
+      lastHealth.delete(Number(key.slice(1)));
+      hurtUntil.delete(Number(key.slice(1)));
+    }
   }
+}
+
+function modelOf(kind: 'player' | 'npc' | 'cash' | 'car' | 'corpse', id: number): string {
+  if (kind === 'npc') return `npc:${id % citizens.length}`;
+  if (kind === 'car' || kind === 'corpse') return `${kind}:${id}`;
+  return kind;
 }
 
 function ensure(
@@ -144,15 +164,34 @@ function ensure(
   seen.add(key);
   const found = ghosts.get(key);
   if (found) return found;
+  const model = modelOf(kind, id);
+  const reused = spare.get(model)?.pop();
+  if (reused) {
+    reused.swing = 0;
+    ghosts.set(key, reused);
+    return reused;
+  }
+  const playerBody = kind === 'player' || (kind === 'corpse' && id < 0);
   const mesh =
     kind === 'cash'
       ? addCash(ctx)
       : kind === 'car'
         ? addCar(ctx, id)
-        : addPerson(ctx, kind === 'player' ? 'player' : 'npc', id);
+        : addPerson(ctx, playerBody ? 'player' : 'npc', id);
   const blood = kind === 'corpse' ? addBlood(ctx) : 0;
   const roof = kind === 'car' ? carRoof(id) : 0;
-  const ghost: Ghost = { mesh, x: 0, y: -40, z: 0, yaw: 0, shown: false, swing: 0, blood, roof };
+  const ghost: Ghost = {
+    mesh,
+    x: 0,
+    y: -40,
+    z: 0,
+    yaw: 0,
+    shown: false,
+    swing: 0,
+    blood,
+    roof,
+    model,
+  };
   ghosts.set(key, ghost);
   return ghost;
 }

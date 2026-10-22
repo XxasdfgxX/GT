@@ -13,6 +13,10 @@ import { Mode } from './player-movement';
 const POSE_INTERVAL = 1 / 15;
 let poseWait = 0;
 
+export function resetNet(): void {
+  poseWait = 0;
+}
+
 export function applyNetState(ctx: GameContext, world: World): void {
   const state = ctx.net?.state() ?? null;
   if (!state) return;

@@ -14,6 +14,7 @@ import { spawnMission } from '../game/features/mission/spawn-mission';
 import { resetRemains } from '../game/features/corpse/remain';
 import { resetRemotes, remotePlayerMark } from '../game/features/net/remotes';
 import { resetNetRide } from '../game/systems/net-ride';
+import { resetNet } from '../game/systems/net';
 import { clearBoard } from '../game/play/board-state';
 import { spawnPlayer } from '../game/features/player/spawn-player';
 import { spawnPedCrowd } from '../game/features/pedestrians/crowd';
@@ -43,6 +44,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
   resetRemotes();
   resetRemains();
   resetNetRide();
+  resetNet();
   clearBoard();
   let running = true;
   const cleanups: Array<() => void> = [];
@@ -236,6 +238,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
           const aim = context.input.snapshot();
           hud.setAim(aim.aimX, aim.aimY, context.input.pointerLocked);
           const state = context.net?.state() ?? null;
+          hud.setOffline(context.net !== null && !context.net.connected());
           hud.setPlay(readHud(world), state?.players ?? []);
           const title = readCarTitle(world);
           if (!title) hud.setCarTitle('', '', 0, 0, false);

@@ -88,6 +88,27 @@ canvas {
     sans-serif;
 }
 
+.net-lost {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 5;
+  margin: 0;
+  padding: 8px 14px;
+  transform: translateX(-50%);
+  border-radius: 6px;
+  background: rgb(150 28 28 / 88%);
+  color: #fff;
+  font:
+    600 15px/1.2 system-ui,
+    sans-serif;
+  pointer-events: none;
+}
+
+.net-lost[hidden] {
+  display: none;
+}
+
 .car-title {
   position: absolute;
   z-index: 4;
