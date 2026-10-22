@@ -10,7 +10,7 @@ import {
   punchHits,
   punchProfile,
   shouldFlee,
-} from '../game/systems/ped-ai';
+} from '../sim/ped-ai';
 
 describe('pedestrians', () => {
   it('flees from a fast car and waits for a clear crosswalk', () => {

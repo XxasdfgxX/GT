@@ -14,6 +14,9 @@ export function roomSocketQuery(roomId: string, playerName = '', spawnName = '')
   return query.toString();
 }
 
+/** A server that takes the socket but never says welcome would leave the menu waiting forever. */
+export const JOIN_TIMEOUT_MS = 10_000;
+
 export function connectRoom(roomId: string, playerName = '', spawnName = ''): Promise<Connected> {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const socket = new WebSocket(
@@ -31,9 +34,13 @@ export function connectRoom(roomId: string, playerName = '', spawnName = ''): Pr
         return;
       }
       settled = true;
+      clearTimeout(timer);
       socket.close();
       reject(new Error(message));
     };
+    const timer = setTimeout(() => {
+      fail('O servidor não respondeu');
+    }, JOIN_TIMEOUT_MS);
 
     socket.addEventListener('error', () => {
       fail('Não foi possível entrar na sala');
@@ -52,6 +59,7 @@ export function connectRoom(roomId: string, playerName = '', spawnName = ''): Pr
       if (message.type === 'welcome') {
         if (settled) return;
         settled = true;
+        clearTimeout(timer);
         resolve({
           link: bind(
             socket,

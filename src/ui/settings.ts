@@ -4,8 +4,10 @@ import { z } from 'zod';
 import { carIds, type CarId } from '../content/cars';
 import { sim } from '../content/sim';
 import {
+  effectLevels,
   shadowQualities,
   sharpnessLevels,
+  type Effects,
   type ShadowQuality,
   type Sharpness,
 } from '../engine/render/display';
@@ -21,6 +23,7 @@ export interface GameSettings {
   volume: number;
   shadows: ShadowQuality;
   sharpness: Sharpness;
+  effects: Effects;
   admin: boolean;
   spawn: SpawnName;
   /** Wireframe collision volumes. Only applies while admin mode is on. */
@@ -33,6 +36,7 @@ export const defaultSettings: GameSettings = {
   volume: 1,
   shadows: 'high',
   sharpness: 'high',
+  effects: 'high',
   admin: true,
   spawn: 'centro',
   colliders: false,
@@ -44,6 +48,7 @@ const settingsSchema = z.object({
   volume: z.number().min(0).max(1),
   shadows: z.enum(shadowQualities),
   sharpness: z.enum(sharpnessLevels),
+  effects: z.enum(effectLevels).default('high'),
   admin: z.boolean().default(true),
   spawn: z.enum(spawnNames).default('centro'),
   colliders: z.boolean().default(false),

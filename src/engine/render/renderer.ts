@@ -2,12 +2,26 @@
 
 import type { Disposable } from '../core/disposable';
 import type { Quat, Vec3 } from '../core/math';
-import type { ShadowQuality, Sharpness } from './display';
+import type { GraphicsQuality } from './display';
 
 export type MeshKind = 'box' | 'capsule' | 'cylinder';
 
 export type SurfaceFinish =
-  'asphalt' | 'concrete' | 'sidewalk' | 'sand' | 'grass' | 'paint' | 'lane';
+  | 'asphalt'
+  | 'concrete'
+  | 'sidewalk'
+  | 'sand'
+  | 'grass'
+  | 'paint'
+  | 'lane'
+  | 'plaza'
+  | 'rock'
+  | 'dirt'
+  | 'brick'
+  | 'tile'
+  | 'concrete-raw'
+  | 'roof-concrete'
+  | 'roof-clay';
 
 export interface MeshDesc {
   kind: MeshKind;
@@ -41,6 +55,19 @@ export interface InstanceBatchDesc {
   emissive?: number;
   castShadow?: boolean;
   finish?: SurfaceFinish;
+  /** Per-instance window grid, four floats each. Only unit boxes with a wall finish read it. */
+  facade?: Float32Array;
+}
+
+/** Copies of a loaded glTF, one instanced draw per mesh in it. */
+export interface ModelBatchDesc {
+  url: string;
+  count: number;
+  /** Per-instance transform, length count * 16. */
+  matrices: Float32Array;
+  /** Per-instance rgb for the body paint (metallic, off the wheels). Other parts keep theirs. */
+  paint?: Float32Array;
+  castShadow?: boolean;
 }
 
 export interface TerrainDesc {
@@ -52,6 +79,8 @@ export interface TerrainDesc {
   cols: number;
   heights: Float32Array;
   colors: Float32Array;
+  /** Four weights per vertex: sand, paved, rock, grass. */
+  splat: Float32Array;
 }
 
 export type ClipKey = 'idle' | 'walk' | 'run' | 'punch' | 'jump' | 'die' | 'sit';
@@ -74,7 +103,7 @@ export interface ModelDesc {
 export interface Renderer extends Disposable {
   readonly domElement: HTMLCanvasElement;
   setSize(width: number, height: number): void;
-  setGraphics(quality: { shadows: ShadowQuality; sharpness: Sharpness }): void;
+  setGraphics(quality: GraphicsQuality): void;
   setCamera(position: Vec3, target: Vec3): void;
   /** Pixel position on the canvas. `behind` is true when the point is behind the camera. */
   project(point: Vec3): { x: number; y: number; behind: boolean };
@@ -85,6 +114,8 @@ export interface Renderer extends Disposable {
   addMesh(desc: MeshDesc): number;
   addModel(desc: ModelDesc): number;
   addInstances(desc: InstanceBatchDesc): number;
+  /** The url must be preloaded. */
+  addModelInstances(desc: ModelBatchDesc): number;
   addTerrain(desc: TerrainDesc): number;
   setMeshTransform(id: number, position: Vec3, rotation: Quat): void;
   setMeshVisible(id: number, visible: boolean): void;

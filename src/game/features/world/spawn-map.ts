@@ -1,6 +1,7 @@
 /** Spawns the island shell. Chunk meshes and building colliders stream in around the player. */
 
 import type { CityMesh } from '../../../content/map/batch';
+import { PAINTED_MODELS } from '../../../content/map/props';
 import type { CostaVerde } from '../../../content/city';
 import type { GameContext } from '../../context';
 import { quatFromYawPitch } from '../../../engine/core/math';
@@ -102,27 +103,22 @@ function ensureChunk(ctx: GameContext, id: number): void {
     mode: 'off',
   };
   for (const mesh of byChunk.get(id) ?? []) {
-    const meshId = ctx.renderer.addInstances({
-      kind: mesh.kind,
-      size: { x: 1, y: 1, z: 1 },
-      color: 0xffffff,
-      count: mesh.count,
-      matrices: mesh.matrices,
-      colors: mesh.colors,
-      unit: true,
-      roughness: mesh.roughness,
-      metalness: mesh.metalness,
-      emissive: mesh.emissive,
-      castShadow: mesh.castShadow,
-      ...(mesh.finish === 'flat' ? {} : { finish: mesh.finish }),
-    });
+    const meshId = mesh.model
+      ? ctx.renderer.addModelInstances({
+          url: mesh.model,
+          count: mesh.count,
+          matrices: mesh.matrices,
+          ...(PAINTED_MODELS.has(mesh.model) ? { paint: mesh.colors } : {}),
+          castShadow: mesh.castShadow,
+        })
+      : addBoxes(ctx, mesh);
     record.meshIds.push(meshId);
     if (mesh.lod === 'near') record.near.push(meshId);
     else if (mesh.lod === 'far') record.far.push(meshId);
     else record.always.push(meshId);
     ctx.renderer.setMeshVisible(meshId, false);
   }
-  for (const box of bound.colliders) {
+  for (const box of [...bound.colliders, ...bound.streetProps]) {
     if (box.chunk !== id) continue;
     quatFromYawPitch(box.yaw, box.pitch, yawScratch);
     record.bodyIds.push(
@@ -170,4 +166,22 @@ export function syncBuildingShells(ctx: GameContext): void {
       ctx.renderer.setMeshVisible(meshId, solid && ctx.debug.showColliders);
     }
   }
+}
+
+function addBoxes(ctx: GameContext, mesh: CityMesh): number {
+  return ctx.renderer.addInstances({
+    kind: mesh.kind === 'cylinder' ? 'cylinder' : 'box',
+    size: { x: 1, y: 1, z: 1 },
+    color: 0xffffff,
+    count: mesh.count,
+    matrices: mesh.matrices,
+    colors: mesh.colors,
+    unit: true,
+    roughness: mesh.roughness,
+    metalness: mesh.metalness,
+    emissive: mesh.emissive,
+    castShadow: mesh.castShadow,
+    ...(mesh.finish === 'flat' ? {} : { finish: mesh.finish }),
+    ...(mesh.facade ? { facade: mesh.facade } : {}),
+  });
 }

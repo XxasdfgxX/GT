@@ -11,9 +11,11 @@ import {
   PICKUP_REACH,
   RESPAWN_DELAY,
   CORPSE_TIME,
+  DROP_LIFETIME,
+  MAX_DROPS,
   addCash,
   dropCash,
-} from '../play/wallet';
+} from '../../sim/wallet';
 import { layLocalCorpse, tickRemains } from '../features/corpse/remain';
 import { abandonRide } from '../play/seat';
 import { playerFocus } from '../play/player-focus';
@@ -72,7 +74,25 @@ export function cashSystem(ctx: GameContext, world: World): void {
   }
 
   tickRemains(ctx, ctx.time.fixedDt);
+  expireDrops(ctx, world);
   collect(ctx, world);
+}
+
+/** Matches the server: a drop nobody picks up leaves after a minute. */
+function expireDrops(ctx: GameContext, world: World): void {
+  for (const eid of pickups(world)) {
+    if ((Pickup.amount[eid] ?? 0) <= 0) continue;
+    const left = (Pickup.left[eid] ?? 0) - ctx.time.fixedDt;
+    Pickup.left[eid] = left;
+    if (left <= 0) clearDrop(ctx, eid);
+  }
+}
+
+function clearDrop(ctx: GameContext, eid: number): void {
+  Pickup.amount[eid] = 0;
+  writePose(eid, 0, -40, 0);
+  const mesh = RenderRef.mesh[eid] ?? 0;
+  if (mesh !== 0) ctx.renderer.setMeshVisible(mesh, false);
 }
 
 function collect(ctx: GameContext, world: World): void {
@@ -95,14 +115,11 @@ function collect(ctx: GameContext, world: World): void {
     const dz = (Transform.pz[eid] ?? 0) - pz;
     if (Math.hypot(dx, dz) > PICKUP_REACH) continue;
     Player.cash[player] = addCash(Player.cash[player] ?? 0, amount);
-    Pickup.amount[eid] = 0;
-    writePose(eid, 0, -40, 0);
-    const mesh = RenderRef.mesh[eid] ?? 0;
-    if (mesh !== 0) ctx.renderer.setMeshVisible(mesh, false);
+    clearDrop(ctx, eid);
   }
 }
 
-function spawnPickup(
+export function spawnPickup(
   ctx: GameContext,
   world: World,
   x: number,
@@ -111,11 +128,20 @@ function spawnPickup(
   amount: number,
 ): void {
   let eid = -1;
+  let live = 0;
+  let oldest = -1;
   for (const existing of pickups(world)) {
-    if ((Pickup.amount[existing] ?? 0) > 0) continue;
+    if ((Pickup.amount[existing] ?? 0) > 0) {
+      live += 1;
+      if (oldest < 0 || (Pickup.left[existing] ?? 0) < (Pickup.left[oldest] ?? 0)) {
+        oldest = existing;
+      }
+      continue;
+    }
     eid = existing;
     break;
   }
+  if (eid < 0 && live >= MAX_DROPS) eid = oldest;
   if (eid < 0) {
     eid = addEntity(world);
     addComponent(world, eid, Pickup);
@@ -130,6 +156,7 @@ function spawnPickup(
     });
   }
   Pickup.amount[eid] = amount;
+  Pickup.left[eid] = DROP_LIFETIME;
   writePose(eid, x, y + 0.45, z);
   const mesh = RenderRef.mesh[eid] ?? 0;
   if (mesh === 0) return;

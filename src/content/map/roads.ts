@@ -278,3 +278,65 @@ export function edgeAngle(graph: RoadGraph, edge: RoadEdge): number {
   if (!a || !b) return 0;
   return Math.atan2(b.x - a.x, b.z - a.z);
 }
+
+/** The ends of a road and whether it runs one way. Graph edges and room roads both fit. */
+export interface TurnSpan {
+  a: number;
+  b: number;
+  oneWay?: boolean;
+}
+
+export interface Exit {
+  /** Index into the spans passed in. */
+  edge: number;
+  /** 0 runs a to b, 1 runs b to a. */
+  dir: number;
+  /** 1 dead ahead, 0 a right angle, -1 straight back. */
+  straightness: number;
+}
+
+/** A turn back past about 120° is never a way on. */
+const HAIRPIN = -0.5;
+
+/**
+ * Ways on from the far end of `spans[from]`, driven in `dir`, leaving out the road itself
+ * and hairpins. Solo traffic takes the straightest; the room server picks among them.
+ */
+export function exitsAhead(
+  spans: readonly TurnSpan[],
+  at: (node: number) => { x: number; z: number } | undefined,
+  from: number,
+  dir: number,
+): Exit[] {
+  const span = spans[from];
+  if (!span) return [];
+  const a = at(span.a);
+  const b = at(span.b);
+  const nodeId = dir === 0 ? span.b : span.a;
+  const node = at(nodeId);
+  if (!a || !b || !node) return [];
+  const length = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  const sign = dir === 0 ? 1 : -1;
+  const fx = (sign * (b.x - a.x)) / length;
+  const fz = (sign * (b.z - a.z)) / length;
+  const exits: Exit[] = [];
+  spans.forEach((other, index) => {
+    if (index === from) return;
+    let end: { x: number; z: number } | undefined;
+    let nextDir: number;
+    if (other.a === nodeId) {
+      end = at(other.b);
+      nextDir = 0;
+    } else if (other.b === nodeId && !other.oneWay) {
+      end = at(other.a);
+      nextDir = 1;
+    } else return;
+    if (!end) return;
+    const ox = end.x - node.x;
+    const oz = end.z - node.z;
+    const len = Math.hypot(ox, oz) || 1;
+    const straightness = (ox / len) * fx + (oz / len) * fz;
+    if (straightness > HAIRPIN) exits.push({ edge: index, dir: nextDir, straightness });
+  });
+  return exits;
+}

@@ -21,8 +21,8 @@ describe('display', () => {
 
   it('maps shadow quality to a map size', () => {
     expect(shadowMapSize('off')).toBe(0);
-    expect(shadowMapSize('low')).toBe(1024);
-    expect(shadowMapSize('high')).toBe(2048);
+    expect(shadowMapSize('low')).toBe(2048);
+    expect(shadowMapSize('high')).toBe(4096);
   });
 
   it('caps sharpness below the device pixel ratio', () => {

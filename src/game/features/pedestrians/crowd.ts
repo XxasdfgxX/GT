@@ -8,7 +8,7 @@ import type { GameContext } from '../../context';
 import { writeTransformMatrix } from '../../../engine/core/math';
 import type { ClipKey } from '../../../engine/render/renderer';
 import { Pedestrian, RenderRef, Transform, writePose } from '../../ecs/components';
-import { PedState, healthBarVisible } from '../../systems/ped-ai';
+import { PedState, healthBarVisible } from '../../../sim/ped-ai';
 import { pedestrians } from '../../ecs/queries';
 import { HEALTH_TRACK_WIDTH, healthFillLayout } from '../health-bar';
 
@@ -38,6 +38,16 @@ let crowdMesh = 0;
 let barMesh = 0;
 let fillMesh = 0;
 let bloodMesh = 0;
+
+/** Mesh ids belong to the last renderer. A multiplayer session never spawns the crowd. */
+export function resetCrowd(): void {
+  nearMesh.length = 0;
+  nearPed.fill(-1);
+  crowdMesh = 0;
+  barMesh = 0;
+  fillMesh = 0;
+  bloodMesh = 0;
+}
 
 export function spawnPedCrowd(ctx: GameContext, world: World): void {
   nearMesh.length = 0;

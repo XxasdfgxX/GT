@@ -7,6 +7,7 @@ import { createRapierWorld } from '../engine/physics/rapier-world';
 import { createThreeRenderer } from '../engine/render/three-renderer';
 import { buildCostaVerde } from '../content/city';
 import { carBody, starterCar } from '../content/cars';
+import { PROP_MODELS } from '../content/map/props';
 import { carModel, characterModel, citizens, universalAnims } from '../content/models';
 import { sim } from '../content/sim';
 import { bairroSpawns, findSpawn, parkOnStreet, scatterSpawn, soloSpawn } from '../content/spawns';
@@ -17,9 +18,14 @@ import { resetNetRide } from '../game/systems/net-ride';
 import { resetNet } from '../game/systems/net';
 import { clearBoard } from '../game/play/board-state';
 import { spawnPlayer } from '../game/features/player/spawn-player';
-import { spawnPedCrowd } from '../game/features/pedestrians/crowd';
-import { spawnTrafficPool, syncTrafficShells } from '../game/features/traffic/pool';
+import { resetCrowd, spawnPedCrowd } from '../game/features/pedestrians/crowd';
+import {
+  resetTrafficPool,
+  spawnTrafficPool,
+  syncTrafficShells,
+} from '../game/features/traffic/pool';
 import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
+import { resetDebugView } from '../game/features/world/debug-graph';
 import { spawnMap, streamAround, syncBuildingShells } from '../game/features/world/spawn-map';
 import { readCarTitle } from '../game/systems/board-car';
 import { readHud } from '../game/play/read-hud';
@@ -45,6 +51,9 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
   resetRemains();
   resetNetRide();
   resetNet();
+  resetCrowd();
+  resetTrafficPool();
+  resetDebugView();
   clearBoard();
   let running = true;
   const cleanups: Array<() => void> = [];
@@ -100,6 +109,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     renderer.setGraphics({
       shadows: launch.settings.shadows,
       sharpness: launch.settings.sharpness,
+      effects: launch.settings.effects,
     });
     const physics = await createRapierWorld(sim.worldGravity);
     own(() => {
@@ -135,6 +145,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       carModel,
       universalAnims,
       ...citizens.map((person) => person.url),
+      ...PROP_MODELS,
     ];
     if (!connected) {
       const parkedModel = carBody(parked.id).url;
@@ -187,10 +198,15 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     let paused = false;
     let overlay: StartMenu | null = null;
     let last = performance.now();
+    let failures = 0;
 
     const applySettings = (settings: GameSettings) => {
       audio.setVolume(settings.volume);
-      renderer.setGraphics({ shadows: settings.shadows, sharpness: settings.sharpness });
+      renderer.setGraphics({
+        shadows: settings.shadows,
+        sharpness: settings.sharpness,
+        effects: settings.effects,
+      });
       ctx.look.mouseSensitivity = lookSensitivity(settings);
       ctx.debug.showColliders = settings.admin && settings.colliders;
       syncBuildingShells(ctx);
@@ -252,55 +268,69 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       }
       const frameDt = Math.max(0, (now - last) / 1000);
       last = now;
-      runFrame(ctx, world, frameDt, {
-        sampleInput,
-        updateLook,
-        fixedUpdate: fixedStep,
-        render(context, ecs, dt) {
-          renderScene(context, ecs, dt);
-          hud.updateFps(dt);
-          hud.setStats(context.renderer.drawCalls(), context.physics.bodyCount());
-          hud.setLocked(context.input.pointerLocked);
-          const aim = context.input.snapshot();
-          hud.setAim(aim.aimX, aim.aimY, context.input.pointerLocked);
-          const state = context.net?.state() ?? null;
-          hud.setOffline(context.net !== null && !context.net.connected());
-          hud.setPlay(readHud(world), state?.players ?? []);
-          const title = readCarTitle(world);
-          if (!title) hud.setCarTitle('', '', 0, 0, false);
-          else {
-            const plate = context.renderer.project(title);
-            hud.setCarTitle(title.name, title.detail, plate.x, plate.y, !plate.behind);
-          }
-          hud.setPresence(
-            state && context.net
-              ? {
-                  selfId: context.net.selfId,
-                  roster: state.roster,
-                  peers: state.players.flatMap((player) => {
-                    const anchor = remotePlayerMark(player.id, player.car);
-                    if (!anchor) return [];
-                    return [
-                      {
-                        ...player,
-                        x: anchor.x,
-                        y: anchor.y,
-                        z: anchor.z,
-                        driving: anchor.driving,
-                      },
-                    ];
-                  }),
-                  project: (point) => context.renderer.project(point),
-                }
-              : null,
-          );
-          if (context.input.snapshot().debugToggle) hud.toggle();
-          if (context.input.snapshot().scoreToggle) hud.toggleScore();
-          if (context.input.snapshot().debugOverlay) {
-            context.debug.showGraph = !context.debug.showGraph;
-          }
-        },
-      });
+      try {
+        runFrame(ctx, world, frameDt, {
+          sampleInput,
+          updateLook,
+          fixedUpdate: fixedStep,
+          render(context, ecs, dt) {
+            renderScene(context, ecs, dt);
+            hud.updateFps(dt);
+            hud.setStats(context.renderer.drawCalls(), context.physics.bodyCount());
+            hud.setLocked(context.input.pointerLocked);
+            const aim = context.input.snapshot();
+            hud.setAim(aim.aimX, aim.aimY, context.input.pointerLocked);
+            const state = context.net?.state() ?? null;
+            hud.setOffline(context.net !== null && !context.net.connected());
+            hud.setPlay(readHud(world), state?.players ?? []);
+            const title = readCarTitle(world);
+            if (!title) hud.setCarTitle('', '', 0, 0, false);
+            else {
+              const plate = context.renderer.project(title);
+              hud.setCarTitle(title.name, title.detail, plate.x, plate.y, !plate.behind);
+            }
+            hud.setPresence(
+              state && context.net
+                ? {
+                    selfId: context.net.selfId,
+                    roster: state.roster,
+                    peers: state.players.flatMap((player) => {
+                      const anchor = remotePlayerMark(player.id, player.car);
+                      if (!anchor) return [];
+                      return [
+                        {
+                          ...player,
+                          x: anchor.x,
+                          y: anchor.y,
+                          z: anchor.z,
+                          driving: anchor.driving,
+                        },
+                      ];
+                    }),
+                    project: (point) => context.renderer.project(point),
+                  }
+                : null,
+            );
+            if (context.input.snapshot().debugToggle) hud.toggle();
+            if (context.input.snapshot().scoreToggle) hud.toggleScore();
+            if (context.input.snapshot().debugOverlay) {
+              context.debug.showGraph = !context.debug.showGraph;
+            }
+          },
+        });
+        failures = 0;
+      } catch (error) {
+        failures += 1;
+        ctx.log.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
+        // One bad frame can be a glitch. Three in a row would freeze the canvas with no word.
+        if (failures >= 3) {
+          stop();
+          mountStartMenu(root, (choice) => start(root, choice), {
+            notice: 'O jogo parou por um erro. Os detalhes estão no console.',
+          });
+          return;
+        }
+      }
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);

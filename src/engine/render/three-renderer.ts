@@ -1,7 +1,6 @@
 /** Three.js renderer. Geometries and materials are registered with the asset owner. */
 
 import {
-  ACESFilmicToneMapping,
   AmbientLight,
   AnimationMixer,
   BoxGeometry,
@@ -10,17 +9,21 @@ import {
   CapsuleGeometry,
   CylinderGeometry,
   DirectionalLight,
-  Fog,
+  FogExp2,
   Group,
   HemisphereLight,
   InstancedBufferAttribute,
   InstancedMesh,
   LoopOnce,
+  Matrix4,
   LoopRepeat,
+  Material,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  PCFSoftShadowMap,
+  HalfFloatType,
+  NoToneMapping,
+  PCFShadowMap,
   PerspectiveCamera,
   Scene,
   Vector3,
@@ -30,11 +33,23 @@ import {
   WebGLRenderer,
   type AnimationAction,
   type AnimationClip,
-  type Material,
   type Object3D,
 } from 'three';
+import { N8AOPostPass } from 'n8ao';
+import {
+  BloomEffect,
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+  SMAAPreset,
+  ToneMappingEffect,
+  ToneMappingMode,
+} from 'postprocessing';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { AssetManager } from '../assets/asset-manager';
 import type { Quat, Vec3 } from '../core/math';
 import {
@@ -42,14 +57,24 @@ import {
   cappedPixelRatio,
   DEFAULT_EXPOSURE,
   MAX_PIXEL_RATIO,
+  shadowExtent,
   shadowMapSize,
   sharpnessCap,
-  type ShadowQuality,
-  type Sharpness,
+  type Effects,
+  type GraphicsQuality,
 } from './display';
 import { loadCoastEnvironment } from './environment';
 import { dressCar } from './materials/car-paint';
 import { MaterialLibrary, TILE_METERS, tileBoxUvs } from './materials/material-library';
+import {
+  WALL_FINISHES,
+  facadeFragmentBody,
+  facadeFragmentHead,
+  facadeVertexBody,
+  facadeVertexHead,
+} from './materials/facade-shader';
+import { createTerrainMaterial } from './materials/terrain-material';
+import { createWater, type Water } from './materials/water-material';
 import { glslFloat } from './materials/uv-meters';
 import type {
   ClipKey,
@@ -60,7 +85,7 @@ import type {
   SurfaceFinish,
   TerrainDesc,
 } from './renderer';
-import { HORIZON_COLOR } from './sky';
+import { FOG_DENSITY, HORIZON_COLOR } from './sky';
 import { createSunController } from './sun-controller';
 
 interface CachedModel {
@@ -78,24 +103,68 @@ interface MeshRecord {
 
 const worldFar = 2800;
 
+/** Ground finishes seen in long runs, which get a second, wider sample against tiling. */
+const BROKEN_UP: ReadonlySet<SurfaceFinish> = new Set([
+  'asphalt',
+  'sidewalk',
+  'concrete',
+  'plaza',
+  'dirt',
+  'sand',
+]);
+
 export function createThreeRenderer(
   canvas: HTMLCanvasElement,
   assets: AssetManager,
   fov = 58,
 ): Renderer {
-  const renderer = new WebGLRenderer({ canvas, antialias: canvasAntialias(false) });
+  const renderer = new WebGLRenderer({
+    canvas,
+    antialias: canvasAntialias(true),
+    powerPreference: 'high-performance',
+    stencil: false,
+  });
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = ACESFilmicToneMapping;
+  // Tone mapping runs in the composer, after bloom, on the half-float buffer.
+  renderer.toneMapping = NoToneMapping;
   renderer.toneMappingExposure = DEFAULT_EXPOSURE;
+  // The composer renders several passes a frame; the count is reset once per frame instead.
+  renderer.info.autoReset = false;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = PCFSoftShadowMap;
+  // r186 dropped PCFSoftShadowMap; PCF with a radius blurs the edge instead.
+  renderer.shadowMap.type = PCFShadowMap;
   renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio));
   renderer.setClearColor(HORIZON_COLOR, 1);
 
   const scene = new Scene();
-  scene.fog = new Fog(HORIZON_COLOR, 520, 2400);
+  scene.fog = new FogExp2(HORIZON_COLOR, FOG_DENSITY);
 
   const camera = new PerspectiveCamera(fov, 1, 0.3, worldFar);
+  const composer = new EffectComposer(renderer, { frameBufferType: HalfFloatType });
+  composer.addPass(new RenderPass(scene, camera));
+  const occlusion = new N8AOPostPass(scene, camera, 1, 1);
+  // Meters: a curb, a car body, the foot of a wall.
+  occlusion.configuration.aoRadius = 2;
+  occlusion.configuration.distanceFalloff = 1;
+  occlusion.configuration.intensity = 2.5;
+  composer.addPass(occlusion);
+  const bloom = new BloomEffect({
+    luminanceThreshold: 0.9,
+    luminanceSmoothing: 0.2,
+    intensity: 0.4,
+    mipmapBlur: true,
+  });
+  composer.addPass(
+    new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC })),
+  );
+  // After tone mapping: SMAA finds edges in display colors.
+  composer.addPass(new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.HIGH })));
+  const setEffects = (level: Effects) => {
+    occlusion.enabled = level !== 'off';
+    occlusion.configuration.halfRes = level === 'medium';
+    occlusion.setQualityMode(level === 'high' ? 'Medium' : 'Low');
+    bloom.intensity = level === 'off' ? 0 : 0.4;
+  };
   const projected = new Vector3();
   const cameraSpace = new Vector3();
   const ambient = new AmbientLight(0xfff6ea, 0.16);
@@ -105,23 +174,55 @@ export function createThreeRenderer(
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.00035;
   sun.shadow.normalBias = 0.04;
+  sun.shadow.radius = 2;
   scene.add(ambient, skyLight, sun, sun.target);
   const sunController = createSunController(sun);
   sunController.aim(0, 0, 0);
-  const materials = new MaterialLibrary(assets, renderer.capabilities.getMaxAnisotropy());
+  // Surfaces load as GPU-compressed KTX2 where the browser can transcode them.
+  const ktx2 = new KTX2Loader().setTranscoderPath('/basis/').detectSupport(renderer);
+  const materials = new MaterialLibrary(assets, renderer.capabilities.getMaxAnisotropy(), ktx2);
   const carMaterials = new Map<string, Material>();
   const worldMaterials = new Map<string, MeshStandardMaterial>();
   let unitBox: BoxGeometry | undefined;
   let unitCylinder: CylinderGeometry | undefined;
   let dayTime = 0.45;
+  let water: Water | null = null;
+  let elapsed = 0;
 
   const meshes = new Map<number, MeshRecord>();
   const models = new Map<string, CachedModel>();
   const loading = new Map<string, Promise<void>>();
   const loader = new GLTFLoader();
+  // Props from scripts/import-polyhaven-models.mjs are meshopt-compressed.
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  loader.setKTX2Loader(ktx2);
   let nextId = 1;
   let calls = 0;
   let pixelCap = MAX_PIXEL_RATIO;
+
+  /** A unit box of its own: the facade attribute is per instance, so per mesh. */
+  const wallGeometry = (desc: InstanceBatchDesc) => {
+    const geometry = assets.track(new BoxGeometry(1, 1, 1));
+    // Walls without a window grid (parapets) still need the attribute; zeros draw none.
+    const facade = desc.facade ?? new Float32Array(desc.count * 4);
+    geometry.setAttribute('facade', new InstancedBufferAttribute(facade, 4));
+    return geometry;
+  };
+
+  /** Body paint gets a white copy, so each instance's color shows true; null for anything else. */
+  const whitePaint = new Map<Material, MeshStandardMaterial>();
+  const paintFor = (object: Object3D, source: unknown) => {
+    if (!(source instanceof MeshStandardMaterial) || source.metalness < 0.4 || onWheel(object)) {
+      return null;
+    }
+    let white = whitePaint.get(source);
+    if (!white) {
+      white = assets.track(source.clone());
+      white.color.set(0xffffff);
+      whitePaint.set(source, white);
+    }
+    return white;
+  };
 
   const sharedUnit = (kind: 'box' | 'cylinder') => {
     if (kind === 'cylinder') {
@@ -155,6 +256,8 @@ export function createThreeRenderer(
     const tile = glslFloat(1 / TILE_METERS[desc.finish]);
     const material = assets.track(materials.resolve(desc.finish, 0xffffff).clone());
     material.color.set(0xffffff);
+    const wall = WALL_FINISHES.has(desc.finish);
+    const brokenUp = BROKEN_UP.has(desc.finish);
     material.customProgramCacheKey = () => `world-uv-${desc.finish}`;
     material.onBeforeCompile = (shader) => {
       shader.vertexShader = shader.vertexShader.replace(
@@ -169,13 +272,70 @@ export function createThreeRenderer(
           #ifdef USE_AOMAP
             vAoMapUv = vMapUv;
           #endif
+          // Each map has its own uv. Left alone, these stretch once across the whole face.
+          #ifdef USE_NORMALMAP
+            vNormalMapUv = vMapUv;
+          #endif
+          #ifdef USE_ROUGHNESSMAP
+            vRoughnessMapUv = vMapUv;
+          #endif
         #endif
+        ${wall ? facadeVertexBody : ''}
         #include <project_vertex>
         `,
       );
+      if (brokenUp) {
+        // A slow swell in brightness, read from the same map ~8x and ~19x wider, so long
+        // roads and pavements do not show the repeat as a grid. The difference averages to 0.
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+          #ifdef USE_MAP
+            vec3 gtLuma = vec3(0.333);
+            float gtSwell = dot(texture2D(map, vMapUv * 0.13).rgb - texture2D(map, vMapUv * 0.053 + 0.37).rgb, gtLuma);
+            diffuseColor.rgb *= clamp(1.0 + 0.9 * gtSwell, 0.75, 1.25);
+          #endif`,
+        );
+      }
+      if (!wall) return;
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>\n${facadeVertexHead}`,
+      );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${facadeFragmentHead}`)
+        .replace(
+          '#include <roughnessmap_fragment>',
+          `#include <roughnessmap_fragment>\nfloat wallGlass = 0.0;\n${facadeFragmentBody}`,
+        )
+        .replace(
+          '#include <normal_fragment_maps>',
+          // Glass is flat: the plaster bumps stop at the frame.
+          `if (wallGlass < 0.5) {
+            #include <normal_fragment_maps>
+          }`,
+        );
     };
     worldMaterials.set(desc.finish, material);
     return material;
+  };
+
+  /** Textured ground once the surfaces are in; the flat vertex colors if any failed to load. */
+  const terrainMaterial = () => {
+    // Sand and grass tile wider here than on props: the beach and the serra are seen from far.
+    const sand = materials.surface('sand');
+    const paved = materials.surface('roof-concrete');
+    const rock = materials.surface('rock');
+    const grass = materials.surface('grass');
+    if (!sand || !paved || !rock || !grass) {
+      return new MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
+    }
+    return createTerrainMaterial([
+      { ...sand, tile: 3 },
+      { ...paved, tile: 3 },
+      { ...rock, tile: 15 },
+      { ...grass, tile: 2.5 },
+    ]);
   };
 
   const addMaterial = (
@@ -200,6 +360,12 @@ export function createThreeRenderer(
     desc: MeshDesc | InstanceBatchDesc,
     geometry: BoxGeometry | CapsuleGeometry | CylinderGeometry,
   ) => {
+    const waves = materials.waterNormal();
+    if ('surface' in desc && desc.surface === 'water' && waves) {
+      water = createWater(waves, desc.size.x, desc.size.z);
+      for (const texture of water.textures) assets.track(texture);
+      return assets.track(water.material);
+    }
     if (desc.finish && geometry instanceof BoxGeometry) {
       const material = materials.resolve(desc.finish, desc.color);
       tileBoxUvs(geometry, desc.size.x, desc.size.y, desc.size.z, TILE_METERS[desc.finish]);
@@ -228,15 +394,18 @@ export function createThreeRenderer(
     setSize(width, height) {
       renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio, pixelCap));
       renderer.setSize(width, height, false);
+      composer.setSize(width, height, false);
       camera.aspect = width / Math.max(height, 1);
       camera.updateProjectionMatrix();
     },
-    setGraphics(quality: { shadows: ShadowQuality; sharpness: Sharpness }) {
+    setGraphics(quality: GraphicsQuality) {
       pixelCap = sharpnessCap(quality.sharpness);
+      setEffects(quality.effects);
       const map = shadowMapSize(quality.shadows);
       renderer.shadowMap.enabled = map > 0;
       sunController.setEnabled(map > 0);
       if (map > 0) sunController.setMapSize(map);
+      sunController.setExtent(shadowExtent(quality.shadows));
       renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio, pixelCap));
     },
     setCamera(position, target) {
@@ -277,6 +446,12 @@ export function createThreeRenderer(
           const materials = Array.isArray(object.material) ? object.material : [object.material];
           for (const material of materials) {
             assets.track(material);
+            // Instanced foliage cannot be depth sorted: leaves are cut out, not blended.
+            if (url.includes('/props/') && material instanceof Material && material.transparent) {
+              material.transparent = false;
+              material.alphaTest = 0.5;
+              material.depthWrite = true;
+            }
             const slots: unknown[] = Object.values(material as object);
             for (const value of slots) if (isTexture(value)) textures.add(value);
           }
@@ -334,9 +509,12 @@ export function createThreeRenderer(
       return id;
     },
     addInstances(desc) {
-      const geometry = desc.unit
-        ? sharedUnit(desc.kind ?? 'box')
-        : assets.track(instanceGeometry(desc));
+      const wall = desc.unit && desc.finish !== undefined && WALL_FINISHES.has(desc.finish);
+      const geometry = wall
+        ? wallGeometry(desc)
+        : desc.unit
+          ? sharedUnit(desc.kind ?? 'box')
+          : assets.track(instanceGeometry(desc));
       const material = desc.unit ? worldMaterial(desc) : surfaceMaterial(desc, geometry);
       const mesh = new InstancedMesh(geometry, material, desc.count);
       mesh.castShadow = desc.castShadow === true;
@@ -355,11 +533,41 @@ export function createThreeRenderer(
       meshes.set(id, { object: mesh });
       return id;
     },
+    addModelInstances(desc) {
+      const cached = models.get(desc.url);
+      if (!cached) throw new Error(`Modelo não carregado: ${desc.url}`);
+      const group = new Group();
+      const node = new Matrix4();
+      const each = new Matrix4();
+      cached.scene.updateMatrixWorld(true);
+      cached.scene.traverse((object) => {
+        if (!(object instanceof Mesh)) return;
+        // Geometry and material stay the cached ones: every copy shares them.
+        const painted = desc.paint ? paintFor(object, object.material) : null;
+        const mesh = new InstancedMesh(object.geometry, painted ?? object.material, desc.count);
+        if (painted && desc.paint) {
+          mesh.instanceColor = new InstancedBufferAttribute(desc.paint.slice(0, desc.count * 3), 3);
+        }
+        node.copy(object.matrixWorld);
+        for (let i = 0; i < desc.count; i += 1) {
+          each.fromArray(desc.matrices, i * 16).multiply(node);
+          mesh.setMatrixAt(i, each);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.castShadow = desc.castShadow === true;
+        mesh.receiveShadow = true;
+        mesh.computeBoundingSphere();
+        group.add(mesh);
+      });
+      scene.add(group);
+      const id = nextId;
+      nextId += 1;
+      meshes.set(id, { object: group });
+      return id;
+    },
     addTerrain(desc) {
       const geometry = assets.track(terrainGeometry(desc));
-      const material = assets.track(
-        new MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 }),
-      );
+      const material = assets.track(terrainMaterial());
       const mesh = new Mesh(geometry, material);
       mesh.receiveShadow = true;
       mesh.castShadow = false;
@@ -418,6 +626,8 @@ export function createThreeRenderer(
       record.token = token;
     },
     tick(dt) {
+      elapsed += dt;
+      water?.tick(elapsed);
       // Pooled people and corpses spend most of their time hidden; nobody sees them animate.
       for (const record of meshes.values()) {
         if (record.mixer && record.object.visible) record.mixer.update(dt);
@@ -427,13 +637,16 @@ export function createThreeRenderer(
       return calls;
     },
     render() {
-      renderer.render(scene, camera);
+      renderer.info.reset();
+      composer.render();
       calls = renderer.info.render.calls;
     },
     dispose() {
       scene.traverse((object) => {
         if (object instanceof InstancedMesh) object.dispose();
       });
+      composer.dispose();
+      ktx2.dispose();
       renderer.dispose();
       // Browsers cap live WebGL contexts; a menu restart must give this one back now.
       renderer.forceContextLoss();
@@ -449,7 +662,10 @@ function isGround(finish: SurfaceFinish | undefined): boolean {
     finish === 'sidewalk' ||
     finish === 'sand' ||
     finish === 'grass' ||
-    finish === 'lane'
+    finish === 'lane' ||
+    finish === 'plaza' ||
+    finish === 'rock' ||
+    finish === 'dirt'
   );
 }
 
@@ -495,6 +711,7 @@ function terrainGeometry(desc: TerrainDesc): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
   geometry.setAttribute('color', new BufferAttribute(colors, 3));
+  geometry.setAttribute('splat', new BufferAttribute(desc.splat, 4));
   geometry.setIndex(new BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
   return geometry;

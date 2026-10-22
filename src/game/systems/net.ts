@@ -5,15 +5,22 @@ import type { GameContext } from '../context';
 import { Player, Transform, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
 import { hideBody, showBody } from '../features/player/place-player';
-import { PICKUP_REACH } from '../play/wallet';
+import { PICKUP_REACH } from '../../sim/wallet';
 import { yawFromQuat } from '../play/heading';
-import { HEAVY_DAMAGE } from './ped-ai';
+import { HEAVY_DAMAGE } from '../../sim/ped-ai';
 
 const POSE_INTERVAL = 1 / 15;
+/** Seconds before asking for the same drop again. Every pose resent them all, eating the rate limit. */
+export const PICKUP_RETRY = 0.3;
 let poseWait = 0;
+let clock = 0;
+/** Drop id to when it was last asked for. */
+const asked = new Map<number, number>();
 
 export function resetNet(): void {
   poseWait = 0;
+  clock = 0;
+  asked.clear();
 }
 
 export function applyNetState(ctx: GameContext, world: World): void {
@@ -37,6 +44,7 @@ export function applyNetState(ctx: GameContext, world: World): void {
 export function publishNet(ctx: GameContext, world: World): void {
   const net = ctx.net;
   if (!net) return;
+  clock += ctx.time.fixedDt;
   poseWait -= ctx.time.fixedDt;
   const sendPose = poseWait <= 0;
   if (sendPose) poseWait = POSE_INTERVAL;
@@ -74,8 +82,11 @@ export function publishNet(ctx: GameContext, world: World): void {
       yaw,
     });
     if (!state) continue;
+    for (const [id, at] of asked) if (clock - at > PICKUP_RETRY) asked.delete(id);
     for (const drop of state.pickups) {
-      if (Math.hypot(drop.x - x, drop.z - z) <= PICKUP_REACH) net.sendPickup(drop.id);
+      if (asked.has(drop.id) || Math.hypot(drop.x - x, drop.z - z) > PICKUP_REACH) continue;
+      asked.set(drop.id, clock);
+      net.sendPickup(drop.id);
     }
   }
 }

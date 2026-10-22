@@ -3,7 +3,8 @@
 import { OrthographicCamera, Vector3, type DirectionalLight } from 'three';
 import { directionAtTime, snapToTexel, wrapDay } from './sun-math';
 
-const lightDistance = 90;
+// Far enough that a tower on the sun side of a 90 m extent still lands in the shadow volume.
+const lightDistance = 200;
 
 export interface SunController {
   setTimeOfDay(time: number): void;

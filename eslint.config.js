@@ -23,7 +23,6 @@ export default tseslint.config(
       '.superpowers/**',
       'coverage/**',
       'eslint.config.js',
-      'scripts/**',
       'server/**/*.mjs',
     ],
   },
@@ -41,6 +40,12 @@ export default tseslint.config(
   {
     files: ['**/*.{js,mjs,cjs}'],
     ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly', setTimeout: 'readonly' },
+    },
   },
   {
     files: ['**/*.ts'],
@@ -61,9 +66,46 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/app/**/*.ts', 'src/ui/**/*.ts', 'src/net/**/*.ts', 'server/**/*.ts'],
+    files: ['src/app/**/*.ts', 'src/ui/**/*.ts', 'server/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [banThree, banRapier] }],
+    },
+  },
+  {
+    files: ['src/net/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            banThree,
+            banRapier,
+            {
+              regex: String.raw`^(\.\./)+game/`,
+              allowTypeImports: true,
+              message: 'The room runs on the server. Share pure rules through src/sim.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/sim/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            banThree,
+            banRapier,
+            {
+              regex: String.raw`^(\.\./)+(app|game|ui|net)/|^(\.\./)+engine/(?!core/math$)`,
+              message: 'Sim rules are pure: content and engine/core/math only.',
+            },
+          ],
+        },
+      ],
     },
   },
   {

@@ -2,14 +2,14 @@
 
 import {
   EquirectangularReflectionMapping,
-  Fog,
+  FogExp2,
   PMREMGenerator,
   type Scene,
   type WebGLRenderer,
 } from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import type { AssetManager } from '../assets/asset-manager';
-import { COAST_HDRI_URL, HORIZON_COLOR } from './sky';
+import { COAST_HDRI_URL, HORIZON_COLOR, SKY_FILL } from './sky';
 
 const pmremBytes = 256 * 256 * 6 * 4;
 
@@ -29,8 +29,9 @@ export async function loadCoastEnvironment(
 
   scene.background = hdr;
   scene.environment = target.texture;
+  scene.environmentIntensity = SKY_FILL;
   const fog = scene.fog;
-  if (fog instanceof Fog) fog.color.setHex(HORIZON_COLOR);
+  if (fog instanceof FogExp2) fog.color.setHex(HORIZON_COLOR);
 
   const image = hdr.image as { width?: number; height?: number } | null;
   const hdrBytes = image && image.width && image.height ? image.width * image.height * 4 : 0;

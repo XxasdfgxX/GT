@@ -12,6 +12,11 @@ const shells = new Map<number, number>();
 
 export const TRAFFIC_POOL = 40;
 
+/** Shell ids belong to the last renderer. A multiplayer session never spawns the pool. */
+export function resetTrafficPool(): void {
+  shells.clear();
+}
+
 export function spawnTrafficPool(ctx: GameContext, world: World): void {
   shells.clear();
   quatFromYaw(0, yaw);

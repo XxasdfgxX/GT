@@ -3,7 +3,7 @@
 import type { World } from 'bitecs';
 import { lerp, quatFromYaw, type Quat, type Vec3 } from '../../engine/core/math';
 import { sim } from '../../content/sim';
-import { aimPointOnPlane, facingToward } from '../play/aim-cursor';
+import { aimPointOnPlane, facingToward } from '../../sim/aim-cursor';
 import { CameraRig, Player, Transform, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
 

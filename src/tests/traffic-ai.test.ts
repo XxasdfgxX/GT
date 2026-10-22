@@ -10,7 +10,7 @@ import {
   mustYield,
   steppedAlong,
   yieldToPedestrian,
-} from '../game/systems/traffic-ai';
+} from '../sim/traffic-ai';
 
 describe('traffic lanes', () => {
   it('keeps each direction on its right-hand lane', () => {

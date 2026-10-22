@@ -9,11 +9,29 @@ export type ShadowQuality = (typeof shadowQualities)[number];
 export const sharpnessLevels = ['low', 'medium', 'high'] as const;
 export type Sharpness = (typeof sharpnessLevels)[number];
 
+/** Post-processing: ambient occlusion and bloom. Anti-aliasing and tone mapping always run. */
+export const effectLevels = ['off', 'medium', 'high'] as const;
+export type Effects = (typeof effectLevels)[number];
+
+export interface GraphicsQuality {
+  shadows: ShadowQuality;
+  sharpness: Sharpness;
+  effects: Effects;
+}
+
 /** Shadow map edge length. Zero turns shadows off. */
 export function shadowMapSize(quality: ShadowQuality): number {
   if (quality === 'off') return 0;
-  if (quality === 'low') return 1024;
-  return 2048;
+  if (quality === 'low') return 2048;
+  return 4096;
+}
+
+/**
+ * Half the width of the ground the shadow map covers, in meters. Map and reach grow
+ * together so a texel stays about 4.4 cm: towers shade the street a block away.
+ */
+export function shadowExtent(quality: ShadowQuality): number {
+  return quality === 'high' ? 90 : 45;
 }
 
 /** Upper bound passed to the pixel-ratio cap. */

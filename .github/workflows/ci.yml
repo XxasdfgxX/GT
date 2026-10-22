@@ -9,10 +9,12 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      # The build copies public/ into dist/, so it needs the real models, not LFS pointers.
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
         with:
-          version: 12.6.0
+          lfs: true
+      # The pnpm version comes from packageManager in package.json.
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -21,3 +23,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm build

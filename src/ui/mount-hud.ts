@@ -4,7 +4,7 @@ import type { DebugState, NetPlayer, NetRosterEntry } from '../game/context';
 import type { Vec3 } from '../engine/core/math';
 import { PLAYER_TAG_LIFT } from '../game/features/health-bar';
 import type { HudModel } from '../game/play/read-hud';
-import { formatCash } from '../game/play/wallet';
+import { formatCash } from '../sim/wallet';
 import { MissionPhase } from '../game/play/mission';
 import { PromptCode } from '../game/play/prompt';
 import type { RadarMap, WorldPoint } from './radar-map';

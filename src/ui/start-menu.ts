@@ -23,6 +23,8 @@ export interface MenuOptions {
   resume?: () => void;
   onSettings?: (settings: GameSettings) => void;
   map?: PauseMap;
+  /** Shown under the buttons when the menu opens, such as why the last game ended. */
+  notice?: string;
 }
 
 export interface StartMenu {
@@ -66,6 +68,7 @@ export function mountStartMenu(
 
   const status = document.createElement('p');
   status.className = 'menu-status';
+  status.textContent = options?.notice ?? '';
 
   const inGame = options?.resume !== undefined;
   const mission = modeButton('Com missão', !inGame);
@@ -150,7 +153,8 @@ export function mountStartMenu(
         busy = false;
         mission.disabled = false;
         free.disabled = false;
-        resume.disabled = false;
+        // The paused game stopped when this one began loading. There is nothing to go back to.
+        resume.hidden = true;
         multi.disabled = false;
         openSettings.disabled = false;
         openMap.disabled = false;
@@ -255,12 +259,18 @@ export function mountStartMenu(
     ['medium', 'Média'],
     ['high', 'Alta'],
   ]);
+  const effects = selectField('Efeitos', settings.effects, [
+    ['off', 'Desligados'],
+    ['medium', 'Médios'],
+    ['high', 'Altos'],
+  ]);
 
   const persist = () => {
     settings.mouseScale = Number(sensitivity.input.value);
     settings.volume = Number(volume.input.value);
     settings.shadows = shadows.input.value as GameSettings['shadows'];
     settings.sharpness = sharpness.input.value as GameSettings['sharpness'];
+    settings.effects = effects.input.value as GameSettings['effects'];
     settings.admin = adminInput.checked;
     settings.spawn = bairro.input.value as GameSettings['spawn'];
     settings.car = car.input.value as GameSettings['car'];
@@ -279,6 +289,7 @@ export function mountStartMenu(
   volume.input.addEventListener('input', persist);
   shadows.input.addEventListener('change', persist);
   sharpness.input.addEventListener('change', persist);
+  effects.input.addEventListener('change', persist);
   adminInput.addEventListener('change', persist);
   bairro.input.addEventListener('change', persist);
   car.input.addEventListener('change', persist);
@@ -319,6 +330,7 @@ export function mountStartMenu(
     volume.field,
     shadows.field,
     sharpness.field,
+    effects.field,
     partidaTitle,
     adminField,
     bairro.field,
