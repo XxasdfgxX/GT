@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
 import { FACADE_BAYS, FACADE_STYLES, bayCount } from '../content/map/facades';
-import { PROPS, PROP_MODELS } from '../content/map/props';
+import { PAINTED_MODELS, PROPS, PROP_MODELS } from '../content/map/props';
+import { carModel } from '../content/models';
 import { FACADE_WINDOWS } from '../engine/render/materials/facade-shader';
 
 describe('facades', () => {
@@ -38,5 +39,18 @@ describe('street props', () => {
     const keys = new Set(props.map((mesh) => `${mesh.chunk}|${mesh.model}|${mesh.lod}`));
     expect(keys.size).toBe(props.length);
     for (const mesh of props) expect(PROP_MODELS).toContain(mesh.model);
+  });
+
+  it('parks car models with their own paint, and paints nothing else', () => {
+    const city = createCity();
+    const parked = city.meshes.filter((mesh) => mesh.model === carModel);
+    expect(parked.reduce((sum, mesh) => sum + mesh.count, 0)).toBeGreaterThan(5);
+    const colors = new Set<string>();
+    for (const mesh of parked) {
+      for (let i = 0; i < mesh.count; i += 1)
+        colors.add(mesh.colors.slice(i * 3, i * 3 + 3).join());
+    }
+    expect(colors.size).toBeGreaterThan(1);
+    expect([...PAINTED_MODELS]).toEqual([carModel]);
   });
 });

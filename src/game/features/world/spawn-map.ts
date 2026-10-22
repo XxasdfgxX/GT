@@ -1,6 +1,7 @@
 /** Spawns the island shell. Chunk meshes and building colliders stream in around the player. */
 
 import type { CityMesh } from '../../../content/map/batch';
+import { PAINTED_MODELS } from '../../../content/map/props';
 import type { CostaVerde } from '../../../content/city';
 import type { GameContext } from '../../context';
 import { quatFromYawPitch } from '../../../engine/core/math';
@@ -107,6 +108,7 @@ function ensureChunk(ctx: GameContext, id: number): void {
           url: mesh.model,
           count: mesh.count,
           matrices: mesh.matrices,
+          ...(PAINTED_MODELS.has(mesh.model) ? { paint: mesh.colors } : {}),
           castShadow: mesh.castShadow,
         })
       : addBoxes(ctx, mesh);

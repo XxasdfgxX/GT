@@ -5,7 +5,9 @@ import { plazas, plazaGrassArea, type Footprint } from './blocks';
 import type { ShopDoor } from './facades';
 import { onIsland, sampleHeight, urbanWeight } from './island-shape';
 import { mulberry32 } from './rng';
+import { STREET_LIFT } from './road-mesh';
 import { SIDEWALK_WIDTH, type RoadGraph } from './roads';
+import { carModel } from '../models';
 
 export interface Poi {
   x: number;
@@ -36,8 +38,14 @@ export const PROPS = {
   tree: '/assets/props/tree.glb',
 } as const;
 
+/** Parked cars: the same body as the traffic, painted per instance. */
+const PARKED_CAR = carModel;
+
 /** Every prop url, for the loader to fetch before the first chunk streams in. */
-export const PROP_MODELS: readonly string[] = Object.values(PROPS);
+export const PROP_MODELS: readonly string[] = [...Object.values(PROPS), PARKED_CAR];
+
+/** Models whose body paint takes each stamp's color. Metal on the others keeps its own. */
+export const PAINTED_MODELS: ReadonlySet<string | undefined> = new Set([PARKED_CAR]);
 
 const carColors = [0xc4553a, 0xf4f1ea, 0x2a2a2a, 0xd5dde4, 0xf2c14e, 0x1f4e79];
 
@@ -339,8 +347,8 @@ function addParked(
 ): void {
   const color = carColors[Math.floor(rng() * carColors.length)] ?? 0xf4f1ea;
   const scale = 0.85 + rng() * 0.2;
-  batch.add(flat('flat', 1.7 * scale, 1.15, 4.1 * scale, x, y + 0.7, z, yaw, color, chunk));
-  batch.add(flat('flat', 1.45 * scale, 0.7, 2.1 * scale, x, y + 1.45, z, yaw, 0xd5e3ea, chunk));
+  // The traffic body: its origin is the tires, so it sits on the lifted street.
+  batch.add({ ...prop(PARKED_CAR, x, y + STREET_LIFT, z, yaw, scale, chunk), color });
   colliders.push({
     x,
     y: y + 0.7,
