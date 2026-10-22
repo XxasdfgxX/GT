@@ -8,10 +8,14 @@ import { STREET_LIFT } from '../../content/map/road-mesh';
 import { sim } from '../../content/sim';
 import { CameraRig, InputState, Player, Transform, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
+import { buildCostaVerde } from '../../content/city';
+import { clearShare } from '../play/camera-occlusion';
 import { chaseCameraYaw, yawFromQuat } from '../play/heading';
 
 /** Meters of air between the lens and the asphalt, past the near plane. */
 const CAMERA_CLEARANCE = STREET_LIFT + 0.55;
+/** Meters the lens stops short of a wall between it and the player. */
+const WALL_MARGIN = 0.35;
 
 const cameraPos: Vec3 = { x: 0, y: 0, z: 0 };
 const lookAt: Vec3 = { x: 0, y: 0, z: 0 };
@@ -92,6 +96,8 @@ export function placeCamera(ctx: GameContext, world: World, frameDt: number): vo
       CameraRig.y[eid] ?? 0,
       CameraRig.z[eid] ?? 0,
     );
+    // A wall between the player and the lens pulls it in at once; the smoothing eases it back.
+    pullInFrontOfWalls(eid, tx, ty + pivot, tz);
     cameraPos.x = CameraRig.x[eid] ?? 0;
     cameraPos.y = CameraRig.y[eid] ?? 0;
     cameraPos.z = CameraRig.z[eid] ?? 0;
@@ -130,4 +136,17 @@ function lockChaseYaw(eid: number, target: number, alpha: number, frameDt: numbe
     CameraRig.yaw[eid] = dampAngle(CameraRig.yaw[eid] ?? locked, locked, blend);
   }
   CameraRig.lookOffset[eid] = offset * Math.exp(-sim.cameraLookReturn * frameDt);
+}
+
+function pullInFrontOfWalls(eid: number, px: number, py: number, pz: number): void {
+  const cx = CameraRig.x[eid] ?? 0;
+  const cy = CameraRig.y[eid] ?? 0;
+  const cz = CameraRig.z[eid] ?? 0;
+  const share = clearShare(buildCostaVerde().colliders, px, py, pz, cx, cy, cz);
+  if (share >= 1) return;
+  const length = Math.hypot(cx - px, cy - py, cz - pz);
+  const keep = Math.max(0, share - WALL_MARGIN / Math.max(length, 1e-3));
+  CameraRig.x[eid] = px + (cx - px) * keep;
+  CameraRig.y[eid] = py + (cy - py) * keep;
+  CameraRig.z[eid] = pz + (cz - pz) * keep;
 }

@@ -285,10 +285,12 @@ This phase gives the biggest visual gain for the least effort, and every later p
 
 ### Task 5.5 (added): The camera goes through walls
 
+Also to check on real hardware: with effects on, window glass shows a speckled pattern that is not there with effects off. It may be N8AO on glass seen edge-on, or just SwiftShader.
+
 Found in the screenshots: the orbit camera ends up inside buildings next to the player, so half the screen is a wall texture.
 
-- [ ] In `src/game/systems/camera-follow.ts`, cast a ray from the pivot to the desired camera position (Rapier `castRay` against static colliders), and pull the camera in to the hit minus 0.3 m. Ease back out over about 0.2 s.
-- [ ] Test: a wall between pivot and camera. Expected: the camera ends up on the pivot's side.
+- [x] In `src/game/systems/camera-follow.ts`, cast a ray from the pivot to the desired camera position (Rapier `castRay` against static colliders), and pull the camera in to the hit minus 0.3 m. Ease back out over about 0.2 s. _No raycast exists in `PhysicsWorld`, so `play/camera-occlusion.ts` tests the pivot-to-lens segment against the building colliders (`tallBoxesNear`, slab test in each box's frame). It runs after the smoothing, so the pull-in is instant and the ease-out uses the existing smoothing. 0.35 m margin. Seen in a headless screenshot: the lens stays on the player's side of the wall._
+- [x] Test: a wall between pivot and camera. Expected: the camera ends up on the pivot's side. _`src/tests/camera-occlusion.test.ts`: a hit at the near face, a miss beside and above, a turned wall, and a pivot inside a box._
 
 ## Phase 6 — Real facades (`feat/facades`)
 
