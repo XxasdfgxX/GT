@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildCostaVerde } from '../content/city';
 import { Pedestrian, RenderRef, Transform, writePose } from '../game/ecs/components';
 import { createGameWorld } from '../game/ecs/world';
-import { TALL_BOX, tallBoxesNear } from '../game/play/collider-grid';
+import { TALL_BOX, tallBoxesNear } from '../sim/collider-grid';
 import { bucketCrowd, crowdNear } from '../game/play/crowd-grid';
 import { mulberry32 } from '../content/map/rng';
 

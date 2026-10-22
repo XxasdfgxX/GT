@@ -8,7 +8,7 @@ import type { GameContext } from '../../context';
 import { writeTransformMatrix } from '../../../engine/core/math';
 import type { ClipKey } from '../../../engine/render/renderer';
 import { Pedestrian, RenderRef, Transform, writePose } from '../../ecs/components';
-import { PedState, healthBarVisible } from '../../systems/ped-ai';
+import { PedState, healthBarVisible } from '../../../sim/ped-ai';
 import { pedestrians } from '../../ecs/queries';
 import { HEALTH_TRACK_WIDTH, healthFillLayout } from '../health-bar';
 

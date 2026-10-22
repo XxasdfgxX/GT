@@ -7,10 +7,10 @@ import { Pedestrian, Traffic, Transform, Vehicle } from '../ecs/components';
 import { traffic } from '../ecs/queries';
 import { crowdNear } from '../play/crowd-grid';
 import { yawFromQuat } from '../play/heading';
-import { circleHitsBox } from '../play/overlap';
+import { circleHitsBox } from '../../sim/overlap';
 import { hasComponent, type World } from 'bitecs';
-import { applyDamage, HURT_SECONDS, PedState } from './ped-ai';
-import { carImpactDamage } from './traffic-ai';
+import { applyDamage, HURT_SECONDS, PedState } from '../../sim/ped-ai';
+import { carImpactDamage } from '../../sim/traffic-ai';
 
 /** Same gap the room server keeps between two hits on one person. */
 export const RAM_GAP = 0.6;

@@ -30,7 +30,7 @@ import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
 import { spawnMap } from '../game/features/world/spawn-map';
 import { MissionPhase } from '../game/play/mission';
 import { missionSystem } from '../game/systems/mission';
-import { PedState } from '../game/systems/ped-ai';
+import { PedState } from '../sim/ped-ai';
 import { pedestrianSystem } from '../game/systems/pedestrians';
 import { streamCitySystem } from '../game/systems/stream-city';
 import { syncTransforms } from '../game/systems/sync-transforms';

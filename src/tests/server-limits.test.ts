@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleHeight } from '../content/map/island-shape';
 import { sim } from '../content/sim';
-import { HEAVY_DAMAGE, LIGHT_DAMAGE } from '../game/systems/ped-ai';
+import { HEAVY_DAMAGE, LIGHT_DAMAGE } from '../sim/ped-ai';
 import {
   DEFAULT_ORIGINS,
   MESSAGE_BURST,

@@ -4,7 +4,7 @@ import { sampleHeight } from '../../content/map/island-shape';
 import { exitsAhead } from '../../content/map/roads';
 import { sim } from '../../content/sim';
 import { trafficCatalog } from '../../content/traffic-catalog';
-import { circleHitsBox } from '../../game/play/overlap';
+import { circleHitsBox } from '../../sim/overlap';
 import {
   approachSpeed,
   carBoxesOverlap,
@@ -13,7 +13,7 @@ import {
   lightPhase,
   steppedAlong,
   yieldToPedestrian,
-} from '../../game/systems/traffic-ai';
+} from '../../sim/traffic-ai';
 import { hitsBuilding, roomBuildingPush } from './npc';
 import { findCar, findPlayer } from './roster';
 import type { Car, Guy, RoadSpan, Room, WalkEdge, WalkNode } from './types';

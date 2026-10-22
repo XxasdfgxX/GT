@@ -6,7 +6,7 @@ import type { GameContext } from '../game/context';
 import { Pickup } from '../game/ecs/components';
 import { pickups } from '../game/ecs/queries';
 import { createGameWorld } from '../game/ecs/world';
-import { DROP_LIFETIME, MAX_DROPS } from '../game/play/wallet';
+import { DROP_LIFETIME, MAX_DROPS } from '../sim/wallet';
 import { cashSystem, spawnPickup } from '../game/systems/cash';
 
 const renderer = new Proxy({}, { get: () => () => 1 }) as unknown as Renderer;

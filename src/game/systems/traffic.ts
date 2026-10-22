@@ -22,10 +22,10 @@ import { players, traffic } from '../ecs/queries';
 import { TRAFFIC_POOL } from '../features/traffic/pool';
 import { bucketCrowd, crowdNear } from '../play/crowd-grid';
 import { attachDriver, ejectDriver, releaseDriver, seatDriver } from '../play/drivers';
-import { circleHitsBox, TRIP_SECONDS } from '../play/overlap';
+import { circleHitsBox, TRIP_SECONDS } from '../../sim/overlap';
 import { playerFocus } from '../play/player-focus';
 import type { World } from 'bitecs';
-import { PedState } from './ped-ai';
+import { PedState } from '../../sim/ped-ai';
 import {
   approachSpeed,
   followSpeed,
@@ -34,7 +34,7 @@ import {
   lightPhase,
   mustYield,
   yieldToPedestrian,
-} from './traffic-ai';
+} from '../../sim/traffic-ai';
 import { driveStolen } from './traffic-stolen';
 import { buildingPush, hitsBuilding, hitsTraffic, spotTaken, unstick } from './traffic-unstick';
 

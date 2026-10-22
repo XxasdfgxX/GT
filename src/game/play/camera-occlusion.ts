@@ -1,7 +1,7 @@
 /** Keeps the orbit camera on the player's side of a wall. */
 
 import type { BoxCollider } from '../../content/map/batch';
-import { tallBoxesNear } from './collider-grid';
+import { tallBoxesNear } from '../../sim/collider-grid';
 
 /**
  * Share of the segment from the pivot to the camera, 0 to 1, that is clear of tall boxes.

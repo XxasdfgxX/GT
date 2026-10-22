@@ -6,7 +6,7 @@ import { characterAlignYaw, characterScale, citizens } from '../../../content/mo
 import { sim } from '../../../content/sim';
 import type { GameContext } from '../../context';
 import { quatFromYaw } from '../../../engine/core/math';
-import { CORPSE_TIME } from '../../play/wallet';
+import { CORPSE_TIME } from '../../../sim/wallet';
 
 interface Remain {
   mesh: number;

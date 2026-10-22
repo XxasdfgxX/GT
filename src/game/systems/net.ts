@@ -5,9 +5,9 @@ import type { GameContext } from '../context';
 import { Player, Transform, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
 import { hideBody, showBody } from '../features/player/place-player';
-import { PICKUP_REACH } from '../play/wallet';
+import { PICKUP_REACH } from '../../sim/wallet';
 import { yawFromQuat } from '../play/heading';
-import { HEAVY_DAMAGE } from './ped-ai';
+import { HEAVY_DAMAGE } from '../../sim/ped-ai';
 
 const POSE_INTERVAL = 1 / 15;
 /** Seconds before asking for the same drop again. Every pose resent them all, eating the rate limit. */

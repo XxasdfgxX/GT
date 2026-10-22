@@ -15,7 +15,7 @@ import {
   MAX_DROPS,
   addCash,
   dropCash,
-} from '../play/wallet';
+} from '../../sim/wallet';
 import { layLocalCorpse, tickRemains } from '../features/corpse/remain';
 import { abandonRide } from '../play/seat';
 import { playerFocus } from '../play/player-focus';

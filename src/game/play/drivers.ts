@@ -9,7 +9,7 @@ import { characterScale, citizens } from '../../content/models';
 import { quatFromYaw } from '../../engine/core/math';
 import { CAP, Pedestrian, Transform } from '../ecs/components';
 import { pedestrians } from '../ecs/queries';
-import { PedState } from '../systems/ped-ai';
+import { PedState } from '../../sim/ped-ai';
 
 const rot = { x: 0, y: 0, z: 0, w: 1 };
 

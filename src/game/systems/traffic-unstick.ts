@@ -7,7 +7,7 @@ import { sedan } from '../../content/vehicles';
 import type { GameContext } from '../context';
 import { Traffic, TrafficMode, Transform } from '../ecs/components';
 import { traffic, vehicles } from '../ecs/queries';
-import { tallBoxesNear } from '../play/collider-grid';
+import { tallBoxesNear } from '../../sim/collider-grid';
 import type { World } from 'bitecs';
 import {
   batchCount,
@@ -21,7 +21,7 @@ import {
   pos,
   yawOf,
 } from './traffic';
-import { boxExit, carBoxesOverlap } from './traffic-ai';
+import { boxExit, carBoxesOverlap } from '../../sim/traffic-ai';
 
 export const SOLID_CAP = 48;
 

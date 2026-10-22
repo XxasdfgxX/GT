@@ -5,11 +5,11 @@ import { buildCostaVerde } from '../../content/map/city-data';
 import { sampleHeight } from '../../content/map/island-shape';
 import { sim } from '../../content/sim';
 import { trafficCatalog } from '../../content/traffic-catalog';
-import { meshYaw } from '../../game/play/aim-cursor';
-import { tallBoxesNear } from '../../game/play/collider-grid';
-import { BODY_REACH, circlesOverlap, pinsCircle, sinksDeeper } from '../../game/play/overlap';
-import { COUNTER_DAMAGE } from '../../game/systems/ped-ai';
-import { boxExit, carBoxesOverlap } from '../../game/systems/traffic-ai';
+import { meshYaw } from '../../sim/aim-cursor';
+import { tallBoxesNear } from '../../sim/collider-grid';
+import { BODY_REACH, circlesOverlap, pinsCircle, sinksDeeper } from '../../sim/overlap';
+import { COUNTER_DAMAGE } from '../../sim/ped-ai';
+import { boxExit, carBoxesOverlap } from '../../sim/traffic-ai';
 import { hurtPlayer } from './combat';
 import { FIGHT_REACH, type Guy, type Npc, type Room } from './types';
 

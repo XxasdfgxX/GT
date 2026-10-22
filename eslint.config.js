@@ -66,9 +66,46 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/app/**/*.ts', 'src/ui/**/*.ts', 'src/net/**/*.ts', 'server/**/*.ts'],
+    files: ['src/app/**/*.ts', 'src/ui/**/*.ts', 'server/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [banThree, banRapier] }],
+    },
+  },
+  {
+    files: ['src/net/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            banThree,
+            banRapier,
+            {
+              regex: String.raw`^(\.\./)+game/`,
+              allowTypeImports: true,
+              message: 'The room runs on the server. Share pure rules through src/sim.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/sim/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            banThree,
+            banRapier,
+            {
+              regex: String.raw`^(\.\./)+(app|game|ui|net)/|^(\.\./)+engine/(?!core/math$)`,
+              message: 'Sim rules are pure: content and engine/core/math only.',
+            },
+          ],
+        },
+      ],
     },
   },
   {

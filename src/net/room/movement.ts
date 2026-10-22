@@ -2,7 +2,7 @@
 
 import { sampleHeight } from '../../content/map/island-shape';
 import { trafficCatalog } from '../../content/traffic-catalog';
-import { BODY_REACH, pinsCircle, TRIP_SECONDS } from '../../game/play/overlap';
+import { BODY_REACH, pinsCircle, TRIP_SECONDS } from '../../sim/overlap';
 import { findCar, findPlayer } from './roster';
 import {
   CAR_SPEED_MARGIN,

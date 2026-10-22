@@ -24,4 +24,4 @@ export { pushEnter, pushExit } from './room/traffic';
 export { encodeStates, INTEREST_RADIUS, snapshot } from './room/encode';
 export type { RoomSnapshot } from './room/encode';
 export { tick } from './room/tick';
-export { DROP_LIFETIME, MAX_DROPS } from '../game/play/wallet';
+export { DROP_LIFETIME, MAX_DROPS } from '../sim/wallet';

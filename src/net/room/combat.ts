@@ -12,15 +12,9 @@ import {
   NPC_DROP,
   PICKUP_REACH,
   RESPAWN_DELAY,
-} from '../../game/play/wallet';
-import {
-  applyDamage,
-  HEAVY_DAMAGE,
-  LIGHT_DAMAGE,
-  punchHits,
-  punchProfile,
-} from '../../game/systems/ped-ai';
-import { carBoxesOverlap, carImpactDamage } from '../../game/systems/traffic-ai';
+} from '../../sim/wallet';
+import { applyDamage, HEAVY_DAMAGE, LIGHT_DAMAGE, punchHits, punchProfile } from '../../sim/ped-ai';
+import { carBoxesOverlap, carImpactDamage } from '../../sim/traffic-ai';
 import { pushPose } from './movement';
 import { spawnNpc } from './npc';
 import { findPlayer } from './roster';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { stepAimCursor } from '../engine/input/aim-cursor';
-import { aimPointOnPlane, facingToward, meshYaw } from '../game/play/aim-cursor';
+import { aimPointOnPlane, facingToward, meshYaw } from '../sim/aim-cursor';
 
 const view = { x: 0, y: 10, z: 10 };
 const focus = { x: 0, y: 0, z: 0 };

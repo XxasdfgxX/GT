@@ -3,7 +3,7 @@ import { buildCostaVerde } from '../content/city';
 import { carBody } from '../content/cars';
 import { rectsOverlap } from '../content/map/blocks';
 import { bairroSpawns, parkOnStreet, scatterSpawn, soloSpawn } from '../content/spawns';
-import { circleHitsBox, circlesOverlap, pinsCircle, circleBoxDepth } from '../game/play/overlap';
+import { circleHitsBox, circlesOverlap, pinsCircle, circleBoxDepth } from '../sim/overlap';
 
 describe('scatterSpawn', () => {
   it('drops a point inside the 10 by 10 square and keeps the name', () => {

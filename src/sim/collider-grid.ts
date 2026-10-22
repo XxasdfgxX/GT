@@ -1,6 +1,6 @@
 /** Tall city boxes bucketed on a grid, so a body only tests the boxes around it. */
 
-import type { BoxCollider } from '../../content/map/batch';
+import type { BoxCollider } from '../content/map/batch';
 
 /** Boxes shorter than this are curbs: bodies and cars pass over them. */
 export const TALL_BOX = 0.4;

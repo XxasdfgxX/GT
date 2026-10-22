@@ -1,6 +1,6 @@
 /** Ground point the body turns toward. */
 
-import type { Vec3 } from '../../engine/core/math';
+import type { Vec3 } from '../engine/core/math';
 
 const HORIZON_REACH = 64;
 

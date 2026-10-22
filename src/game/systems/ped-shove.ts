@@ -8,8 +8,8 @@ import { quatFromYaw } from '../../engine/core/math';
 import type { GameContext } from '../context';
 import { Mode, Pedestrian, PhysicsRef, Player, Traffic, Transform } from '../ecs/components';
 import { pedestrians, players, traffic } from '../ecs/queries';
-import { meshYaw } from '../play/aim-cursor';
-import { tallBoxesNear } from '../play/collider-grid';
+import { meshYaw } from '../../sim/aim-cursor';
+import { tallBoxesNear } from '../../sim/collider-grid';
 import { crowdNear } from '../play/crowd-grid';
 import {
   BODY_REACH,
@@ -18,9 +18,9 @@ import {
   shouldTrip,
   sinksDeeper,
   TRIP_SECONDS,
-} from '../play/overlap';
+} from '../../sim/overlap';
 import type { World } from 'bitecs';
-import { PedState } from './ped-ai';
+import { PedState } from '../../sim/ped-ai';
 import { rot } from './pedestrians';
 
 export function shove(

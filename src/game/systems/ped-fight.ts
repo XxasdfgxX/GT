@@ -5,7 +5,7 @@ import { quatFromYaw } from '../../engine/core/math';
 import type { GameContext } from '../context';
 import { Pedestrian, Player, Transform } from '../ecs/components';
 import { pedestrians } from '../ecs/queries';
-import { meshYaw } from '../play/aim-cursor';
+import { meshYaw } from '../../sim/aim-cursor';
 import type { World } from 'bitecs';
 import {
   applyDamage,
@@ -14,7 +14,7 @@ import {
   hurtRemaining,
   PedState,
   punchHits,
-} from './ped-ai';
+} from '../../sim/ped-ai';
 import { slide } from './ped-shove';
 import { rot } from './pedestrians';
 

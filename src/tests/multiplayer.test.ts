@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { LIGHT_SECONDS } from '../game/systems/traffic-ai';
+import { LIGHT_SECONDS } from '../sim/traffic-ai';
 import { buildRoadGraph, SIDEWALK_WIDTH } from '../content/map/roads';
 import { trafficCatalog } from '../content/traffic-catalog';
-import { carBoxesOverlap } from '../game/systems/traffic-ai';
+import { carBoxesOverlap } from '../sim/traffic-ai';
 import { onIsland, zoneAt } from '../content/map/island-shape';
 import { bairroSpawns, findSpawn, scatterSpawn, soloSpawn } from '../content/spawns';
 import { TRAFFIC_POOL } from '../game/features/traffic/pool';
@@ -15,7 +15,7 @@ import {
   PICKUP_REACH,
   RESPAWN_DELAY,
   spendCash,
-} from '../game/play/wallet';
+} from '../sim/wallet';
 import {
   MAX_PLAYERS,
   ROOM_CARS,

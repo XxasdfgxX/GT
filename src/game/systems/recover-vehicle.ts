@@ -11,10 +11,10 @@ import type { GameContext } from '../context';
 import { quatFromYaw } from '../../engine/core/math';
 import { CAP, PhysicsRef, Player, Traffic, Vehicle, Mode, TrafficMode } from '../ecs/components';
 import { players, traffic, vehicles } from '../ecs/queries';
-import { circleBoxExit } from '../play/overlap';
-import { tallBoxesNear } from '../play/collider-grid';
+import { circleBoxExit } from '../../sim/overlap';
+import { tallBoxesNear } from '../../sim/collider-grid';
 import { yawFromQuat } from '../play/heading';
-import { boxExit } from './traffic-ai';
+import { boxExit } from '../../sim/traffic-ai';
 import { chassisUp, headingYaw, readyToFlip, roofTime } from '../play/upright';
 
 const spent = new Float32Array(CAP);

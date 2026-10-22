@@ -15,7 +15,7 @@ import { clearBoard } from '../game/play/board-state';
 import { boardCarSystem } from '../game/systems/board-car';
 import { interactionSystem } from '../game/systems/interaction';
 import { releaseFromBuildings } from '../game/systems/recover-vehicle';
-import { boxExit } from '../game/systems/traffic-ai';
+import { boxExit } from '../sim/traffic-ai';
 
 const renderer = {
   addModel: () => 1,

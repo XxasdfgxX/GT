@@ -26,11 +26,11 @@ import { spawnTrafficPool } from '../game/features/traffic/pool';
 import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
 import { clearBoard } from '../game/play/board-state';
 import { interactionSystem } from '../game/systems/interaction';
-import { PedState } from '../game/systems/ped-ai';
+import { PedState } from '../sim/ped-ai';
 import { attachDriver } from '../game/play/drivers';
 import { pedestrianSystem } from '../game/systems/pedestrians';
 import { pickNext } from '../game/systems/traffic';
-import { carImpactDamage } from '../game/systems/traffic-ai';
+import { carImpactDamage } from '../sim/traffic-ai';
 import { vehicleDriveSystem } from '../game/systems/vehicle-drive';
 
 let nextMesh = 0;

@@ -11,7 +11,7 @@ import { players } from '../ecs/queries';
 import { enginePlayback } from '../play/feel';
 import type { World } from 'bitecs';
 import { pos, rot, yawOf } from './traffic';
-import { drivenYawRate } from './traffic-ai';
+import { drivenYawRate } from '../../sim/traffic-ai';
 import { deepestExit, obstruction, slideOut } from './traffic-unstick';
 
 export function driveStolen(ctx: GameContext, world: World, eid: number, dt: number): void {
