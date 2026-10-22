@@ -11,3 +11,7 @@ nissan-gtr.glb — 2024 Nissan GT-R Nismo, modelo Sketchfab fornecido para o pro
 bmw-m340i.glb — BMW M340i modified, modelo Sketchfab fornecido para o projeto.
 uaz-452.glb — UAZ 452 Bukhanka, modelo Sketchfab fornecido para o projeto.
 buildings/house-*.glb — City Kit Suburban by Kenney, CC0 (https://kenney.nl/assets/city-kit-suburban).
+hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr — Poly Haven, CC0, https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky.
+textures/* (except grass and water) — Poly Haven, CC0: asphalt_02, brushed_concrete, large_square_pattern_01, sand_01, beige_wall_001, pavement_02, coast_sand_rocks_02, red_laterite_soil_stones, red_brick, floor_tiles_08, concrete, concrete_floor_worn_001, clay_roof_tiles_02.
+textures/grass — Grass001 by ambientCG, CC0, https://ambientcg.com/view?id=Grass001.
+props/*.glb — Poly Haven, CC0: street_lamp_01, metal_trash_can, modular_street_seating, fire_hydrant, utility_box_02, concrete_road_barrier_02, potted_plant_04, shrub_04, planter_box_01, plastic_crate_01, fern_02, island_tree_02.

@@ -461,16 +461,16 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 ### Task 10.1: `docs/DECISIONS.md` is stale
 
-- [ ] ADR-4 ("no glTF") → superseded: models load through `GLTFLoader`, with the Poly Haven and KTX2 pipeline.
-- [ ] ADR-6 ("two prototypes `house`, `block`") → superseded by the facade styles from Phase 6.
-- [ ] ADR-11 ("no shadows") → superseded by CSM from Phase 5.
-- [ ] ADR-2 and ADR-3: controls are arrows (move), A (jump), D (punch), W (interact) and S (sprint/heavy), per `browser-input.ts:148-162`. Update the text.
-- [ ] New ADRs: post-processing stack (5.1), window shader choice (6.2), KTX2 and texture budget (7.1).
+- [x] ADR-4 ("no glTF") → superseded: models load through `GLTFLoader`, with the Poly Haven and KTX2 pipeline.
+- [x] ADR-6 ("two prototypes `house`, `block`") → superseded by the facade styles from Phase 6.
+- [x] ADR-11 ("no shadows") → superseded by CSM from Phase 5.
+- [x] ADR-2 and ADR-3: controls are arrows (move), A (jump), D (punch), W (interact) and S (sprint/heavy), per `browser-input.ts:148-162`. Update the text.
+- [x] New ADRs: post-processing stack (5.1), window shader choice (6.2), KTX2 and texture budget (7.1). _ADR-12 post-processing, ADR-13 textures (1K JPG/WebP, KTX2 pending), ADR-14 terrain splat, ADR-15 room state by proximity, ADR-16 server limits. The facade shader went into ADR-6 and camera occlusion into ADR-2. ADR-5 was stale too: audio is synthesized, not silent._
 
 ### Task 10.2: `docs/ASSETS.md` and `CREDITS.txt`
 
-- [ ] One table per type listing every Poly Haven asset in `public/` (name, URL, CC0), plus the Sketchfab CC-BY assets with author.
-- [ ] Remove anything no longer shipped: Kenney houses, and the old ambientCG textures if all of them were replaced.
+- [x] One table per type listing every Poly Haven asset in `public/` (name, URL, CC0), plus the Sketchfab CC-BY assets with author. _All the Poly Haven textures and props, with triangle counts. No Sketchfab assets were added._
+- [~] Remove anything no longer shipped: Kenney houses, and the old ambientCG textures if all of them were replaced. _The old ambientCG textures that were replaced are gone from `ASSETS.md`; Grass001 stays. The Kenney houses are still placed (Task 6.5), so they stay._
 
 ### Task 10.3: Car licenses
 
