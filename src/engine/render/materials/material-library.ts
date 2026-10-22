@@ -14,14 +14,23 @@ import type { AssetManager } from '../../assets/asset-manager';
 import type { SurfaceFinish } from '../renderer';
 import { scaleBoxUv } from './uv-meters';
 
+/** Meters one texture repeat covers: the real size of each scan, from its Poly Haven info. */
 export const TILE_METERS: Record<SurfaceFinish, number> = {
-  asphalt: 4,
-  concrete: 2,
-  sidewalk: 4,
-  sand: 3,
+  asphalt: 3,
+  concrete: 2.5,
+  sidewalk: 3,
+  sand: 1.5,
   grass: 2,
-  paint: 2,
+  paint: 3,
   lane: 1,
+  plaza: 2.12,
+  rock: 15,
+  dirt: 2,
+  brick: 1.4,
+  tile: 1.5,
+  'concrete-raw': 4,
+  'roof-concrete': 3,
+  'roof-clay': 2.5,
 };
 
 const folders: Record<Exclude<SurfaceFinish, 'lane'>, string> = {
@@ -31,6 +40,14 @@ const folders: Record<Exclude<SurfaceFinish, 'lane'>, string> = {
   sand: 'sand',
   grass: 'grass',
   paint: 'plaster',
+  plaza: 'plaza',
+  rock: 'rock',
+  dirt: 'dirt',
+  brick: 'brick',
+  tile: 'tile',
+  'concrete-raw': 'concrete-raw',
+  'roof-concrete': 'roof-concrete',
+  'roof-clay': 'roof-clay',
 };
 
 const envIntensity: Record<SurfaceFinish, number> = {
@@ -41,6 +58,14 @@ const envIntensity: Record<SurfaceFinish, number> = {
   grass: 0.18,
   paint: 0.5,
   lane: 0.15,
+  plaza: 0.22,
+  rock: 0.2,
+  dirt: 0.15,
+  brick: 0.3,
+  tile: 0.6,
+  'concrete-raw': 0.35,
+  'roof-concrete': 0.3,
+  'roof-clay': 0.3,
 };
 
 interface SurfaceMaps {
@@ -60,6 +85,13 @@ export class MaterialLibrary {
     private readonly assets: AssetManager,
     private readonly anisotropy: number,
   ) {}
+
+  /** Color and normal of a loaded surface, for materials that sample it themselves. */
+  surface(finish: SurfaceFinish): { color: Texture; normal: Texture } | null {
+    const maps = this.maps.get(finish);
+    if (!maps?.color || !maps.normal) return null;
+    return { color: maps.color, normal: maps.normal };
+  }
 
   byteSize(): number {
     return this.bytes;

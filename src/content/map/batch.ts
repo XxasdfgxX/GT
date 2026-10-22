@@ -6,7 +6,22 @@ import { islandBounds } from './island-shape';
 export const CHUNK_METERS = 128;
 
 export type MeshFinish =
-  'asphalt' | 'concrete' | 'sidewalk' | 'sand' | 'grass' | 'paint' | 'lane' | 'flat';
+  | 'asphalt'
+  | 'concrete'
+  | 'sidewalk'
+  | 'sand'
+  | 'grass'
+  | 'paint'
+  | 'lane'
+  | 'plaza'
+  | 'rock'
+  | 'dirt'
+  | 'brick'
+  | 'tile'
+  | 'concrete-raw'
+  | 'roof-concrete'
+  | 'roof-clay'
+  | 'flat';
 
 export type MeshLod = 'near' | 'far' | 'always';
 

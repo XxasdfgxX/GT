@@ -243,3 +243,36 @@ export function terrainColor(x: number, z: number, height: number): number {
   if (height > 48) return 0x5d6a48;
   return 0x3f7a3a;
 }
+
+/**
+ * How much sand, paved ground, rock and grass a terrain vertex shows, written to `out` at
+ * `offset`. Same zones as `terrainColor`, with soft edges so the textures blend.
+ */
+export function terrainSplat(
+  x: number,
+  z: number,
+  height: number,
+  out: Float32Array,
+  offset: number,
+): void {
+  const coast = coastDistance(x, z);
+  const sand = Math.max(
+    1 - ramp(0.1, 1, height),
+    (1 - ramp(1, 1.8, height)) * (1 - ramp(30, 42, coast)),
+  );
+  const paved =
+    ramp(0.45, 0.65, urbanWeight(x, z)) * (1 - ramp(CITY_FLOOR + 1, CITY_FLOOR + 2, height));
+  const rock = ramp(55, 85, height);
+  const s = sand;
+  const p = paved * (1 - s);
+  const r = rock * (1 - s - p);
+  out[offset] = s;
+  out[offset + 1] = p;
+  out[offset + 2] = r;
+  out[offset + 3] = Math.max(0, 1 - s - p - r);
+}
+
+function ramp(from: number, to: number, value: number): number {
+  const t = Math.min(1, Math.max(0, (value - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+}

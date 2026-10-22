@@ -14,6 +14,12 @@ export const HORIZON_COLOR = 0xacb2c2;
 /** Exponential haze: about 12% at 520 m, half at 1.2 km, nearly opaque at 2.4 km. */
 export const FOG_DENSITY = 0.0007;
 
+/**
+ * The clouds dim this sky about 30% against the clear one the lights were tuned for, and
+ * walls in shade get nearly all their light from it.
+ */
+export const SKY_FILL = 1.5;
+
 export function hdriSunLength(): number {
   return Math.hypot(HDRI_SUN.x, HDRI_SUN.y, HDRI_SUN.z);
 }

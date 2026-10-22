@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
-import { CITY_FLOOR, onIsland, sampleHeight } from '../content/map/island-shape';
+import { CITY_FLOOR, onIsland, sampleHeight, terrainSplat } from '../content/map/island-shape';
 import { SIDEWALK_WIDTH } from '../content/map/roads';
 import { rectsOverlap } from '../content/map/blocks';
 
@@ -148,5 +148,27 @@ describe('Costa Verde island', () => {
       }
     }
     expect(worst, at).toBeLessThan(3.6);
+  });
+});
+
+describe('terrain splat', () => {
+  it('gives every vertex weights that sum to one', () => {
+    const { terrain } = createCity();
+    for (let v = 0; v < terrain.rows * terrain.cols; v += 1) {
+      const sum =
+        (terrain.splat[v * 4] ?? 0) +
+        (terrain.splat[v * 4 + 1] ?? 0) +
+        (terrain.splat[v * 4 + 2] ?? 0) +
+        (terrain.splat[v * 4 + 3] ?? 0);
+      expect(sum).toBeCloseTo(1, 5);
+    }
+  });
+
+  it('paves the town floor and leaves the shoreline sand', () => {
+    const out = new Float32Array(4);
+    terrainSplat(0, 10, CITY_FLOOR, out, 0);
+    expect(out[1]).toBeGreaterThan(0.9);
+    terrainSplat(0, 0, 0, out, 0);
+    expect(out[0]).toBe(1);
   });
 });

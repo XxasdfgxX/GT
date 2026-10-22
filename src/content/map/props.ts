@@ -40,7 +40,7 @@ export function buildProps(
     const y = sampleHeight(plaza.x, plaza.z);
     const chunk = chunkIndex(plaza.x, plaza.z);
     batch.add(
-      flat('sidewalk', plaza.sx, 0.05, plaza.sz, plaza.x, y + 0.04, plaza.z, 0, 0xffffff, chunk),
+      flat('plaza', plaza.sx, 0.05, plaza.sz, plaza.x, y + 0.04, plaza.z, 0, 0xffffff, chunk),
     );
     batch.add(
       flat(
@@ -276,7 +276,7 @@ function addBin(batch: CityBatcher, x: number, y: number, z: number, chunk: numb
 }
 
 function flat(
-  finish: 'flat' | 'grass' | 'sidewalk' | 'concrete',
+  finish: 'flat' | 'grass' | 'sidewalk' | 'concrete' | 'plaza',
   sx: number,
   sy: number,
   sz: number,

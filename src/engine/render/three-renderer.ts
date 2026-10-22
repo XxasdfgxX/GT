@@ -63,6 +63,7 @@ import {
 import { loadCoastEnvironment } from './environment';
 import { dressCar } from './materials/car-paint';
 import { MaterialLibrary, TILE_METERS, tileBoxUvs } from './materials/material-library';
+import { createTerrainMaterial } from './materials/terrain-material';
 import { glslFloat } from './materials/uv-meters';
 import type {
   ClipKey,
@@ -224,6 +225,24 @@ export function createThreeRenderer(
     };
     worldMaterials.set(desc.finish, material);
     return material;
+  };
+
+  /** Textured ground once the surfaces are in; the flat vertex colors if any failed to load. */
+  const terrainMaterial = () => {
+    // Sand and grass tile wider here than on props: the beach and the serra are seen from far.
+    const sand = materials.surface('sand');
+    const paved = materials.surface('roof-concrete');
+    const rock = materials.surface('rock');
+    const grass = materials.surface('grass');
+    if (!sand || !paved || !rock || !grass) {
+      return new MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
+    }
+    return createTerrainMaterial([
+      { ...sand, tile: 3 },
+      { ...paved, tile: 3 },
+      { ...rock, tile: 15 },
+      { ...grass, tile: 2.5 },
+    ]);
   };
 
   const addMaterial = (
@@ -408,9 +427,7 @@ export function createThreeRenderer(
     },
     addTerrain(desc) {
       const geometry = assets.track(terrainGeometry(desc));
-      const material = assets.track(
-        new MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 }),
-      );
+      const material = assets.track(terrainMaterial());
       const mesh = new Mesh(geometry, material);
       mesh.receiveShadow = true;
       mesh.castShadow = false;
@@ -502,7 +519,10 @@ function isGround(finish: SurfaceFinish | undefined): boolean {
     finish === 'sidewalk' ||
     finish === 'sand' ||
     finish === 'grass' ||
-    finish === 'lane'
+    finish === 'lane' ||
+    finish === 'plaza' ||
+    finish === 'rock' ||
+    finish === 'dirt'
   );
 }
 
@@ -548,6 +568,7 @@ function terrainGeometry(desc: TerrainDesc): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
   geometry.setAttribute('color', new BufferAttribute(colors, 3));
+  geometry.setAttribute('splat', new BufferAttribute(desc.splat, 4));
   geometry.setIndex(new BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
   return geometry;

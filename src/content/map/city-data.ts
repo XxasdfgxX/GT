@@ -9,6 +9,7 @@ import {
   lagoonOutline,
   sampleHeight,
   terrainColor,
+  terrainSplat,
   urbanZones,
 } from './island-shape';
 import { buildProps, type Poi } from './props';
@@ -25,6 +26,8 @@ export interface TerrainField {
   /** Row-major: index = iz * cols + ix. */
   heights: Float32Array;
   colors: Float32Array;
+  /** Four weights per vertex: sand, paved, rock, grass. */
+  splat: Float32Array;
 }
 
 export interface CostaVerde {
@@ -101,6 +104,7 @@ function buildTerrain(): TerrainField {
   const rows = Math.ceil(sizeZ / cell) + 1;
   const heights = new Float32Array(rows * cols);
   const colors = new Float32Array(rows * cols * 3);
+  const splat = new Float32Array(rows * cols * 4);
   for (let iz = 0; iz < rows; iz += 1) {
     for (let ix = 0; ix < cols; ix += 1) {
       const x = originX + (ix / (cols - 1)) * sizeX;
@@ -112,9 +116,10 @@ function buildTerrain(): TerrainField {
       colors[index * 3] = ((color >> 16) & 255) / 255;
       colors[index * 3 + 1] = ((color >> 8) & 255) / 255;
       colors[index * 3 + 2] = (color & 255) / 255;
+      terrainSplat(x, z, height, splat, index * 4);
     }
   }
-  return { originX, originZ, sizeX, sizeZ, rows, cols, heights, colors };
+  return { originX, originZ, sizeX, sizeZ, rows, cols, heights, colors, splat };
 }
 
 function columnMajor(terrain: TerrainField): Float32Array {

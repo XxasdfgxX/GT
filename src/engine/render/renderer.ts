@@ -7,7 +7,21 @@ import type { GraphicsQuality } from './display';
 export type MeshKind = 'box' | 'capsule' | 'cylinder';
 
 export type SurfaceFinish =
-  'asphalt' | 'concrete' | 'sidewalk' | 'sand' | 'grass' | 'paint' | 'lane';
+  | 'asphalt'
+  | 'concrete'
+  | 'sidewalk'
+  | 'sand'
+  | 'grass'
+  | 'paint'
+  | 'lane'
+  | 'plaza'
+  | 'rock'
+  | 'dirt'
+  | 'brick'
+  | 'tile'
+  | 'concrete-raw'
+  | 'roof-concrete'
+  | 'roof-clay';
 
 export interface MeshDesc {
   kind: MeshKind;
@@ -52,6 +66,8 @@ export interface TerrainDesc {
   cols: number;
   heights: Float32Array;
   colors: Float32Array;
+  /** Four weights per vertex: sand, paved, rock, grass. */
+  splat: Float32Array;
 }
 
 export type ClipKey = 'idle' | 'walk' | 'run' | 'punch' | 'jump' | 'die' | 'sit';
