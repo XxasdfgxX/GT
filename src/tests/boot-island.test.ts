@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { describe, expect, it } from 'vitest';
 import { createCity, sampleHeight } from '../content/city';
-import { createPathNav } from '../engine/nav/three-pathfinding-nav';
+import { createQuadNav } from '../engine/nav/quad-graph-nav';
 
 describe('island boot', () => {
   it('stands the heightfield where the terrain is', async () => {
@@ -43,14 +43,9 @@ describe('island boot', () => {
     world.free();
   });
 
-  /**
-   * Known bug (plan Task 7.6): neighbouring sidewalk, corner and crosswalk quads share no
-   * vertices, so the navmesh is 572 islands of at most 8 polygons and no two blocks connect.
-   * Remove `.fails` once the navmesh is built connected.
-   */
-  it.fails('joins two blocks downtown with a sidewalk path', () => {
+  it('joins two blocks downtown with a sidewalk path', () => {
     const city = createCity();
-    const nav = createPathNav();
+    const nav = createQuadNav();
     nav.load(city.walks);
     expect(city.walks.length).toBeGreaterThan(10);
     // Two sidewalk quads a block or two apart downtown are joined by a walkable path.

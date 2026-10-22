@@ -457,12 +457,15 @@ O perfil mudou a ordem do plano: o custo não era pedestre contra pedestre, era 
 
 - [x] `createGameWorld` zera todos os arrays de componente (`clearComponents`). Teste em `world-reset.test.ts`.
 
-### Task 7.6: O navmesh das calçadas está em pedaços (aberta, achada na Task 7.4)
+### Task 7.6: O navmesh das calçadas estava em pedaços (`fix/sidewalk-nav`)
 
-- [ ] Medido: 794 quads (196 faixas de pedestre) viram **572 grupos** desconectados, o maior com 8 polígonos. Em 98 pares de calçada a menos de 80 m, **nenhum** caminho é achado. Os quads de calçada, esquina e faixa não compartilham vértices, e o `three-pathfinding` só liga polígonos com vértices em comum.
-- [ ] Efeito: `aim()` nunca recebe caminho; o pedestre anda em linha reta até o destino (se estiver a menos de 80 m) e esbarra em prédio. A desistência por travamento da Task 3.6 esconde parte disso.
-- [ ] Caminho sugerido: trocar o adaptador por um grafo próprio — quads que se tocam ou se sobrepõem (tolerância de ~0,3 m) viram vizinhos, A\* entre centros, e o caminho passa pelos pontos médios das bordas em comum. A interface `NavMesh` não muda.
-- [ ] O teste `joins two blocks downtown with a sidewalk path` está marcado `it.fails`; tirar o `.fails` quando o navmesh ficar conectado.
+Achado na Task 7.4: 794 quads viravam **572 grupos** desconectados (o maior com 8 polígonos), e em 98 pares de calçada a menos de 80 m nenhum caminho era achado. Os pedestres nunca usavam o navmesh.
+
+- [x] Causa, em duas partes. (1) O `three-pathfinding` só liga polígonos com vértices em comum, e calçada, faixa e esquina são peças separadas. (2) Mesmo ligando por proximidade, sobravam 47 grupos com 1 m de tolerância: as calçadas param onde começa o quadrado de asfalto do cruzamento, e **as esquinas não tinham peça nenhuma** (entre avenida e rua o buraco chega a 2–3 m).
+- [x] `road-mesh.ts`: uma peça de esquina por par de ruas vizinhas em volta de cada nó, ligando o fim de uma calçada ao fim da seguinte (fora de curvas acima de 190°, que cortariam o meio do cruzamento). A peça é o fecho convexo dos quatro pontos; esquinas agudas dobravam o quadrilátero. São 170 peças novas.
+- [x] `engine/nav/quad-graph-nav.ts` no lugar do adaptador do `three-pathfinding`: quads a menos de 0,3 m (a faixa para 2 cm antes da calçada) são vizinhos; A\* entre centros com heap; o caminho passa pelo ponto entre um quad e o próximo e termina no alvo. Mesma interface `NavMesh`. A dependência `three-pathfinding` saiu, e o ESLint passa a barrar Three em `engine/nav`.
+- [x] Medido: 964 quads num grupo só, todos convexos; todos os pares de calçada a menos de 80 m acham caminho (~0,04 ms por busca, 26 ms para montar). Rodando a multidão real por 20 s, 1674 de 1674 amostras de pedestre andando seguem um caminho do navmesh (antes, 0).
+- [x] Testes em `nav.test.ts` (distância entre quads, caminho por peças, sem caminho através de buraco largo ou para fora da calçada, cidade convexa e conectada, caminho até o alvo para pares próximos). `boot-island` perde o `.fails`.
 
 ---
 

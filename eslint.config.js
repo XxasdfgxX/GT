@@ -72,6 +72,7 @@ export default tseslint.config(
       'src/engine/input/**/*.ts',
       'src/engine/audio/**/*.ts',
       'src/engine/assets/**/*.ts',
+      'src/engine/nav/**/*.ts',
     ],
     rules: {
       'no-restricted-imports': ['error', { patterns: [banThree, banRapier] }],
