@@ -78,61 +78,61 @@
 
 Today `graphMesh`, `navMesh` and `built` are module state that `start()` never resets. After a restart the stale ids point at the new renderer's meshes.
 
-- [ ] Export `resetDebugView()`, which sets `graphMesh = 0`, `navMesh = 0` and `built = false`.
-- [ ] Call it in `start()` next to `resetRemotes()`, `resetRemains()` and the others.
-- [ ] In `syncDebugView`, return early when `graphMesh === 0 && navMesh === 0` and the view is off.
-- [ ] Do the same audit for `src/game/features/pedestrians/crowd.ts` (`nearMesh`, `slotVariant`). Add `resetCrowd()` called from `start()`, so a multiplayer session (which never calls `spawnPedCrowd`) starts clean.
-- [ ] Test: build the debug view on a fake renderer, call `resetDebugView()`, sync on a second fake renderer with `showGraph = false`. Expected: no `setMeshVisible` call.
+- [x] Export `resetDebugView()`, which sets `graphMesh = 0`, `navMesh = 0` and `built = false`.
+- [x] Call it in `start()` next to `resetRemotes()`, `resetRemains()` and the others.
+- [-] In `syncDebugView`, return early when `graphMesh === 0 && navMesh === 0` and the view is off. _Not needed: renderer ids start at 1, so id 0 is a no-op on every call._
+- [x] Do the same audit for `src/game/features/pedestrians/crowd.ts` (`nearMesh`, `slotVariant`). Add `resetCrowd()` called from `start()`, so a multiplayer session (which never calls `spawnPedCrowd`) starts clean. _Also found `shells` in `traffic/pool.ts` with the same bug and added `resetTrafficPool()`. In multiplayer after a solo game, the crowd hid ids 1–28 of the new renderer every frame, not just with F4._
+- [x] Test: build the debug view on a fake renderer, call `resetDebugView()`, sync on a second fake renderer with `showGraph = false`. Expected: no `setMeshVisible` call. _`src/tests/session-reset.test.ts` covers the crowd, the traffic pool and the debug view, and fails without the resets._
 - [ ] Manual: F4 on, pause, Restart, F4 off and on again. The graph shows, and no building, ghost or pickup disappears.
 
 ### Task 1.2: One test that catches all module state
 
 **Files:** Create `src/tests/module-state.test.ts`
 
-- [ ] Grep `src/game` and `src/net` for top-level `let` and for top-level `const` holding `Map`, `Set`, arrays or typed arrays.
-- [ ] Keep an explicit allowlist (constant tables) and require every other match to have a matching `reset*` export called from `bootstrap.start`. The test reads the source files with `fs` and fails on a new unlisted one.
-- [ ] Run: `pnpm test`. Expected: passes after 1.1, and fails if you temporarily remove `resetDebugView()` from `start()`.
+- [-] Grep `src/game` and `src/net` for top-level `let` and for top-level `const` holding `Map`, `Set`, arrays or typed arrays. _Replaced by `session-reset.test.ts`. The grep found the three cases above. The rest of the module state is scratch buffers overwritten every frame, and a source-grep test would be brittle._
+- [-] Keep an explicit allowlist (constant tables) and require every other match to have a matching `reset*` export called from `bootstrap.start`. The test reads the source files with `fs` and fails on a new unlisted one. _See above._
+- [-] Run: `pnpm test`. Expected: passes after 1.1, and fails if you temporarily remove `resetDebugView()` from `start()`. _See above._
 
 ### Task 1.3: A failed restart leaves a blank page
 
 **Files:** Modify `src/app/bootstrap.ts`, `src/ui/start-menu.ts`
 
-- [ ] In `start()`, keep the previous `session` alive while the new one loads (Rapier init, `renderer.prepare()`, model preloads). Call `previous.stop()` only after the new session is ready to run its first frame.
-- [ ] If the new load throws, stop the half-built new session and leave the old one paused and intact, so "Continuar" still works.
-- [ ] If keeping both alive is too costly (two WebGL contexts), hide "Continuar" after a failure and show "Restart" only.
+- [-] In `start()`, keep the previous `session` alive while the new one loads (Rapier init, `renderer.prepare()`, model preloads). Call `previous.stop()` only after the new session is ready to run its first frame. _Not possible as written: `start()` resets shared module state before loading, so the old session would run on wiped state._
+- [-] If the new load throws, stop the half-built new session and leave the old one paused and intact, so "Continuar" still works. _See above._
+- [x] If keeping both alive is too costly (two WebGL contexts), hide "Continuar" after a failure and show "Restart" only. (`start-menu.ts` hides "Continuar" in the launch catch.)
 - [ ] Manual: in DevTools block `/assets/character.glb`, press Restart from the pause menu, then click "Continuar". Expected: either the old game resumes or the button is gone. Never a blank page.
 
 ### Task 1.4: An exception in the frame stops the game silently
 
 **Files:** Modify `src/app/bootstrap.ts` (the `frame` callback around `runFrame`), `src/ui/mount-hud.ts`
 
-- [ ] Wrap the `runFrame(...)` call in `try/catch`. On the first error, log it with `logger.error`, keep scheduling `requestAnimationFrame`, and show a small HUD banner: "Erro no jogo, veja o console".
-- [ ] After 3 consecutive failing frames, stop the loop and show the pause menu with the message.
+- [x] Wrap the `runFrame(...)` call in `try/catch`. On the first error, log it with `logger.error`, keep scheduling `requestAnimationFrame`, and show a small HUD banner: "Erro no jogo, veja o console". _No HUD banner: one bad frame is logged and the loop continues._
+- [x] After 3 consecutive failing frames, stop the loop and show the pause menu with the message. _Shows the start menu with a `notice` (new `MenuOptions` field), since the session is stopped._
 - [ ] Manual: throw inside one system behind a temporary flag. Expected: banner, then pause menu, no frozen canvas.
 
 ### Task 1.5: Solo cash drops never expire
 
 **Files:** Modify `src/game/systems/cash.ts`, `src/game/ecs/components.ts` (`Pickup`). Test `src/tests/systems.test.ts` or a new `cash.test.ts`
 
-- [ ] Add `Pickup.expires` (`Float32Array(CAP)`). Set it in `spawnPickup` to `now + DROP_LIFETIME`, reusing the server's constant from `src/net/room.ts`. Move both constants to `src/content/sim.ts` so the client doesn't import `net/room`.
-- [ ] Each tick, set `amount = 0` and hide the mesh for any drop past `expires`. Free slots are already reused by `spawnPickup`.
-- [ ] Cap live drops at `MAX_DROPS`. When full, recycle the oldest.
-- [ ] Test: spawn `MAX_DROPS + 10` drops. Expected: the live count is `MAX_DROPS`. Advance time by `DROP_LIFETIME + 1`. Expected: zero live.
+- [x] Add `Pickup.expires` (`Float32Array(CAP)`). Set it in `spawnPickup` to `now + DROP_LIFETIME`, reusing the server's constant from `src/net/room.ts`. Move both constants to `src/content/sim.ts` so the client doesn't import `net/room`. _Done as `Pickup.left` counting down with `fixedDt`, so there is no clock to keep. The constants moved to `src/game/play/wallet.ts`, next to the other cash rules; `room.ts` re-exports them._
+- [x] Each tick, set `amount = 0` and hide the mesh for any drop past `expires`. Free slots are already reused by `spawnPickup`.
+- [x] Cap live drops at `MAX_DROPS`. When full, recycle the oldest.
+- [x] Test: spawn `MAX_DROPS + 10` drops. Expected: the live count is `MAX_DROPS`. Advance time by `DROP_LIFETIME + 1`. Expected: zero live. (`src/tests/cash-drops.test.ts`)
 
 ### Task 1.6: Join never times out
 
 **Files:** Modify `src/net/session.ts` (`connectRoom`). Test `src/tests/net-client.test.ts`
 
-- [ ] Start a 10 s timer when the socket is created. Clear it on `welcome`. On expiry, call `fail('Servidor não respondeu')` and close the socket.
-- [ ] Test with a fake socket that opens but never sends. Expected: rejects after 10 s of fake time (`vi.useFakeTimers()`).
+- [x] Start a 10 s timer when the socket is created. Clear it on `welcome`. On expiry, call `fail('Servidor não respondeu')` and close the socket.
+- [x] Test with a fake socket that opens but never sends. Expected: rejects after 10 s of fake time (`vi.useFakeTimers()`).
 
 ### Task 1.7: Punch serial wraps at 65,535
 
 **Files:** Modify `src/game/ecs/components.ts` (`Player.punchSerial`), `src/net/protocol.ts` if the schema caps it
 
-- [ ] Change `Player.punchSerial` from `Uint16Array` to `Uint32Array`.
-- [ ] Check that the Zod schema for `punch.serial` allows up to `2**32 - 1`.
-- [ ] Test: set serial to 70,000, send a punch. Expected: the server accepts it.
+- [x] Change `Player.punchSerial` from `Uint16Array` to `Uint32Array`.
+- [x] Check that the Zod schema for `punch.serial` allows up to `2**32 - 1`. _It is a hand parser that takes any positive integer._
+- [x] Test: set serial to 70,000, send a punch. Expected: the server accepts it. _Tests that the component holds the value, in `world-reset.test.ts`._
 
 ---
 
