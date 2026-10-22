@@ -40,33 +40,33 @@
 
 **Files:** Modify `package.json`
 
-- [ ] Add `"packageManager": "pnpm@12.6.0"` (the version CI pins in `.github/workflows/ci.yml`).
-- [ ] Run: `corepack pnpm install --frozen-lockfile`. Expected: no lockfile change.
+- [x] Add `"packageManager": "pnpm@12.6.0"` (the version CI pins in `.github/workflows/ci.yml`).
+- [x] Run: `corepack pnpm install --frozen-lockfile`. Expected: no lockfile change.
 
 ### Task 0.2: CI builds too
 
 **Files:** Modify `.github/workflows/ci.yml`
 
-- [ ] In `actions/checkout@v5`, set `with: { lfs: true }`. Otherwise `vite build` copies LFS pointer files into `dist/`.
-- [ ] After `pnpm test`, add `- run: pnpm build`.
-- [ ] Push the branch. Expected: the CI job is green and runs the build step.
+- [x] In `actions/checkout@v5`, set `with: { lfs: true }`. Otherwise `vite build` copies LFS pointer files into `dist/`.
+- [x] After `pnpm test`, add `- run: pnpm build`.
+- [x] Push the branch. Expected: the CI job is green and runs the build step.
 
 ### Task 0.3: Lint and typecheck `scripts/`
 
 **Files:** Modify `eslint.config.js`, `tsconfig.json` (or a new `scripts/tsconfig.json`), `package.json`
 
-- [ ] Remove `scripts/**` from ESLint `ignores` (if listed), so `scripts/*.ts` uses the type-checked config and `scripts/*.mjs` uses `disableTypeChecked`.
-- [ ] Add `scripts/**/*.ts` to a tsconfig that `pnpm typecheck` runs.
-- [ ] Fix whatever errors appear in `scripts/validate-vehicle.ts`.
-- [ ] Run: `pnpm typecheck && pnpm lint`. Expected: green.
+- [x] Remove `scripts/**` from ESLint `ignores` (if listed), so `scripts/*.ts` uses the type-checked config and `scripts/*.mjs` uses `disableTypeChecked`.
+- [x] Add `scripts/**/*.ts` to a tsconfig that `pnpm typecheck` runs.
+- [x] Fix whatever errors appear in `scripts/validate-vehicle.ts`.
+- [x] Run: `pnpm typecheck && pnpm lint`. Expected: green.
 
 ### Task 0.4: Ignore files
 
 **Files:** Modify `.gitignore`, `.prettierignore`
 
-- [ ] `.gitignore`: add `.superpowers/`. Today it's ignored only by its own nested `.gitignore`.
-- [ ] `.prettierignore`: add `tmp/`, `.worktrees/`, `.superpowers/`, `public/`, `dist/`.
-- [ ] Run: `git status --ignored --short`. Expected: those folders are listed as `!!`.
+- [x] `.gitignore`: add `.superpowers/`. Today it's ignored only by its own nested `.gitignore`.
+- [x] `.prettierignore`: add `tmp/`, `.worktrees/`, `.superpowers/`, `public/`, `dist/`.
+- [x] Run: `git status --ignored --short`. Expected: those folders are listed as `!!`.
 
 ---
 
