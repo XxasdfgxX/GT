@@ -1,5 +1,6 @@
 /** Drivable specs. Torque 50 matches the sedan force the game already had. */
 
+import { z } from 'zod';
 import { carModel } from './models';
 
 export const astonModel = '/assets/aston-dbr1.glb';
@@ -46,7 +47,23 @@ export interface CarBody {
 const tunedVisual = 0.9;
 const tunedTraffic = 0.96;
 
-export const carCatalog: readonly CarProfile[] = [
+const carProfileSchema = z.object({
+  id: z.enum(carIds),
+  name: z.string().min(1),
+  torque: z.number().min(0).max(100),
+  maxSpeedKmh: z.number().positive(),
+  scale: z.number().positive(),
+});
+
+/** Every id in carIds appears exactly once. */
+const catalogSchema = z
+  .array(carProfileSchema)
+  .refine(
+    (cars) => carIds.every((id) => cars.filter((car) => car.id === id).length === 1),
+    'Cada carro de carIds aparece uma vez no catálogo.',
+  );
+
+export const carCatalog: readonly CarProfile[] = catalogSchema.parse([
   { id: 'aston', name: 'Aston Martin DBR1', torque: 80, maxSpeedKmh: 200, scale: 1 },
   { id: 'hatch', name: 'Hatch', torque: 45, maxSpeedKmh: 140, scale: 0.86 },
   { id: 'sedan', name: 'Sedan', torque: 50, maxSpeedKmh: 150, scale: 0.96 },
@@ -58,7 +75,7 @@ export const carCatalog: readonly CarProfile[] = [
   { id: 'gtr', name: 'Nissan GT-R Nismo', torque: 88, maxSpeedKmh: 250, scale: 1 },
   { id: 'bmw', name: 'BMW M340i', torque: 70, maxSpeedKmh: 220, scale: 1 },
   { id: 'uaz', name: 'UAZ 452', torque: 50, maxSpeedKmh: 130, scale: 1 },
-];
+]);
 
 const referenceTorque = 50;
 const referenceForce = 1500;

@@ -266,57 +266,75 @@ Testes novos em `src/tests/traffic-peds.test.ts`. Cada um falha com a correção
 
 ## Fase 4 — Mapa e conteúdo (`fix/map-placement`)
 
+Medido antes e depois com uma sonda sobre `buildCostaVerde()`:
+
+|                                  | Antes  | Depois                           |
+| -------------------------------- | ------ | -------------------------------- |
+| Postes                           | 0      | 182                              |
+| Lotes                            | 522    | 400                              |
+| Pares de prédios sobrepostos     | 205    | 0                                |
+| Prédios dentro de rua ou calçada | 58     | 0                                |
+| Spawns de bairro fora do asfalto | 0 de 5 | 5 de 5 (1,57 m, meio da calçada) |
+
 ### Task 4.1: Postes nunca são colocados
 
 **Files:** Modify `src/content/map/props.ts` · Test `src/tests/city.test.ts`
 
-- [ ] `distance` vale 10, 22, 34…, então `% 24` nunca dá 0. Usar um índice do laço (`slot`, que conta de 0) e decidir com `slot % 2 === 0`. A guarda dos carros estacionados (`distance % 24 !== 0`) passa a usar o mesmo `slot`.
-- [ ] Teste: `buildCostaVerde()` gera mais de 0 postes, e nenhum carro estacionado ocupa o slot de um poste.
+- [x] O slot sai de `distance` (`(distance - inset) / 12`). Poste a cada 24 m, **num lado só**: com poste nos dois lados as árvores caíam pela metade e o verde urbano ia de ~10% para 5,3%, abaixo do limite do teste. A guarda dos carros estacionados usa o mesmo slot.
+- [x] Teste: mais de 100 postes.
 
 ### Task 4.2: Spawns no asfalto, dentro do cruzamento
 
-**Files:** Modify `src/content/spawns.ts` (`besideSidewalk`) · Test `src/tests/multiplayer.test.ts` (`bairro spawns`)
+**Files:** Modify `src/content/spawns.ts` (`besideSidewalk`) · Test `src/tests/multiplayer.test.ts`
 
-- [ ] O deslocamento lateral passa a `edge.width / 2 + 0.32 + SIDEWALK_WIDTH / 2` (o centro da calçada, como em `road-mesh.ts`).
-- [ ] Antes do deslocamento lateral, avançar 12 m ao longo da aresta, para fora do nó, limitado à metade do comprimento da aresta.
-- [ ] Teste: cada spawn fica a mais de `width / 2` da linha central da aresta mais próxima e fora da caixa de qualquer cruzamento.
+- [x] Anda até 12 m pela primeira rua do nó (no máximo metade dela) e desloca para `width / 2 + 0.32 + SIDEWALK_WIDTH / 2`, a mesma linha da malha da calçada.
+- [x] Teste: cada spawn fica fora do asfalto e dentro da calçada da rua mais próxima, a mais de 9 m de qualquer nó.
 
 ### Task 4.3: Prédios sobrepostos e em cima da rua
 
 **Files:** Modify `src/content/map/blocks.ts` · Test `src/tests/city.test.ts`
 
-- [ ] Ao gerar os lotes, manter uma lista dos retângulos já aceitos (OBB 2D) e rejeitar um lote que cruze outro lote ou qualquer aresta de rua (segmento inflado por `width / 2 + SIDEWALK_WIDTH`). Reaproveitar a matemática de `boxExit` / `traffic-ai` se servir, ou escrever um teste SAT 2D puro em `content/map`.
-- [ ] Teste: nenhum par de prédios se cruza, e nenhum prédio entra na faixa de rua inflada. A sonda da revisão (`scratchpad/probe/probe.test.ts`) serve de ponto de partida.
-- [ ] Conferir a contagem de prédios antes e depois. Se cair muito, diminuir o recuo ou a profundidade, não a checagem.
+- [x] `rectsOverlap` (SAT 2D, mesma convenção de eixos dos colliders e de `boxExit`) exportado de `blocks.ts`. Cada lote é recusado se cruza um lote aceito ou a faixa de uma rua com as calçadas. Paredes-meias encostam exatamente e passam pela folga de 0,1 m.
+- [x] Lote de esquina que esbarra tenta 6 m de profundidade antes de desistir. Sem isso sobravam 366 lotes; com isso, 400. Os 122 que saíram estavam empilhados em outros.
+- [x] Testes: nenhum par se cruza, nenhum lote na faixa de rua, e casos simples de `rectsOverlap` (encostar não conta, girado 90° troca os eixos).
 
 ### Task 4.4: `content` importa `engine`
 
 **Files:** Modify `docs/ARCHITECTURE.md`, `eslint.config.js`
 
-- [ ] Decisão: `engine/core/math` é puro e sem dependências. A regra passa a ser "`content` só importa `engine/core/math`". Atualizar a frase em ARCHITECTURE.md.
-- [ ] ESLint: um bloco `files: ['src/content/**/*.ts']` com `no-restricted-imports`, banindo Three, Rapier e os padrões `../../game/*`, `../../app/*`, `../../ui/*`, `../../net/*` e `**/engine/!(core)/**`.
+- [x] ARCHITECTURE.md: "`content` só importa `engine/core/math`, que é puro e sem dependências."
+- [x] ESLint em `src/content/**`: bane Three, Rapier e, por regex, `app`, `game`, `ui`, `net` e todo `engine` exceto `engine/core/math`. Conferido com um arquivo de prova: barra `game` e `engine/core/context`, deixa `engine/core/math`. (Padrões com `!` não funcionaram para reabrir o caminho.)
 
 ### Task 4.5: Catálogo de carros sem schema
 
-**Files:** Modify `src/content/cars.ts`, `src/content/schemas.ts`
+**Files:** Modify `src/content/cars.ts` · Test `src/tests/cars.test.ts`
 
-- [ ] Um schema Zod para `carCatalog`: `id` em `carIds`, torque de 0 a 100, massa e velocidade positivas. O `parse` roda na carga do módulo.
-- [ ] Teste em `cars.test.ts`: os ids do catálogo e `carIds` são o mesmo conjunto.
+- [x] Schema Zod no próprio `cars.ts` (como `roads.ts`, para não criar ciclo com `schemas.ts`): `id` em `carIds`, torque 0–100, velocidade e escala positivas, e cada id exatamente uma vez.
+- [x] Teste: os ids do catálogo são exatamente `carIds`.
 
 ### Task 4.6: Radar desfocado e pegadas distorcidas
 
-**Files:** Modify `src/ui/radar-map.ts`, `src/ui/hud.css`, `src/ui/mount-hud.ts`
+**Files:** Modify `src/ui/radar-map.ts`, `src/ui/mount-hud.ts`
 
-- [ ] Tamanho do canvas = tamanho do conteúdo × DPR: ler `clientWidth` depois da borda, ou tirar `box-sizing: border-box`. Refazer quando o DPR muda (mesmo mecanismo da Task 1.9).
-- [ ] `stamp`: aplicar a escala por eixo antes da rotação (escala do atlas → translação → rotação, na ordem certa do `ctx`). Uma alternativa é desenhar o polígono já transformado.
-- [ ] Verificar à mão: prédios inclinados no radar mantêm a forma, e o N fica centrado.
+- [x] `stamp` desenha o polígono dos quatro cantos no mundo passados por `atlasPixel`, em vez de girar no espaço de pixel (anisotrópico e com V invertido).
+- [x] O buffer do canvas tem o tamanho da área de conteúdo (180 − 2 × 4 px de borda) e o desenho de 180 unidades é escalado para dentro. `RADAR_BORDER` em `mount-hud.ts` acompanha a borda de `hud.css`.
+- [ ] Verificar jogando: prédios inclinados no radar mantêm a forma e o radar fica nítido. Reamostrar o DPR ao trocar de monitor fica com a Task 1.9.
 
 ### Task 4.7: Scripts
 
 **Files:** Modify `scripts/validate-vehicle.ts`, `scripts/play.mjs`
 
-- [ ] `validate-vehicle`: contar triângulos de primitivas sem índice (`count / 3`) e calcular os limites com a matriz de mundo de cada nó.
-- [ ] `play.mjs`: antes do `taskkill`, conferir pelo nome da imagem do PID (`tasklist /FI "PID eq …"`) que o processo é `node.exe`. Chamar `stop()` também quando o filho sai por sinal.
+- [x] `validate-vehicle`: primitiva sem índice conta `POSITION.count / 3`. Os limites passam pela matriz de mundo de cada nó (TRS ou `matrix`, a partir das raízes da cena). Antes, a BMW media 205 × 504 × 255 m e a Ferrari saía com os eixos trocados; agora 2,04 × 2,72 × 4,75 m e 2,24 × 1,21 × 4,57 m.
+- [x] `play.mjs`: só encerra processos `node` nas portas 6969 e 8787; outro programa interrompe com mensagem. Um filho que sai por sinal também derruba o outro.
+
+### Task 4.8: Carro do spawn nasce fora da rua
+
+**Files:** Modify `src/content/spawns.ts`, `src/app/bootstrap.ts` · Test `src/tests/overlap.test.ts`
+
+- [x] `parkedBehind` (7 m ao sul, virado para o sul, qualquer que fosse a rua) saiu. Nos 54 pontos de partida do solo (ponto solo e cada bairro, com os cantos do sorteio de ±5 m), ele punha o carro fora do asfalto em 48 e dentro de prédio ou carro estacionado em 25.
+- [x] `parkOnStreet(city, jogador, meia-caixa do carro)`: a rua mais próxima com pelo menos 10 m livres de cada nó; encostado no meio-fio do lado do jogador (0,35 m do asfalto); virado no sentido do tráfego daquele lado (mão direita). Desliza pelo meio-fio (0, ±3, ±6 … ±25 m) até não cruzar collider de prédio ou de carro estacionado nem o jogador. Na prática fica a 2,5–2,8 m do jogador.
+- [x] Os testes que usavam `parkedBehind` só como lugar fixo do carro ganharam um `carSpot` local.
+- [x] Testes, nos 54 pontos de partida: o carro inteiro dentro do asfalto, alinhado com a rua e longe dos cruzamentos; sem cruzar prédio, carro estacionado ou o jogador; virado com o tráfego do seu lado.
 
 ---
 

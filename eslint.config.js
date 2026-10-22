@@ -72,6 +72,24 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/content/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            banThree,
+            banRapier,
+            {
+              regex: String.raw`^(\.\./)+(app|game|ui|net)/|^(\.\./)+engine/(?!core/math$)`,
+              message: 'Content is data. It may only import the pure engine/core/math.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/engine/render/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [banRapier] }],

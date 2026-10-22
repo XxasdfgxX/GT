@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRoadGraph } from '../content/map/roads';
+import { buildRoadGraph, SIDEWALK_WIDTH } from '../content/map/roads';
 import { trafficCatalog } from '../content/traffic-catalog';
 import { carBoxesOverlap } from '../game/systems/traffic-ai';
 import { onIsland, zoneAt } from '../content/map/island-shape';
@@ -92,6 +92,31 @@ describe('bairro spawns', () => {
       expect(zoneAt(point.x, point.z)?.name).toBe(point.name);
       expect(onIsland(point.x, point.z)).toBe(true);
       expect(point.y).toBeGreaterThan(1);
+    }
+  });
+
+  it('stands each neighborhood spawn on a sidewalk, clear of the junction', () => {
+    const graph = buildRoadGraph();
+    for (const point of bairroSpawns(graph)) {
+      let fromAsphalt = Infinity;
+      for (const edge of graph.edges) {
+        const a = graph.nodes[edge.a];
+        const b = graph.nodes[edge.b];
+        if (!a || !b) continue;
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const t = Math.max(
+          0,
+          Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / (dx * dx + dz * dz)),
+        );
+        const centerline = Math.hypot(a.x + dx * t - point.x, a.z + dz * t - point.z);
+        fromAsphalt = Math.min(fromAsphalt, centerline - edge.width / 2);
+      }
+      expect(fromAsphalt).toBeGreaterThan(0.3);
+      expect(fromAsphalt).toBeLessThan(0.32 + SIDEWALK_WIDTH);
+      for (const node of graph.nodes) {
+        expect(Math.hypot(node.x - point.x, node.z - point.z)).toBeGreaterThan(9);
+      }
     }
   });
 

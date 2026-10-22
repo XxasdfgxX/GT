@@ -9,7 +9,7 @@ import { buildCostaVerde } from '../content/city';
 import { carBody, starterCar } from '../content/cars';
 import { carModel, characterModel, citizens, universalAnims } from '../content/models';
 import { sim } from '../content/sim';
-import { bairroSpawns, findSpawn, parkedBehind, scatterSpawn, soloSpawn } from '../content/spawns';
+import { bairroSpawns, findSpawn, parkOnStreet, scatterSpawn, soloSpawn } from '../content/spawns';
 import { spawnMission } from '../game/features/mission/spawn-mission';
 import { resetRemains } from '../game/features/corpse/remain';
 import { resetRemotes, remotePlayerMark } from '../game/features/net/remotes';
@@ -138,7 +138,8 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       /* fill the blocks around the spawn before the first frame */
     }
     if (!connected) {
-      spawnVehicle(ctx, world, parkedBehind(at), parked.id);
+      const spot = parkOnStreet(city, at, carBody(parked.id).halfExtents);
+      spawnVehicle(ctx, world, spot, parked.id);
       spawnTrafficPool(ctx, world);
       spawnPedCrowd(ctx, world);
     }

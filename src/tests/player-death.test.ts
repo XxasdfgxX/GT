@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createContext } from '../app/create-context';
-import { parkedBehind } from '../content/spawns';
+import { sampleHeight } from '../content/map/island-shape';
 import type { GameContext } from '../engine/core/context';
 import { createRapierWorld } from '../engine/physics/rapier-world';
 import type { Renderer } from '../engine/render/renderer';
@@ -42,7 +42,7 @@ async function besideCar() {
   const physics = await createRapierWorld(0);
   const ctx = context(physics);
   const world = createGameWorld();
-  const park = parkedBehind({ x: 0, z: 12 });
+  const park = carSpot(0, 5);
   const ride = spawnVehicle(ctx, world, park, 'aston');
   const player = spawnPlayer(ctx, world, { name: 'test', x: park.x, y: park.y, z: park.z + 2 });
   return { physics, ctx, world, ride, player };
@@ -111,3 +111,8 @@ describe('dying in or on the way to a car', () => {
     physics.dispose();
   });
 });
+
+/** A car facing south at a fixed spot, the old solo parking place. */
+function carSpot(x: number, z: number): { x: number; y: number; z: number; yaw: number } {
+  return { x, y: sampleHeight(x, z) + 1.5, z, yaw: Math.PI };
+}

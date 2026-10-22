@@ -10,6 +10,12 @@ import { readFileSync } from 'node:fs';
 
 interface GltfNode {
   name?: string;
+  mesh?: number;
+  children?: number[];
+  matrix?: number[];
+  translation?: number[];
+  rotation?: number[];
+  scale?: number[];
 }
 
 interface GltfAccessor {
@@ -28,10 +34,14 @@ interface GltfMesh {
 }
 
 interface GltfJson {
+  scene?: number;
+  scenes?: { nodes?: number[] }[];
   nodes?: GltfNode[];
   meshes?: GltfMesh[];
   accessors?: GltfAccessor[];
 }
+
+const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
 const file = process.argv[2] ?? 'public/assets/car.glb';
 const strictWheels = process.argv.includes('--strict-wheels');
@@ -85,31 +95,95 @@ function countTriangles(gltf: GltfJson): number {
   let triangles = 0;
   for (const mesh of gltf.meshes ?? []) {
     for (const primitive of mesh.primitives ?? []) {
-      if (primitive.indices === undefined) continue;
-      const accessor = gltf.accessors?.[primitive.indices];
-      triangles += (accessor?.count ?? 0) / 3;
+      // Without indices every three POSITION vertices are a triangle.
+      const index = primitive.indices ?? primitive.attributes?.POSITION;
+      if (index === undefined) continue;
+      triangles += (gltf.accessors?.[index]?.count ?? 0) / 3;
     }
   }
   return triangles;
 }
 
+/** World-space box of every mesh, through the node scales and rotations exporters use. */
 function meshBounds(gltf: GltfJson): { min: number[]; max: number[] } | undefined {
-  let min: number[] | undefined;
-  let max: number[] | undefined;
-  for (const mesh of gltf.meshes ?? []) {
-    for (const primitive of mesh.primitives ?? []) {
-      const index = primitive.attributes?.POSITION;
-      if (index === undefined) continue;
-      const accessor = gltf.accessors?.[index];
+  const nodes = gltf.nodes ?? [];
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  const visit = (index: number, parent: number[]): void => {
+    const node = nodes[index];
+    if (!node) return;
+    const world = multiply(parent, localMatrix(node));
+    const mesh = node.mesh === undefined ? undefined : gltf.meshes?.[node.mesh];
+    for (const primitive of mesh?.primitives ?? []) {
+      const position = primitive.attributes?.POSITION;
+      const accessor = position === undefined ? undefined : gltf.accessors?.[position];
       if (!accessor?.min || !accessor.max) continue;
-      min = min
-        ? min.map((value, i) => Math.min(value, accessor.min?.[i] ?? value))
-        : [...accessor.min];
-      max = max
-        ? max.map((value, i) => Math.max(value, accessor.max?.[i] ?? value))
-        : [...accessor.max];
+      for (let corner = 0; corner < 8; corner += 1) {
+        const local = [0, 1, 2].map((axis) =>
+          (corner >> axis) & 1 ? (accessor.max?.[axis] ?? 0) : (accessor.min?.[axis] ?? 0),
+        );
+        const point = transform(world, local);
+        for (let axis = 0; axis < 3; axis += 1) {
+          min[axis] = Math.min(min[axis] ?? Infinity, point[axis] ?? 0);
+          max[axis] = Math.max(max[axis] ?? -Infinity, point[axis] ?? 0);
+        }
+      }
+    }
+    for (const child of node.children ?? []) visit(child, world);
+  };
+  for (const root of sceneRoots(gltf)) visit(root, identity);
+  if (!Number.isFinite(min[0])) return undefined;
+  return { min, max };
+}
+
+function sceneRoots(gltf: GltfJson): number[] {
+  const listed = gltf.scenes?.[gltf.scene ?? 0]?.nodes;
+  if (listed) return listed;
+  const children = new Set((gltf.nodes ?? []).flatMap((node) => node.children ?? []));
+  return (gltf.nodes ?? []).map((_, index) => index).filter((index) => !children.has(index));
+}
+
+/** Column-major, as glTF stores it. */
+function localMatrix(node: GltfNode): number[] {
+  if (node.matrix) return node.matrix;
+  const [x = 0, y = 0, z = 0, w = 1] = node.rotation ?? [];
+  const [sx = 1, sy = 1, sz = 1] = node.scale ?? [];
+  const [tx = 0, ty = 0, tz = 0] = node.translation ?? [];
+  return [
+    (1 - 2 * (y * y + z * z)) * sx,
+    2 * (x * y + z * w) * sx,
+    2 * (x * z - y * w) * sx,
+    0,
+    2 * (x * y - z * w) * sy,
+    (1 - 2 * (x * x + z * z)) * sy,
+    2 * (y * z + x * w) * sy,
+    0,
+    2 * (x * z + y * w) * sz,
+    2 * (y * z - x * w) * sz,
+    (1 - 2 * (x * x + y * y)) * sz,
+    0,
+    tx,
+    ty,
+    tz,
+    1,
+  ];
+}
+
+function multiply(a: number[], b: number[]): number[] {
+  const out = new Array<number>(16).fill(0);
+  for (let col = 0; col < 4; col += 1) {
+    for (let row = 0; row < 4; row += 1) {
+      let sum = 0;
+      for (let k = 0; k < 4; k += 1) sum += (a[k * 4 + row] ?? 0) * (b[col * 4 + k] ?? 0);
+      out[col * 4 + row] = sum;
     }
   }
-  if (!min || !max) return undefined;
-  return { min, max };
+  return out;
+}
+
+function transform(m: number[], p: number[]): number[] {
+  const [x = 0, y = 0, z = 0] = p;
+  return [0, 1, 2].map(
+    (row) => (m[row] ?? 0) * x + (m[4 + row] ?? 0) * y + (m[8 + row] ?? 0) * z + (m[12 + row] ?? 0),
+  );
 }

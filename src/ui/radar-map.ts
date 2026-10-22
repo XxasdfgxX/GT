@@ -329,15 +329,30 @@ function stamp(
   yaw: number,
   color: string,
 ): void {
-  const spanX = bounds.maxX - bounds.minX;
-  const spanZ = bounds.maxZ - bounds.minZ;
-  const scaleX = atlasSize / spanX;
-  const scaleZ = atlasSize / spanZ;
-  const origin = atlasPixel(x, z, bounds, atlasSize);
-  ctx.save();
-  ctx.translate(origin.u, origin.v);
-  ctx.rotate(yaw);
+  // The atlas squeezes Z more than X and flips it, so a rotation in pixel space would
+  // skew the lot. Map the four world corners instead.
+  const rightX = Math.cos(yaw) * (sx / 2);
+  const rightZ = -Math.sin(yaw) * (sx / 2);
+  const forwardX = Math.sin(yaw) * (sz / 2);
+  const forwardZ = Math.cos(yaw) * (sz / 2);
   ctx.fillStyle = color;
-  ctx.fillRect((-sx / 2) * scaleX, (-sz / 2) * scaleZ, sx * scaleX, sz * scaleZ);
-  ctx.restore();
+  ctx.beginPath();
+  for (const [r, f] of footprintCorners) {
+    const corner = atlasPixel(
+      x + rightX * r + forwardX * f,
+      z + rightZ * r + forwardZ * f,
+      bounds,
+      atlasSize,
+    );
+    ctx.lineTo(corner.u, corner.v);
+  }
+  ctx.closePath();
+  ctx.fill();
 }
+
+const footprintCorners = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+] as const;

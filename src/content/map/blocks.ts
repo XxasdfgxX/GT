@@ -53,6 +53,8 @@ export function buildFootprints(graph: RoadGraph): {
   const rng = mulberry32(0xb10c);
   const footprints: Footprint[] = [];
   const colliders: BoxCollider[] = [];
+  const streets = streetBands(graph);
+  const taken: Rect[] = [];
   for (const edge of graph.edges) {
     const a = graph.nodes[edge.a];
     const b = graph.nodes[edge.b];
@@ -72,16 +74,29 @@ export function buildFootprints(graph: RoadGraph): {
       for (const side of [-1, 1] as const) {
         const setback = rng() * 0.85;
         const kind = pickKind(edge, along, a, fx, fz, rx, rz, side, rng);
-        const depth = kind === 'tower' ? 14 : kind === 'house' ? 8 : 12;
-        const offset = edge.width / 2 + SIDEWALK_WIDTH + setback + depth / 2;
-        const x = a.x + fx * along + rx * side * offset;
-        const z = a.z + fz * along + rz * side * offset;
-        if (!acceptLot(x, z, lot, depth)) continue;
+        const full = kind === 'tower' ? 14 : kind === 'house' ? 8 : 12;
+        const face = Math.atan2(-rx * side, -rz * side);
+        // Corner lots from two streets reach into each other and into the cross street.
+        // A crowded lot tries a shallow depth before it gives the corner up.
+        let rect: Rect | null = null;
+        for (const depth of full > SHALLOW_LOT ? [full, SHALLOW_LOT] : [full]) {
+          const offset = edge.width / 2 + SIDEWALK_WIDTH + setback + depth / 2;
+          const x = a.x + fx * along + rx * side * offset;
+          const z = a.z + fz * along + rz * side * offset;
+          if (!acceptLot(x, z, lot, depth)) continue;
+          const candidate = { x, z, hx: lot / 2, hz: depth / 2, yaw: face };
+          if (crowded(candidate, taken, streets)) continue;
+          rect = candidate;
+          break;
+        }
+        if (!rect) continue;
+        taken.push(rect);
+        const { x, z } = rect;
+        const depth = rect.hz * 2;
         const floors = pickFloors(kind, rng);
         const sy = floors * floorHeight;
         const ground = sampleHeight(x, z);
         const color = paint(kind, rng);
-        const face = Math.atan2(-rx * side, -rz * side);
         const footprint: Footprint = {
           x,
           y: ground,
@@ -124,6 +139,70 @@ function acceptLot(x: number, z: number, lot: number, depth: number): boolean {
   const reach = Math.hypot(lot, depth) / 2;
   if (Math.abs(x) < 7 + reach && z > -8 - reach && z < 24 + reach) return false;
   return true;
+}
+
+/** A yawed rectangle on the ground. Local +Z is (sin yaw, cos yaw), as for colliders. */
+interface Rect {
+  x: number;
+  z: number;
+  hx: number;
+  hz: number;
+  yaw: number;
+}
+
+/** Depth a corner lot falls back to when the full one runs into a neighbor. */
+const SHALLOW_LOT = 6;
+
+/** Shared walls touch exactly. The slack keeps them from counting as overlap. */
+const WALL_SLACK = 0.1;
+
+/** Each street with its sidewalks, as a rectangle node to node. */
+function streetBands(graph: RoadGraph): Rect[] {
+  const bands: Rect[] = [];
+  for (const edge of graph.edges) {
+    const a = graph.nodes[edge.a];
+    const b = graph.nodes[edge.b];
+    if (!a || !b) continue;
+    bands.push({
+      x: (a.x + b.x) / 2,
+      z: (a.z + b.z) / 2,
+      hx: edge.width / 2 + SIDEWALK_WIDTH,
+      hz: edge.length / 2,
+      yaw: Math.atan2(b.x - a.x, b.z - a.z),
+    });
+  }
+  return bands;
+}
+
+function crowded(rect: Rect, taken: readonly Rect[], streets: readonly Rect[]): boolean {
+  for (const other of taken) if (rectsOverlap(rect, other)) return true;
+  for (const street of streets) if (rectsOverlap(rect, street)) return true;
+  return false;
+}
+
+/** Separating-axis test on the four edge normals. */
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const reach = a.hx + a.hz + b.hx + b.hz;
+  if (dx * dx + dz * dz > reach * reach) return false;
+  return (
+    overlapsOn(a, b, dx, dz, Math.sin(a.yaw), Math.cos(a.yaw)) &&
+    overlapsOn(a, b, dx, dz, Math.cos(a.yaw), -Math.sin(a.yaw)) &&
+    overlapsOn(a, b, dx, dz, Math.sin(b.yaw), Math.cos(b.yaw)) &&
+    overlapsOn(a, b, dx, dz, Math.cos(b.yaw), -Math.sin(b.yaw))
+  );
+}
+
+function overlapsOn(a: Rect, b: Rect, dx: number, dz: number, ax: number, az: number): boolean {
+  const gap = Math.abs(dx * ax + dz * az);
+  return gap < radiusOn(a, ax, az) + radiusOn(b, ax, az) - WALL_SLACK;
+}
+
+function radiusOn(rect: Rect, ax: number, az: number): number {
+  const sin = Math.sin(rect.yaw);
+  const cos = Math.cos(rect.yaw);
+  return rect.hx * Math.abs(cos * ax - sin * az) + rect.hz * Math.abs(sin * ax + cos * az);
 }
 
 function inPlaza(x: number, z: number): boolean {

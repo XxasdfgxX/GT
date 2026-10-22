@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   carBody,
   carById,
+  carCatalog,
+  carIds,
   driveAccel,
   engineForceFor,
   maxSpeedMs,
@@ -11,6 +13,14 @@ import {
 import { trafficCatalog } from '../content/traffic-catalog';
 
 describe('car specs', () => {
+  it('lists every car id exactly once, with torque on the 0–100 scale', () => {
+    expect(carCatalog.map((car) => car.id).sort()).toEqual([...carIds].sort());
+    for (const car of carCatalog) {
+      expect(car.torque).toBeGreaterThanOrEqual(0);
+      expect(car.torque).toBeLessThanOrEqual(100);
+    }
+  });
+
   it('gives the Aston 200 km/h and torque 80', () => {
     const aston = carById('aston');
     expect(aston.maxSpeedKmh).toBe(200);

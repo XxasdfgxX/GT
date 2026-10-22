@@ -12,7 +12,7 @@ As dependências apontam para dentro:
 - `game` tem componentes, sistemas e o que spawna o jogador, o carro e o mapa.
 - `engine/core` tem o relógio, o barramento, o logger e a matemática pura.
 - `engine/render`, `engine/physics` e `engine/input` definem a interface e a implementação.
-- `content` é dado validado com Zod. `game` e `app` leem esse dado. `content` não importa ninguém.
+- `content` é dado validado com Zod. `game` e `app` leem esse dado. `content` só importa `engine/core/math`, que é puro e sem dependências. O ESLint barra o resto.
 - `ui` é DOM. Só `app` monta o HUD.
 
 O ESLint barra `three` e `@dimforge/rapier3d-compat` fora dos adaptadores. Features não se chamam entre si: o que precisa atravessar usa o `EventBus` (`player:entered-vehicle`, `player:exited-vehicle`).
