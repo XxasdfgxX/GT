@@ -7,6 +7,8 @@ import { mulberry32 } from './rng';
 export interface ShopDoor {
   x: number;
   z: number;
+  /** The shop's facing: the street is ahead along (sin yaw, cos yaw). */
+  yaw: number;
 }
 
 /** Index order is the window table in the facade shader. */
@@ -207,7 +209,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
           castShadow: true,
           chunk: lot.chunk,
           lod,
-          facade: [floorH, facade[1], 0, facade[3] + 1],
+          facade: [floorH, facade[1], -1, facade[3] + 1],
         });
       }
       flatRoof(upperX, upperZ, top, (lot.sz - upperZ) / 2);
@@ -304,7 +306,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
           false,
         );
       }
-      doors.push({ x: lot.x + fx * (front + 1.4), z: lot.z + fz * (front + 1.4) });
+      doors.push({ x: lot.x + fx * (front + 1.4), z: lot.z + fz * (front + 1.4), yaw: lot.yaw });
     }
 
     // A blue fiberglass water tank on most flat roofs.

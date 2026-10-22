@@ -60,6 +60,7 @@ export function buildProps(
   const rng = mulberry32(0x5a1e);
   // New props draw from their own stream, so the parked cars and trees keep their places.
   const garden = mulberry32(0x9a2d);
+  const dressing = mulberry32(0x7c41);
   const pois: Poi[] = [];
   const colliders: BoxCollider[] = [];
   const solids: BoxCollider[] = [];
@@ -67,6 +68,54 @@ export function buildProps(
   for (const door of doors) {
     if (door.x * door.x + (door.z - 8) * (door.z - 8) < 16 * 16) continue;
     pois.push({ x: door.x, z: door.z, kind: 'shop' });
+    // Potted plants either side of some shop doors, against the wall; a bin by others.
+    const roll = dressing();
+    const fx = Math.sin(door.yaw);
+    const fz = Math.cos(door.yaw);
+    const rx = Math.cos(door.yaw);
+    const rz = -Math.sin(door.yaw);
+    const chunk = chunkIndex(door.x, door.z);
+    if (roll < 0.45) {
+      for (const side of [-1, 1]) {
+        const px = door.x - fx * 0.9 + rx * side * 1.5;
+        const pz = door.z - fz * 0.9 + rz * side * 1.5;
+        const y = sampleHeight(px, pz);
+        batch.add(prop(PROPS.pottedPlant, px, y, pz, dressing() * Math.PI * 2, 3.5, chunk));
+        solid(solids, px, y, pz, 0, 0.3, 0.47, 0.3);
+      }
+    } else if (roll < 0.7) {
+      const px = door.x - fx * 0.9 + rx * 2.2;
+      const pz = door.z - fz * 0.9 + rz * 2.2;
+      const y = sampleHeight(px, pz);
+      addBin(batch, px, y, pz, door.yaw + Math.PI / 2, chunk);
+      solid(solids, px, y, pz, door.yaw + Math.PI / 2, 0.71, 0.36, 0.22);
+    }
+  }
+  // Shrubs along the front of most houses, either side of the door.
+  for (const lot of footprints) {
+    if (lot.kind !== 'house' || dressing() < 0.35) continue;
+    const fx = Math.sin(lot.yaw);
+    const fz = Math.cos(lot.yaw);
+    const rx = Math.cos(lot.yaw);
+    const rz = -Math.sin(lot.yaw);
+    const out = lot.sz / 2 + 0.5;
+    for (const along of [-1, -0.45, 0.45, 1]) {
+      const reach = along * (lot.sx / 2 - 0.9);
+      if (Math.abs(reach) < 1.2) continue;
+      const px = lot.x + fx * out + rx * reach;
+      const pz = lot.z + fz * out + rz * reach;
+      batch.add(
+        centered(
+          PROPS.shrub,
+          px,
+          sampleHeight(px, pz),
+          pz,
+          dressing() * Math.PI * 2,
+          2.4,
+          lot.chunk,
+        ),
+      );
+    }
   }
   for (const plaza of fitPlazas(graph)) {
     const y = sampleHeight(plaza.x, plaza.z);
@@ -136,6 +185,34 @@ export function buildProps(
     const rx = Math.cos(yaw);
     const rz = -Math.sin(yaw);
     const inset = 10;
+    // Manhole covers in alternate lanes every 40 m, clear of the junctions.
+    for (let distance = 20; distance < edge.length - 14; distance += 40) {
+      const lane = (Math.round(distance / 40) % 2 === 0 ? 1 : -1) * edge.width * 0.25;
+      const x = a.x + fx * distance + rx * lane;
+      const z = a.z + fz * distance + rz * lane;
+      if (!onIsland(x, z) || urbanWeight(x, z) < 0.96) continue;
+      const y = sampleHeight(x, z);
+      if (y < 1) continue;
+      batch.add({
+        kind: 'cylinder',
+        finish: 'flat',
+        sx: 0.75,
+        sy: 0.04,
+        sz: 0.75,
+        x,
+        y: y + STREET_LIFT + 0.01,
+        z,
+        yaw,
+        pitch: 0,
+        color: 0x3b3a38,
+        roughness: 0.55,
+        metalness: 0.7,
+        emissive: 0,
+        castShadow: false,
+        chunk: chunkIndex(x, z),
+        lod: 'near',
+      });
+    }
     // Slots every 12 m on both sides. Lamps stand 24 m apart on one side; trees fill the rest.
     for (let distance = inset; distance < edge.length - inset; distance += 12) {
       const evenSlot = Math.round((distance - inset) / 12) % 2 === 0;

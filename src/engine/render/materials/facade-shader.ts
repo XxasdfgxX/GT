@@ -107,5 +107,19 @@ if (vFacade.x > 0.0 && abs(vWallNormal.y) < 0.5) {
     roughnessFactor = mix(0.45, 0.05, inGlass);
     wallGlass = inGlass;
   }
+  // Homes get a 1 m by 2.1 m front door in the middle bay instead of its window.
+  if (level < 0.5 && abs(vFacade.z) < 0.5 && vWallNormal.z > 0.5 && abs(bay - floor(bays * 0.5)) < 0.5) {
+    float halfDoor = 0.5 / bayW;
+    float doorTop = 2.1 / floorH;
+    float inDoorFrame = step(dx, halfDoor + frameX) * step(fy, doorTop + frameY);
+    float inDoor = step(dx, halfDoor) * step(fy, doorTop);
+    if (inDoorFrame > 0.5) {
+      float n = wallHash(vec3(bay, vFacade.w, 3.0));
+      vec3 leaf = mix(vec3(0.28, 0.17, 0.1), vec3(0.12, 0.3, 0.3), step(0.6, n));
+      diffuseColor.rgb = mix(vec3(0.82, 0.82, 0.8), leaf, inDoor);
+      roughnessFactor = 0.6;
+      wallGlass = 0.0;
+    }
+  }
 }
 `;

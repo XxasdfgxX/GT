@@ -49,7 +49,7 @@ export interface Stamp {
   facade?: Facade;
 }
 
-/** Floor height in meters, facade style index, ground floor (0 plain, 1 shopfront), seed. */
+/** Floor height in meters, facade style index, ground floor (0 plain with a front door, 1 shopfront, -1 none: an upper section), seed. */
 export type Facade = readonly [number, number, number, number];
 
 export interface CityMesh {

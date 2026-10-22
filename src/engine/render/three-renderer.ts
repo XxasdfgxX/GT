@@ -103,6 +103,16 @@ interface MeshRecord {
 
 const worldFar = 2800;
 
+/** Ground finishes seen in long runs, which get a second, wider sample against tiling. */
+const BROKEN_UP: ReadonlySet<SurfaceFinish> = new Set([
+  'asphalt',
+  'sidewalk',
+  'concrete',
+  'plaza',
+  'dirt',
+  'sand',
+]);
+
 export function createThreeRenderer(
   canvas: HTMLCanvasElement,
   assets: AssetManager,
@@ -247,6 +257,7 @@ export function createThreeRenderer(
     const material = assets.track(materials.resolve(desc.finish, 0xffffff).clone());
     material.color.set(0xffffff);
     const wall = WALL_FINISHES.has(desc.finish);
+    const brokenUp = BROKEN_UP.has(desc.finish);
     material.customProgramCacheKey = () => `world-uv-${desc.finish}`;
     material.onBeforeCompile = (shader) => {
       shader.vertexShader = shader.vertexShader.replace(
@@ -273,6 +284,19 @@ export function createThreeRenderer(
         #include <project_vertex>
         `,
       );
+      if (brokenUp) {
+        // A slow swell in brightness, read from the same map ~8x and ~19x wider, so long
+        // roads and pavements do not show the repeat as a grid. The difference averages to 0.
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+          #ifdef USE_MAP
+            vec3 gtLuma = vec3(0.333);
+            float gtSwell = dot(texture2D(map, vMapUv * 0.13).rgb - texture2D(map, vMapUv * 0.053 + 0.37).rgb, gtLuma);
+            diffuseColor.rgb *= clamp(1.0 + 0.9 * gtSwell, 0.75, 1.25);
+          #endif`,
+        );
+      }
       if (!wall) return;
       shader.vertexShader = shader.vertexShader.replace(
         '#include <common>',

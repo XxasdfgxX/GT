@@ -3,6 +3,8 @@ import { createCity } from '../content/city';
 import { chunkIndex } from '../content/map/batch';
 import { FACADE_BAYS, FACADE_STYLES, bayCount } from '../content/map/facades';
 import { PAINTED_MODELS, PROPS, PROP_MODELS } from '../content/map/props';
+import type { CityMesh } from '../content/map/batch';
+import type { RoadGraph } from '../content/map/roads';
 import { carModel } from '../content/models';
 import { FACADE_WINDOWS } from '../engine/render/materials/facade-shader';
 
@@ -80,4 +82,39 @@ describe('street props', () => {
       expect(box.chunk).toBe(chunkIndex(box.x, box.z));
     }
   });
+
+  it('keeps door pots and house shrubs off the roadway', () => {
+    const city = createCity();
+    for (const model of [PROPS.pottedPlant, PROPS.shrub]) {
+      const spots = positions(city.meshes, model);
+      expect(spots.length).toBeGreaterThan(20);
+      for (const [x, z] of spots) expect(onRoadway(city.graph, x, z)).toBe(false);
+    }
+  });
 });
+
+/** Where each instance of a model stands, from its matrices. */
+function positions(meshes: readonly CityMesh[], model: string): [number, number][] {
+  const out: [number, number][] = [];
+  for (const mesh of meshes) {
+    if (mesh.model !== model) continue;
+    for (let i = 0; i < mesh.count; i += 1)
+      out.push([mesh.matrices[i * 16 + 12] ?? 0, mesh.matrices[i * 16 + 14] ?? 0]);
+  }
+  return out;
+}
+
+/** On the asphalt of some street. */
+function onRoadway(graph: RoadGraph, x: number, z: number): boolean {
+  return graph.edges.some((edge) => {
+    const a = graph.nodes[edge.a];
+    const b = graph.nodes[edge.b];
+    if (!a || !b) return false;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const t = ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz);
+    if (t < 0 || t > 1) return false;
+    const side = Math.abs((x - a.x) * dz - (z - a.z) * dx) / Math.hypot(dx, dz);
+    return side < edge.width / 2;
+  });
+}
