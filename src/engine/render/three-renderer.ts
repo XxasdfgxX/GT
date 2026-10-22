@@ -48,6 +48,7 @@ import {
 } from 'postprocessing';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { AssetManager } from '../assets/asset-manager';
 import type { Quat, Vec3 } from '../core/math';
@@ -167,7 +168,9 @@ export function createThreeRenderer(
   scene.add(ambient, skyLight, sun, sun.target);
   const sunController = createSunController(sun);
   sunController.aim(0, 0, 0);
-  const materials = new MaterialLibrary(assets, renderer.capabilities.getMaxAnisotropy());
+  // Surfaces load as GPU-compressed KTX2 where the browser can transcode them.
+  const ktx2 = new KTX2Loader().setTranscoderPath('/basis/').detectSupport(renderer);
+  const materials = new MaterialLibrary(assets, renderer.capabilities.getMaxAnisotropy(), ktx2);
   const carMaterials = new Map<string, Material>();
   const worldMaterials = new Map<string, MeshStandardMaterial>();
   let unitBox: BoxGeometry | undefined;
@@ -182,6 +185,7 @@ export function createThreeRenderer(
   const loader = new GLTFLoader();
   // Props from scripts/import-polyhaven-models.mjs are meshopt-compressed.
   loader.setMeshoptDecoder(MeshoptDecoder);
+  loader.setKTX2Loader(ktx2);
   let nextId = 1;
   let calls = 0;
   let pixelCap = MAX_PIXEL_RATIO;
@@ -618,6 +622,7 @@ export function createThreeRenderer(
         if (object instanceof InstancedMesh) object.dispose();
       });
       composer.dispose();
+      ktx2.dispose();
       renderer.dispose();
       // Browsers cap live WebGL contexts; a menu restart must give this one back now.
       renderer.forceContextLoss();

@@ -2,6 +2,7 @@
 
 import {
   CanvasTexture,
+  CompressedTexture,
   MeshStandardMaterial,
   NoColorSpace,
   RepeatWrapping,
@@ -10,6 +11,7 @@ import {
   type BufferGeometry,
   type Texture,
 } from 'three';
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import type { AssetManager } from '../../assets/asset-manager';
 import type { SurfaceFinish } from '../renderer';
 import { scaleBoxUv } from './uv-meters';
@@ -82,9 +84,11 @@ export class MaterialLibrary {
   private bytes = 0;
   private waves: Texture | null = null;
 
+  /** `ktx2` loads the GPU-compressed copy beside each JPG; without it, or if it fails, the JPG. */
   constructor(
     private readonly assets: AssetManager,
     private readonly anisotropy: number,
+    private readonly ktx2: KTX2Loader | null = null,
   ) {}
 
   /** Color and normal of a loaded surface, for materials that sample it themselves. */
@@ -140,7 +144,7 @@ export class MaterialLibrary {
 
   private async loadMap(url: string, colorMap: boolean): Promise<Texture | null> {
     try {
-      const texture = await this.loader.loadAsync(url);
+      const texture = await this.loadCompressed(url).catch(() => this.loader.loadAsync(url));
       texture.wrapS = RepeatWrapping;
       texture.wrapT = RepeatWrapping;
       texture.anisotropy = this.anisotropy;
@@ -150,6 +154,11 @@ export class MaterialLibrary {
     } catch {
       return null;
     }
+  }
+
+  private loadCompressed(url: string): Promise<Texture> {
+    if (!this.ktx2) return Promise.reject(new Error('sem KTX2'));
+    return this.ktx2.loadAsync(url.replace(/\.jpg$/, '.ktx2'));
   }
 
   private laneTexture(): Texture {
@@ -210,8 +219,9 @@ export function tileBoxUvs(
   uv.needsUpdate = true;
 }
 
+/** Video memory for the top level: compressed blocks take about a byte a texel, RGBA four. */
 function textureBytes(texture: Texture): number {
   const image = texture.image as { width?: number; height?: number } | null;
   if (!image?.width || !image.height) return 0;
-  return image.width * image.height * 4;
+  return image.width * image.height * (texture instanceof CompressedTexture ? 1 : 4);
 }

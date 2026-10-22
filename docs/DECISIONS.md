@@ -50,9 +50,9 @@ _Substituída._ O sol projeta sombra num mapa só (sem cascatas, porque o CSM so
 
 O `postprocessing` roda em todo quadro, em buffer half-float: `RenderPass`, N8AO (oclusão de ambiente, raio 2 m), bloom e tone mapping ACES, e SMAA no fim. O canvas não usa MSAA. O ajuste "Efeitos" liga e desliga só AO e bloom, sem reiniciar. Céu do Poly Haven parcialmente nublado, névoa exponencial e `scene.environmentIntensity` 1,5 para compensar o céu mais escuro.
 
-## ADR-13 — Texturas 1K em JPG e WebP, por enquanto
+## ADR-13 — Texturas 1K em KTX2
 
-Os scans do Poly Haven vêm em 2K e entram em 1K: JPG para as superfícies, WebP dentro dos glTF. KTX2 cortaria a memória de vídeo umas 4 vezes, mas pede `toktx` ou `basisu`, que não estão instalados. Ficam no git normal, como as texturas antigas; os modelos vão pelo LFS.
+Os scans do Poly Haven vêm em 2K e entram em 1K. As superfícies ganham um `.ktx2` ao lado de cada JPG (`scripts/encode-ktx2.mjs`, com o `ktx2-encoder` do npm, sem ferramenta instalada no sistema): cor em ETC1S sRGB, normal em UASTC, rugosidade e AO em ETC1S. O jogo tenta o `.ktx2` e cai no JPG se falhar. Os modelos levam KTX2 dentro do GLB (`scripts/encode-props-ktx2.mjs`), tudo em ETC1S porque no tamanho de um poste a normal UASTC não aparece. Na memória de vídeo fica 1 byte por texel em vez de 4. KTX2 e modelos vão pelo LFS; os JPG ficam no git normal.
 
 ## ADR-14 — Terreno por mistura
 

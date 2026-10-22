@@ -194,6 +194,12 @@ importers:
       '@gltf-transform/cli':
         specifier: 4.5.1
         version: 4.5.1(@types/node@26.6.3)
+      '@gltf-transform/core':
+        specifier: 4.5.1
+        version: 4.5.1
+      '@gltf-transform/extensions':
+        specifier: 4.5.1
+        version: 4.5.1
       '@types/node':
         specifier: ^26.6.3
         version: 26.6.3
@@ -212,9 +218,15 @@ importers:
       husky:
         specifier: ^9.1.7
         version: 9.1.7
+      ktx2-encoder:
+        specifier: 0.6.0
+        version: 0.6.0
       lint-staged:
         specifier: ^17.6.0
         version: 17.6.0
+      meshoptimizer:
+        specifier: 1.2.0
+        version: 1.2.0
       prettier:
         specifier: ^3.9.9
         version: 3.9.9
@@ -1345,6 +1357,9 @@ packages:
 
   ktx-parse@1.1.0:
     resolution: {integrity: sha512-mKp3y+FaYgR7mXWAbyyzpa/r1zDWeaunH+INJO4fou3hb45XuNSwar+7llrRyvpMWafxSIi99RNFJ05MHedaJQ==}
+
+  ktx2-encoder@0.6.0:
+    resolution: {integrity: sha512-gEWkw2YUlhKO4hXhqVLQQWJ+fGJObsXIwz0pGjJMclnQ4MQU3SAtN1MzutjFxO3ejWvxHyvFk5kr8+RtLmHiTA==}
 
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
@@ -2902,6 +2917,10 @@ snapshots:
   kleur@3.0.3: {}
 
   ktx-parse@1.1.0: {}
+
+  ktx2-encoder@0.6.0:
+    dependencies:
+      ktx-parse: 1.1.0
 
   kuler@2.0.0: {}
 

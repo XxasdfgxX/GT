@@ -10,7 +10,7 @@ O arquivo está em `public/assets/hdri/kloofendal_48d_partly_cloudy_puresky_2k.h
 
 ## Superfícies
 
-Texturas 1K JPG, repetidas em metros na escala real de cada scan (`TILE_METERS`). Mapas de cor em sRGB; normal, roughness e AO em linear. A faixa da pista é uma textura gerada no renderer, por cima do asfalto. `scripts/import-polyhaven.mjs` gera os mapas 1K a partir dos downloads 2K em `tmp/assets-src/polyhaven/` (fora do git).
+Texturas 1K JPG, repetidas em metros na escala real de cada scan (`TILE_METERS`). Mapas de cor em sRGB; normal, roughness e AO em linear. A faixa da pista é uma textura gerada no renderer, por cima do asfalto. `scripts/import-polyhaven.mjs` gera os mapas 1K a partir dos downloads 2K em `tmp/assets-src/polyhaven/` (fora do git). Depois, `scripts/encode-ktx2.mjs` grava um `.ktx2` ao lado de cada JPG e copia o transcodificador Basis para `public/basis/`; o jogo carrega o `.ktx2` e usa o JPG só se ele falhar.
 
 | Pasta           | Uso                                                  | Fonte                                                      | Licença |
 | --------------- | ---------------------------------------------------- | ---------------------------------------------------------- | ------- |
@@ -46,7 +46,7 @@ Os créditos completos estão em `public/assets/CREDITS.txt`.
 - `aston-dbr1.glb` — 1958 Aston Martin DBR1, OUTPISTON, CC BY-NC-SA 4.0, https://sketchfab.com/3d-models/1958-aston-martin-dbr1-59f309fe359649b1aa5ac54cf5ba17b3. Uma cópia só: é o carro estacionado, não entra no grupo de tráfego.
 - `ferrari-488.glb`, `nissan-gtr.glb`, `bmw-m340i.glb`, `uaz-452.glb` — modelos Sketchfab fornecidos para o projeto, também uma cópia só cada. Entram no seletor de carro e não no tráfego. A UAZ fica a 130 km/h; Ferrari 280, GT-R 250 e M340i 220.
 
-- `props/*.glb` — Poly Haven, CC0, `https://polyhaven.com/a/<id>`. `scripts/import-polyhaven-models.mjs` simplifica cada um com meshoptimizer, comprime com meshopt e reduz as texturas a WebP 1K. O renderer instancia um draw por malha do glTF, por chunk.
+- `props/*.glb` — Poly Haven, CC0, `https://polyhaven.com/a/<id>`. `scripts/import-polyhaven-models.mjs` simplifica cada um com meshoptimizer, comprime com meshopt e reduz as texturas a WebP 1K; `scripts/encode-props-ktx2.mjs` troca essas texturas por KTX2 (ETC1S). Rode os dois em sequência. O renderer instancia um draw por malha do glTF, por chunk.
   - `street-lamp.glb` — `street_lamp_01`, 7,7 mil triângulos.
   - `trash-can.glb` — `metal_trash_can`, 4,2 mil.
   - `bench.glb` — `modular_street_seating`, 10,9 mil.

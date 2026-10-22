@@ -357,17 +357,17 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 **Files:** Create `scripts/optimize-textures.mjs`. Modify `docs/ASSETS.md`, `.gitattributes`
 
-- [~] Script: for each slot, read `diff`, `nor_gl`, `rough` and `ao` (or `arm`) 2K JPG. Pack `ao`, `rough` and metal into one ORM texture. Output `color.ktx2` (sRGB, UASTC or ETC1S at quality 128), `normal.ktx2` (UASTC, linear) and `orm.ktx2` (linear) to `public/assets/textures/<slot>/`. Also output 1K versions under `public/assets/textures/<slot>/1k/` for the low preset. _First pass: `scripts/import-polyhaven.mjs` (with `sharp`, now a devDependency) writes 1K JPGs: color, normal, roughness and ao, with no ORM packing and no KTX2, because neither `toktx` nor `basisu` is installed. That is about 250 MB of video memory for 13 surfaces (was 134 MB). KTX2 would cut it about 4×. Grass stays ambientCG Grass001, because Poly Haven's `leafy_grass` is a dry, leaf-strewn lawn. Sand uses `sand_01` (1.5 m); `aerial_beach_01` is a 30 m aerial capture. Plaster is desaturated and lifted to a mean of 210 so the building tint still sets the color._
+- [x] Script: for each slot, read `diff`, `nor_gl`, `rough` and `ao` (or `arm`) 2K JPG. Pack `ao`, `rough` and metal into one ORM texture. Output `color.ktx2` (sRGB, UASTC or ETC1S at quality 128), `normal.ktx2` (UASTC, linear) and `orm.ktx2` (linear) to `public/assets/textures/<slot>/`. Also output 1K versions under `public/assets/textures/<slot>/1k/` for the low preset. _First pass: `scripts/import-polyhaven.mjs` (with `sharp`, now a devDependency) writes 1K JPGs: color, normal, roughness and ao, with no ORM packing and no KTX2, because neither `toktx` nor `basisu` is installed. That is about 250 MB of video memory for 13 surfaces (was 134 MB). KTX2 would cut it about 4×. Grass stays ambientCG Grass001, because Poly Haven's `leafy_grass` is a dry, leaf-strewn lawn. Sand uses `sand_01` (1.5 m); `aerial_beach_01` is a 30 m aerial capture. Plaster is desaturated and lifted to a mean of 210 so the building tint still sets the color._ _KTX2 done: `scripts/encode-ktx2.mjs` (npm `ktx2-encoder`, no system tool) writes a `.ktx2` beside each JPG. Color is ETC1S sRGB, normal is UASTC with RDO and zstd, roughness and ao are ETC1S linear, all flipped in Y like the JPG loader. 21 MB on disk, 1 byte per texel in video memory instead of 4. No ORM packing and no separate low-preset 1K: the textures are already 1K._
   - Tooling: `npx @gltf-transform/cli` doesn't do standalone images. Use `toktx` (KTX-Software) or `basisu`. Document the install in `docs/ASSETS.md`.
-- [-] Add `*.ktx2 filter=lfs diff=lfs merge=lfs -text` and the same for `*.jpg` and `*.png` to `.gitattributes`. _Not yet. Textures stay in normal git like the existing ones. Decide together with KTX2._
+- [~] Add `*.ktx2 filter=lfs diff=lfs merge=lfs -text` and the same for `*.jpg` and `*.png` to `.gitattributes`. _Not yet. Textures stay in normal git like the existing ones. Decide together with KTX2._ _`*.ktx2` goes through LFS. JPGs stay in normal git as before._
 - [x] Run the script once and commit the outputs through LFS. _Committed to normal git._
 
 ### Task 7.2: `MaterialLibrary` reads KTX2 and ORM
 
 **Files:** Modify `src/engine/render/materials/material-library.ts`, `src/engine/render/three-renderer.ts`. Test `src/tests/uv-meters.test.ts` (tile sizes)
 
-- [-] Use `KTX2Loader` (`three/addons/loaders/KTX2Loader.js`) with the transcoder from `three/examples/jsm/libs/basis/`. Copy it to `public/basis/` in a Vite plugin or as a static copy. Call `detectSupport(renderer)` once. _Waiting on KTX2._
-- [-] Map `orm` to `aoMap`, `roughnessMap` and `metalnessMap` (one texture). Keep the old JPG path as a fallback when the `.ktx2` 404s. _Waiting on KTX2 and ORM packing._
+- [x] Use `KTX2Loader` (`three/addons/loaders/KTX2Loader.js`) with the transcoder from `three/examples/jsm/libs/basis/`. Copy it to `public/basis/` in a Vite plugin or as a static copy. Call `detectSupport(renderer)` once. _Waiting on KTX2._ _`three-renderer.ts` creates one `KTX2Loader` (`/basis/`, `detectSupport`) and passes it to `MaterialLibrary` and the `GLTFLoader`. `encode-ktx2.mjs` copies the transcoder to `public/basis/`._
+- [~] Map `orm` to `aoMap`, `roughnessMap` and `metalnessMap` (one texture). Keep the old JPG path as a fallback when the `.ktx2` 404s. _Waiting on KTX2 and ORM packing._ _The JPG fallback is in: `loadMap` tries `.ktx2` first, then the JPG. No ORM packing._
 - [-] Choose 2K or 1K by the Sharpness setting (`low` → 1K). _Only 1K ships for now._
 - [x] Add the new finishes to `SurfaceFinish` and `TILE_METERS`, with real-world tile sizes from the Poly Haven info (`dimensions`): _`TILE_METERS` now uses each scan's real size from Poly Haven `info.json`._
   - [x] `asphalt`, `curb` (was `concrete`), `sidewalk`, `sand`, `grass`, `rock` (hills), `dirt` (empty lots), `plaza` _The curb keeps its old name, `concrete`._
@@ -402,10 +402,10 @@ Replace the single glass slab with real modules. All are boxes stamped through `
 
 **Files:** Create `scripts/optimize-models.mjs`
 
-- [~] For each model: `gltf-transform optimize in.gltf out.glb --compress meshopt --texture-compress ktx2 --texture-size 1024`. _`scripts/import-polyhaven-models.mjs` with `@gltf-transform/cli` 4.5.1 (devDependency): meshopt plus **WebP** 1K textures. KTX2 needs `toktx`, which is not installed. Total 4.7 MB for 11 props._
+- [x] For each model: `gltf-transform optimize in.gltf out.glb --compress meshopt --texture-compress ktx2 --texture-size 1024`. _`scripts/import-polyhaven-models.mjs` with `@gltf-transform/cli` 4.5.1 (devDependency): meshopt plus **WebP** 1K textures. KTX2 needs `toktx`, which is not installed. Total 4.7 MB for 11 props._ _`scripts/encode-props-ktx2.mjs` then re-encodes the textures inside each GLB as KTX2 (ETC1S for all slots; UASTC normals tripled the size for no visible gain on small props). 9.5 MB for 12 props._
 - [x] For models flagged "needs decimation" in the manifest, add `--simplify --simplify-ratio <r>` until they're under 10k triangles (street props) or 25k (trees). _All under 11k triangles: lamp 7.7k, bench 10.9k, crate 10.4k, hydrant 3.4k (from 86k), barrier 4k, shrub 5.3k, trash 4.2k, utility box 6.3k, planter 8.1k, potted plant 8.9k, fern 6.2k._
 - [x] Output to `public/assets/props/<slot>.glb`. _Named by use (`street-lamp.glb`, ...). Tracked by LFS through the existing `*.glb` rule._
-- [~] `GLTFLoader` in `three-renderer.ts`: `setMeshoptDecoder(MeshoptDecoder)` and `setKTX2Loader(ktx2)`. _`setMeshoptDecoder` only; no KTX2._
+- [x] `GLTFLoader` in `three-renderer.ts`: `setMeshoptDecoder(MeshoptDecoder)` and `setKTX2Loader(ktx2)`. _`setMeshoptDecoder` only; no KTX2._ _`setKTX2Loader(ktx2)` added._
 
 ### Task 8.2: Instanced glTF props
 
