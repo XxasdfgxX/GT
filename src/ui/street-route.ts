@@ -196,3 +196,33 @@ function dedupe(points: RoutePoint[]): RoutePoint[] {
   }
   return out;
 }
+
+/** Meters the player may move before the route is planned again. */
+export const ROUTE_REFRESH = 2;
+
+/**
+ * Remembers the last route. A new plan only when the target changes or the player
+ * has moved ROUTE_REFRESH meters; in between, only the first point follows them.
+ */
+export function createRouteCache(
+  index: StreetIndex,
+): (playerX: number, playerZ: number, targetX: number, targetZ: number) => RoutePoint[] {
+  let route: RoutePoint[] = [];
+  let fromX = NaN;
+  let fromZ = NaN;
+  let toX = NaN;
+  let toZ = NaN;
+  return (playerX, playerZ, targetX, targetZ) => {
+    const moved = Math.hypot(playerX - fromX, playerZ - fromZ);
+    if (targetX !== toX || targetZ !== toZ || !(moved <= ROUTE_REFRESH)) {
+      route = routeOnStreets(index, playerX, playerZ, targetX, targetZ);
+      fromX = playerX;
+      fromZ = playerZ;
+      toX = targetX;
+      toZ = targetZ;
+    } else if (route[0]) {
+      route[0] = { x: playerX, z: playerZ };
+    }
+    return route;
+  };
+}

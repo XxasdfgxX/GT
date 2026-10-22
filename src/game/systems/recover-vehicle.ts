@@ -12,6 +12,7 @@ import { quatFromYaw } from '../../engine/core/math';
 import { CAP, PhysicsRef, Player, Traffic, Vehicle } from '../ecs/components';
 import { players, traffic, vehicles } from '../ecs/queries';
 import { circleBoxExit } from '../play/overlap';
+import { tallBoxesNear } from '../play/collider-grid';
 import { yawFromQuat } from './camera-follow';
 import { boxExit } from './traffic-ai';
 import { chassisUp, headingYaw, readyToFlip, roofTime } from '../play/upright';
@@ -115,9 +116,7 @@ function deepestCircle(
   let bestX = 0;
   let bestZ = 0;
   let best = 0;
-  for (const box of buildCostaVerde().colliders) {
-    if (box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, radius)) {
     const push = circleBoxExit(x, z, radius, box.x, box.z, box.hx, box.hz, box.yaw);
     if (push.depth <= best) continue;
     best = push.depth;
@@ -177,9 +176,7 @@ function deepestBox(
   let bestX = 0;
   let bestZ = 0;
   let best = 0;
-  for (const box of buildCostaVerde().colliders) {
-    if (box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24 + box.hx + box.hz) continue;
+  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, Math.hypot(hx, hz))) {
     const push = boxExit(x, z, yaw, hx, hz, box.x, box.z, box.yaw, box.hx, box.hz);
     if (push.depth <= best) continue;
     best = push.depth;

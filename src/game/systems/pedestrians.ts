@@ -30,6 +30,8 @@ import {
 } from '../ecs/components';
 import { syncCrowd } from '../features/pedestrians/crowd';
 import { playerFocus } from '../play/player-focus';
+import { tallBoxesNear } from '../play/collider-grid';
+import { bucketCrowd, crowdNear } from '../play/crowd-grid';
 import { pedestrians, players, traffic } from '../ecs/queries';
 import {
   COUNTER_DAMAGE,
@@ -43,7 +45,6 @@ import {
   shouldFlee,
 } from './ped-ai';
 import { Mode } from './player-movement';
-import { yawFromQuat } from './camera-follow';
 
 const POINTS = 12;
 const pathX = new Float32Array(CAP * POINTS);
@@ -53,6 +54,7 @@ let salt = 3;
 
 export function pedestrianSystem(ctx: GameContext, world: World): void {
   const city = buildCostaVerde();
+  bucketCrowd(world, ctx.time.tick);
   const dt = ctx.time.fixedDt;
   let carX = 0;
   let carZ = 0;
@@ -372,7 +374,7 @@ function solidAt(
     }
     break;
   }
-  for (const eid of pedestrians(world)) {
+  for (const eid of crowdNear(x, z, BODY_REACH)) {
     if (
       eid === self ||
       (Pedestrian.active[eid] ?? 0) === 0 ||
@@ -391,12 +393,8 @@ function solidAt(
     if ((Traffic.active[eid] ?? 0) === 0) continue;
     const spec = trafficCatalog[Traffic.variant[eid] ?? 0];
     if (!spec) continue;
-    const yaw = yawFromQuat({
-      x: Transform.qx[eid] ?? 0,
-      y: Transform.qy[eid] ?? 0,
-      z: Transform.qz[eid] ?? 0,
-      w: Transform.qw[eid] ?? 1,
-    });
+    // Lane cars only turn about Y, so the yaw reads straight off the quaternion.
+    const yaw = 2 * Math.atan2(Transform.qy[eid] ?? 0, Transform.qw[eid] ?? 1);
     if (
       sinksDeeper(
         fromX,
@@ -414,9 +412,8 @@ function solidAt(
       return true;
     }
   }
-  for (const box of buildCostaVerde().colliders) {
-    if (box.hy < 0.4) continue;
-    if (Math.hypot(box.x - x, box.z - z) > 24) continue;
+  // The step ends at (x, z) with a 0.35 m body. Big boxes count by their edges, not centers.
+  for (const box of tallBoxesNear(buildCostaVerde().colliders, x, z, 0.5)) {
     if (sinksDeeper(fromX, fromZ, x, z, box.x, box.z, box.hx, box.hz, box.yaw, 0.35)) return true;
   }
   return false;
@@ -635,6 +632,7 @@ export function attachDriver(
   Pedestrian.active[eid] = 1;
   Pedestrian.driving[eid] = 1;
   Pedestrian.car[eid] = car;
+  driverByCar[car] = eid;
   Pedestrian.state[eid] = PedState.Idle;
   Pedestrian.count[eid] = 0;
   Pedestrian.health[eid] = 10;
@@ -710,11 +708,23 @@ export function releaseDriver(world: World, car: number): void {
   Pedestrian.active[eid] = 0;
 }
 
+/** Car to driver, so placing 40 cars a tick does not search 120 people each time. */
+const driverByCar = new Int32Array(CAP).fill(-1);
+
 function driverOf(world: World, car: number): number {
+  const known = driverByCar[car] ?? -1;
+  if (known >= 0 && isDriving(known, car)) return known;
   for (const eid of pedestrians(world)) {
-    if ((Pedestrian.driving[eid] ?? 0) === 1 && (Pedestrian.car[eid] ?? 0) === car) return eid;
+    if (!isDriving(eid, car)) continue;
+    driverByCar[car] = eid;
+    return eid;
   }
+  driverByCar[car] = -1;
   return -1;
+}
+
+function isDriving(eid: number, car: number): boolean {
+  return (Pedestrian.driving[eid] ?? 0) === 1 && (Pedestrian.car[eid] ?? 0) === car;
 }
 
 /** car.glb roof height before the traffic scale. The sit clip does not lower the torso. */

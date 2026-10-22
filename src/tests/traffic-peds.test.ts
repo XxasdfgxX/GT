@@ -77,6 +77,12 @@ function stand(eid: number, x: number, z: number): void {
   Pedestrian.stuck[eid] = 0;
 }
 
+/** One fixed step of the crowd, advancing the clock the way the game loop does. */
+function walk(ctx: GameContext, world: World): void {
+  pedestrianSystem(ctx, world);
+  ctx.time.tick += 1;
+}
+
 /** A road node near the solo spawn and a direction along one of its edges. */
 function openStreet(): { x: number; z: number; fx: number; fz: number } {
   const graph = buildCostaVerde().graph;
@@ -226,7 +232,7 @@ describe('pedestrians', () => {
     Pedestrian.tz[b] = street.z - street.fz * 9;
     const gaveUp = new Set<number>();
     for (let step = 0; step < 180; step += 1) {
-      pedestrianSystem(ctx, world);
+      walk(ctx, world);
       for (const eid of [a, b]) if (Pedestrian.state[eid] === PedState.Idle) gaveUp.add(eid);
     }
     expect(gaveUp.size).toBe(2);
@@ -245,7 +251,7 @@ describe('pedestrians', () => {
     Pedestrian.state[walker] = PedState.Walk;
     Pedestrian.tx[walker] = street.x + street.fx * 6;
     Pedestrian.tz[walker] = street.z + street.fz * 6;
-    for (let step = 0; step < 240; step += 1) pedestrianSystem(ctx, world);
+    for (let step = 0; step < 240; step += 1) walk(ctx, world);
     const along =
       ((Transform.px[walker] ?? 0) - street.x) * street.fx +
       ((Transform.pz[walker] ?? 0) - street.z) * street.fz;
@@ -273,7 +279,7 @@ describe('pedestrians', () => {
     Pedestrian.corpse[corpse] = 30;
     let hits = 0;
     ctx.events.on('pedestrian:hit', () => (hits += 1));
-    for (let step = 0; step < 60; step += 1) pedestrianSystem(ctx, world);
+    for (let step = 0; step < 60; step += 1) walk(ctx, world);
     expect(hits).toBe(0);
     physics.dispose();
   });
@@ -297,7 +303,7 @@ describe('pedestrians', () => {
     stand(ped, far.x + 4, far.z);
     Pedestrian.state[ped] = PedState.Idle;
     Pedestrian.wait[ped] = 5;
-    pedestrianSystem(ctx, world);
+    walk(ctx, world);
     expect(Pedestrian.active[ped]).toBe(1);
     physics.dispose();
   });

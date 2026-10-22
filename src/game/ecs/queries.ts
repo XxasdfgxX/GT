@@ -1,4 +1,8 @@
-/** Queries used by systems. bitecs caches the query for a term list. */
+/**
+ * Queries used by systems. bitecs returns a live array that it keeps current as
+ * entities gain components. Entities are pooled and never removed, so each query
+ * keeps that array per world instead of hashing its term list on every call.
+ */
 
 import { query, type QueryResult, type World } from 'bitecs';
 import {
@@ -17,38 +21,42 @@ import {
   Pickup,
 } from './components';
 
-export function players(world: World): QueryResult {
-  return query(world, [Player, Transform, Velocity, InputState, PhysicsRef, RenderRef, CameraRig]);
+type Terms = Parameters<typeof query>[1];
+
+function live(terms: Terms): (world: World) => QueryResult {
+  const results = new WeakMap<World, QueryResult>();
+  return (world) => {
+    let result = results.get(world);
+    if (!result) {
+      result = query(world, terms);
+      results.set(world, result);
+    }
+    return result;
+  };
 }
 
-export function vehicles(world: World): QueryResult {
-  return query(world, [Vehicle, Transform, PhysicsRef, RenderRef]);
-}
+export const players = live([
+  Player,
+  Transform,
+  Velocity,
+  InputState,
+  PhysicsRef,
+  RenderRef,
+  CameraRig,
+]);
 
-export function missions(world: World): QueryResult {
-  return query(world, [Mission]);
-}
+export const vehicles = live([Vehicle, Transform, PhysicsRef, RenderRef]);
 
-export function traffic(world: World): QueryResult {
-  return query(world, [Traffic, Transform, PhysicsRef, RenderRef]);
-}
+export const missions = live([Mission]);
 
-export function pedestrians(world: World): QueryResult {
-  return query(world, [Pedestrian, Transform, RenderRef]);
-}
+export const traffic = live([Traffic, Transform, PhysicsRef, RenderRef]);
 
-export function pickups(world: World): QueryResult {
-  return query(world, [Pickup, Transform, RenderRef]);
-}
+export const pedestrians = live([Pedestrian, Transform, RenderRef]);
 
-export function wheels(world: World): QueryResult {
-  return query(world, [Wheel, Transform, RenderRef]);
-}
+export const pickups = live([Pickup, Transform, RenderRef]);
 
-export function simulated(world: World): QueryResult {
-  return query(world, [Transform, PhysicsRef]);
-}
+export const wheels = live([Wheel, Transform, RenderRef]);
 
-export function rendered(world: World): QueryResult {
-  return query(world, [Transform, RenderRef]);
-}
+export const simulated = live([Transform, PhysicsRef]);
+
+export const rendered = live([Transform, RenderRef]);

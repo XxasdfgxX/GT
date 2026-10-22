@@ -1,7 +1,6 @@
 /** Shared PBR surfaces. Color maps are sRGB; the other maps stay linear. */
 
 import {
-  BufferAttribute,
   CanvasTexture,
   MeshStandardMaterial,
   NoColorSpace,
@@ -160,15 +159,13 @@ export function tileBoxUvs(
   sy: number,
   sz: number,
   tile: number,
-  ao: boolean,
 ): void {
+  // three r152+ samples the AO map on channel 0, this same uv. No uv2 copy needed.
   const uv = geometry.getAttribute('uv');
   const array = uv?.array;
   if (!(array instanceof Float32Array)) return;
   scaleBoxUv(array, array, sx, sy, sz, tile);
   uv.needsUpdate = true;
-  if (!ao) return;
-  geometry.setAttribute('uv2', new BufferAttribute(new Float32Array(array), 2));
 }
 
 function textureBytes(texture: Texture): number {

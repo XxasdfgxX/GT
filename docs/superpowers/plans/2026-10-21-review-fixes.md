@@ -376,44 +376,54 @@ Testes novos em `src/tests/server-limits.test.ts` (15) e `src/tests/net-client.t
 
 ---
 
-## Fase 6 — Desempenho no caminho quente (`perf/hot-paths`, depois da Fase 3)
+## Fase 6 — Desempenho no caminho quente (`perf/hot-paths`)
 
-Medir antes e depois: um contador de quadros em `?debug` com o tempo médio de `fixedStep` em 120 pedestres e 40 carros. Anotar os números no PR.
+Medido com uma sonda (fora do repositório) que roda `trafficSystem` + `pedestrianSystem` na cidade real com 120 pedestres e 40 carros, e outra que roda o `tick` de uma sala com 100 NPCs e 40 carros. Perfil pelo `node:inspector` dentro do teste.
 
-### Task 6.1: `solidAt` é O(n²) e aloca
+|                                        | Antes      | Depois  |
+| -------------------------------------- | ---------- | ------- |
+| Tráfego + pedestres por passo (60 Hz)  | 3,2–3,8 ms | 0,71 ms |
+| `tick` de uma sala do servidor (20 Hz) | 3,3–3,5 ms | 0,9 ms  |
 
-**Files:** Modify `src/game/systems/pedestrians.ts`, novo `src/game/play/spatial-grid.ts` · Test novo `spatial-grid.test.ts`
+O perfil mudou a ordem do plano: o custo não era pedestre contra pedestre, era varrer **todos** os colliders da cidade por pedestre e por carro a cada passo (`solidAt` 30%, `buildingPush` + `hitsBuilding` 25%).
 
-- [ ] Grade espacial uniforme (células de 4 m) reconstruída uma vez por tick com pedestres e carros. `solidAt` consulta só as 9 células vizinhas.
-- [ ] Trocar `yawFromQuat({...})` por um quaternion de rascunho do módulo.
-- [ ] Colliders da cidade: indexar por chunk ativo (o stream já sabe quais estão ativos) e não varrer a lista toda.
+### Task 6.1: Grade de colliders
 
-### Task 6.2: `boxExit` e companhia alocam
+**Files:** Create `src/game/play/collider-grid.ts` · Modify `pedestrians.ts`, `traffic.ts`, `recover-vehicle.ts`, `src/net/room.ts` · Test `src/tests/spatial-grid.test.ts`
 
-**Files:** Modify `src/game/systems/traffic-ai.ts`, `traffic.ts`, `interaction.ts`
+- [x] `tallBoxesNear(boxes, x, z, alcance)`: caixas altas (`hy ≥ 0,4`) numa grade de 16 m, montada uma vez por lista de colliders (`WeakMap`), cada caixa registrada pelo círculo que a envolve; consulta sem repetição (carimbo por consulta) e sem alocar.
+- [x] Troca as sete varreduras (pedestre, tráfego, recuperação de carro, sala do servidor). O servidor usa a mesma grade.
+- [x] De quebra: o pedestre filtrava por `distância do centro > 24 m`, sem somar o tamanho da caixa; caixas grandes (o muro do mar) ficavam de fora. A grade usa o círculo da caixa.
+- [x] Teste: em 300 pontos sorteados, a grade devolve toda caixa alta que pode tocar o círculo, e nenhuma baixa; caixa em várias células volta uma vez.
 
-- [ ] `boxExit`: eixos, cantos e resultado em arrays de rascunho do módulo. O resultado volta num objeto reaproveitado. Documentar que ele vale até a próxima chamada.
-- [ ] `pickNext`: devolver por um objeto de rascunho.
-- [ ] `interaction.ts`: içar as closures para o módulo.
-- [ ] `hitsTraffic`, `avenueClose` e `drive`: usar a grade da Task 6.1.
+### Task 6.2: Consultas e buscas repetidas
+
+**Files:** Modify `src/game/ecs/queries.ts`, `pedestrians.ts`, `traffic.ts` · Create `src/game/play/crowd-grid.ts`
+
+- [x] `query()` do bitecs monta e confere um hash a cada chamada (com `find`/`filter`), e os sistemas chamavam dentro de laços por pedestre. Como nenhuma entidade é removida (tudo é pool), cada consulta guarda por mundo o array vivo que o bitecs devolve.
+- [x] `driverOf` usa um índice carro → motorista, conferido e refeito pela busca se estiver velho.
+- [x] `solidAt` lê o yaw do carro direto do quaternion, sem montar objeto.
+- [x] `crowd-grid`: pedestres ativos numa grade de 4 m, preenchida uma vez por passo (o tráfego monta, os pedestres reaproveitam). A consulta soma 1 m de folga (um passo ou o empurrão de um soco), então acha todo mundo que a varredura acharia. `solidAt` e `laneBlocked` usam.
+- [x] Os testes de `traffic-peds` passam a avançar `ctx.time.tick` a cada passo, como o laço do jogo.
+- [x] Teste: com todos andando até 0,7 m depois de preencher a grade, toda consulta acha quem está no alcance.
+- [ ] Não feito: alocações pequenas de `boxExit`, `pickNext` e das closures de `interaction.ts`. Depois das mudanças acima o coletor de lixo fica abaixo de 2% do perfil; não compensa.
+- [ ] Não feito: `sampleHeight` (~14% agora) calcula a altura analítica, com distância à costa, a cada chamada. Trocar por grade interpolada muda as alturas; fica para quando precisar.
 
 ### Task 6.3: HUD por quadro
 
-**Files:** Modify `src/ui/mount-hud.ts`, `src/ui/street-route.ts`
+**Files:** Modify `src/ui/street-route.ts`, `src/ui/mount-hud.ts` · Test `src/tests/street-route.test.ts`
 
-- [ ] Rota do waypoint: guardar o resultado em cache e recalcular só quando muda o waypoint ou o nó de rua mais próximo do jogador. `routeOnStreets` deixa de copiar `adj` e `weight` (Dijkstra sobre o grafo original com arrays de distância reaproveitados).
-- [ ] Os textos do HUD só são escritos quando o valor muda (comparar com o último valor escrito).
-- [ ] `fillRoster`: ler `clientWidth` e `clientHeight` antes das escritas, ou guardar o tamanho em cache e atualizar num `ResizeObserver`.
+- [x] `createRouteCache`: planeja de novo só quando o alvo muda ou o jogador andou 2 m; entre isso, só o primeiro ponto segue o jogador.
+- [x] Textos do HUD só são escritos quando mudam.
+- [x] `setPresence` lê o tamanho da tela antes de reescrever a lista de jogadores (antes forçava layout síncrono a cada quadro).
 
-### Task 6.4: Alocações menores
+### Task 6.4: Render
 
-**Files:** Modify `src/engine/render/three-renderer.ts`, `src/engine/input/aim-cursor.ts` / `src/game/play/aim-cursor.ts`, `src/app/bootstrap.ts`, `src/engine/render/materials/material-library.ts`
+**Files:** Modify `src/engine/render/three-renderer.ts`, `src/engine/render/materials/material-library.ts`
 
-- [ ] `renderer.project(x, y, z, out)` com um parâmetro de saída.
-- [ ] `stepAimCursor` escreve num objeto passado.
-- [ ] Presença em `bootstrap.ts`: um array reaproveitado em vez de `flatMap` com spread.
-- [ ] `renderer.tick` pula os mixers de malhas invisíveis.
-- [ ] Apagar a escrita de `uv2` (three 0.186 lê AO de `uv1`). Conferir se algum material depende dela.
+- [x] `tick` só atualiza mixers de malhas visíveis: os slots de pedestre, corpos e fantasmas escondidos paravam de animar à toa.
+- [x] Sai o atributo `uv2` (three r152+ lê o AO no canal 0, o mesmo `uv`).
+- [ ] Não feito: `renderer.project` com parâmetro de saída, `stepAimCursor` e a presença em `bootstrap.ts`. Algumas alocações por quadro, não por entidade; ficaram fora do perfil.
 
 ---
 
