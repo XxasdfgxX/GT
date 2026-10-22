@@ -42,7 +42,11 @@ const SLIDES = [0, -3, 3, -6, 6, -9, 9, -12, 12, -16, 16, -20, 20, -25, 25];
  * Slides along the curb until it clears buildings, parked props and the player.
  */
 export function parkOnStreet(
-  city: { graph: RoadGraph; colliders: readonly BoxCollider[] },
+  city: {
+    graph: RoadGraph;
+    colliders: readonly BoxCollider[];
+    streetProps?: readonly BoxCollider[];
+  },
   player: { x: number; z: number },
   half: { x: number; z: number },
 ): ParkedSpot {
@@ -73,7 +77,9 @@ export function parkOnStreet(
       const body = { x, z, hx: half.x + CAR_ROOM, hz: half.z + CAR_ROOM, yaw };
       const feet = { x: player.x, z: player.z, hx: PLAYER_ROOM, hz: PLAYER_ROOM, yaw: 0 };
       if (rectsOverlap(body, feet)) continue;
-      if (city.colliders.some((box) => box.hy >= 0.4 && rectsOverlap(body, box))) continue;
+      const blocked = (box: { hy: number } & Parameters<typeof rectsOverlap>[1]) =>
+        box.hy >= 0.4 && rectsOverlap(body, box);
+      if (city.colliders.some(blocked) || (city.streetProps ?? []).some(blocked)) continue;
       return spot;
     }
   }

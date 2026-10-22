@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
+import { chunkIndex } from '../content/map/batch';
 import { FACADE_BAYS, FACADE_STYLES, bayCount } from '../content/map/facades';
 import { PAINTED_MODELS, PROPS, PROP_MODELS } from '../content/map/props';
 import { carModel } from '../content/models';
@@ -68,5 +69,15 @@ describe('street props', () => {
     }
     expect(colors.size).toBeGreaterThan(1);
     expect([...PAINTED_MODELS]).toEqual([carModel]);
+  });
+
+  it('gives street furniture bodies of its own, apart from the walker colliders', () => {
+    const city = createCity();
+    expect(city.streetProps.length).toBeGreaterThan(50);
+    for (const box of city.streetProps) {
+      expect(city.colliders).not.toContain(box);
+      expect(box.hy).toBeGreaterThan(0.1);
+      expect(box.chunk).toBe(chunkIndex(box.x, box.z));
+    }
   });
 });

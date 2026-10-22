@@ -18,6 +18,8 @@ export interface Poi {
 export interface PropResult {
   pois: Poi[];
   colliders: BoxCollider[];
+  /** Street furniture the player and cars bump into. Walkers pass: they steer by the sidewalk. */
+  solids: BoxCollider[];
   trees: number;
   grass: number;
 }
@@ -60,6 +62,7 @@ export function buildProps(
   const garden = mulberry32(0x9a2d);
   const pois: Poi[] = [];
   const colliders: BoxCollider[] = [];
+  const solids: BoxCollider[] = [];
   let trees = 0;
   for (const door of doors) {
     if (door.x * door.x + (door.z - 8) * (door.z - 8) < 16 * 16) continue;
@@ -97,6 +100,7 @@ export function buildProps(
       const px = plaza.x + cx * (hx + 1.2);
       const pz = plaza.z + cz * (hz + 1.2);
       batch.add(prop(PROPS.planter, px, y + 0.06, pz, 0, 1.6, chunk));
+      solid(solids, px, y, pz, 0, 0.74, 0.34, 0.34);
       // The planter ships empty: a shrub fills it, set into the soil line.
       batch.add(
         centered(PROPS.shrub, px, y + 0.06 + 0.32 * 1.6, pz, garden() * Math.PI * 2, 2.6, chunk),
@@ -146,6 +150,7 @@ export function buildProps(
         const chunk = chunkIndex(x, z);
         if (lampSlot) {
           addLamp(batch, x, y, z, yaw, chunk);
+          solid(solids, x, y, z, yaw, 0.15, 2.3, 0.15);
         } else {
           addTree(batch, x, y, z, chunk, rng, edge.kind === 'coast');
           trees += 1;
@@ -159,11 +164,16 @@ export function buildProps(
         }
         if (edge.kind !== 'street' && rng() > 0.82) {
           addBench(batch, x, y, z, yaw, chunk);
+          solid(solids, x, y, z, yaw + Math.PI / 2, 1.3, 0.47, 0.38);
         }
-        if (rng() > 0.9) addBin(batch, x + rx * 0.4, y, z + rz * 0.4, yaw, chunk);
+        if (rng() > 0.9) {
+          addBin(batch, x + rx * 0.4, y, z + rz * 0.4, yaw, chunk);
+          solid(solids, x + rx * 0.4, y, z + rz * 0.4, yaw, 0.71, 0.36, 0.22);
+        }
         // A hydrant every 84 m on the side without lamps.
         if (side === 1 && Math.round((distance - inset) / 12) % 7 === 3) {
           batch.add(prop(PROPS.hydrant, x - fx * 1.6, y, z - fz * 1.6, yaw, 1, chunk));
+          solid(solids, x - fx * 1.6, y, z - fz * 1.6, yaw, 0.2, 0.4, 0.16);
         }
       }
     }
@@ -175,6 +185,10 @@ export function buildProps(
         const y = sampleHeight(x, z);
         const chunk = chunkIndex(x, z);
         addShelter(batch, x, y, z, yaw, chunk);
+        // The back panel and the two sides; the open front faces the curb.
+        solid(solids, x + rx * 0.65, y, z + rz * 0.65, yaw, 0.03, 1.05, 1.7);
+        for (const along of [-1.6, 1.6])
+          solid(solids, x + fx * along, y, z + fz * along, yaw, 0.7, 1.2, 0.04);
         pois.push({ x, z, kind: 'stop' });
       }
     }
@@ -189,6 +203,7 @@ export function buildProps(
     if (Math.abs(x) < 8 && z > -4 && z < 20) continue;
     const y = sampleHeight(x, z);
     addStall(batch, x, y, z, lot.yaw, lot.chunk, lot.seed);
+    solid(solids, x, y, z, lot.yaw, 0.95, 0.47, 0.5);
     // Beverage crates stacked beside the stall.
     const rx = Math.cos(lot.yaw);
     const rz = -Math.sin(lot.yaw);
@@ -223,6 +238,7 @@ export function buildProps(
     batch.add(flat('flat', 0.16, 4.2, 0.16, node.x + 3, y + 2.1, node.z + 3, 0, 0x222222, chunk));
     // The traffic-light controller cabinet on the corner.
     batch.add(prop(PROPS.utilityBox, node.x + 3.8, y, node.z + 3, Math.PI / 4, 1, chunk));
+    solid(solids, node.x + 3.8, y, node.z + 3, Math.PI / 4, 0.46, 0.56, 0.22);
     batch.add({
       kind: 'box',
       finish: 'flat',
@@ -243,7 +259,7 @@ export function buildProps(
       lod: 'always',
     });
   }
-  return { pois, colliders, trees, grass: plazaGrassArea(graph) };
+  return { pois, colliders, solids, trees, grass: plazaGrassArea(graph) };
 }
 
 function addTree(
@@ -595,4 +611,19 @@ function prop(
     chunk,
     lod,
   };
+}
+
+/** A box standing on the ground at (x, y, z): half sizes across, up and along `yaw`. */
+function solid(
+  list: BoxCollider[],
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  hx: number,
+  hy: number,
+  hz: number,
+): void {
+  // Its own chunk, not its slot's: a hydrant 1.6 m along the curb can cross a border.
+  list.push({ x, y: y + hy, z, hx, hy, hz, yaw, pitch: 0, chunk: chunkIndex(x, z) });
 }

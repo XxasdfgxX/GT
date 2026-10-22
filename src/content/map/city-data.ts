@@ -37,6 +37,8 @@ export interface CostaVerde {
   water: { x: number; y: number; z: number; sx: number; sz: number };
   meshes: CityMesh[];
   colliders: BoxCollider[];
+  /** Street furniture: physics bodies only, so walkers keep their sidewalk paths. */
+  streetProps: BoxCollider[];
   graph: RoadGraph;
   walks: WalkQuad[];
   footprints: Footprint[];
@@ -76,6 +78,7 @@ export function createCity(): CostaVerde {
     },
     meshes: batch.build(),
     colliders,
+    streetProps: props.solids,
     graph,
     walks,
     footprints: lots.footprints,

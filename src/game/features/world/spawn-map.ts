@@ -118,7 +118,7 @@ function ensureChunk(ctx: GameContext, id: number): void {
     else record.always.push(meshId);
     ctx.renderer.setMeshVisible(meshId, false);
   }
-  for (const box of bound.colliders) {
+  for (const box of [...bound.colliders, ...bound.streetProps]) {
     if (box.chunk !== id) continue;
     quatFromYawPitch(box.yaw, box.pitch, yawScratch);
     record.bodyIds.push(
