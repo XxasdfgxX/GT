@@ -108,6 +108,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     renderer.setGraphics({
       shadows: launch.settings.shadows,
       sharpness: launch.settings.sharpness,
+      effects: launch.settings.effects,
     });
     const physics = await createRapierWorld(sim.worldGravity);
     own(() => {
@@ -199,7 +200,11 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
 
     const applySettings = (settings: GameSettings) => {
       audio.setVolume(settings.volume);
-      renderer.setGraphics({ shadows: settings.shadows, sharpness: settings.sharpness });
+      renderer.setGraphics({
+        shadows: settings.shadows,
+        sharpness: settings.sharpness,
+        effects: settings.effects,
+      });
       ctx.look.mouseSensitivity = lookSensitivity(settings);
       ctx.debug.showColliders = settings.admin && settings.colliders;
       syncBuildingShells(ctx);

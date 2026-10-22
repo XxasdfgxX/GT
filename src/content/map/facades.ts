@@ -53,7 +53,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
       roughness: 0.9,
       metalness: 0,
       emissive: 0,
-      castShadow: false,
+      castShadow: true,
       chunk: lot.chunk,
       lod: 'far',
     });
@@ -95,7 +95,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
         roughness: 0.7,
         metalness: 0,
         emissive: 0,
-        castShadow: false,
+        castShadow: true,
         chunk: lot.chunk,
         lod: 'near',
       });
@@ -117,7 +117,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
         roughness: 0.8,
         metalness: 0,
         emissive: 0,
-        castShadow: false,
+        castShadow: true,
         chunk: lot.chunk,
         lod: 'near',
       });
@@ -138,7 +138,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
         roughness: 0.55,
         metalness: 0.35,
         emissive: 0,
-        castShadow: false,
+        castShadow: true,
         chunk: lot.chunk,
         lod: 'near',
       });

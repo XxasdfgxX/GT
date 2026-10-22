@@ -2,7 +2,7 @@
 
 import type { Disposable } from '../core/disposable';
 import type { Quat, Vec3 } from '../core/math';
-import type { ShadowQuality, Sharpness } from './display';
+import type { GraphicsQuality } from './display';
 
 export type MeshKind = 'box' | 'capsule' | 'cylinder';
 
@@ -74,7 +74,7 @@ export interface ModelDesc {
 export interface Renderer extends Disposable {
   readonly domElement: HTMLCanvasElement;
   setSize(width: number, height: number): void;
-  setGraphics(quality: { shadows: ShadowQuality; sharpness: Sharpness }): void;
+  setGraphics(quality: GraphicsQuality): void;
   setCamera(position: Vec3, target: Vec3): void;
   /** Pixel position on the canvas. `behind` is true when the point is behind the camera. */
   project(point: Vec3): { x: number; y: number; behind: boolean };

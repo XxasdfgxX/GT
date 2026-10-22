@@ -1,7 +1,6 @@
 /** Three.js renderer. Geometries and materials are registered with the asset owner. */
 
 import {
-  ACESFilmicToneMapping,
   AmbientLight,
   AnimationMixer,
   BoxGeometry,
@@ -20,7 +19,9 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  PCFSoftShadowMap,
+  HalfFloatType,
+  NoToneMapping,
+  PCFShadowMap,
   PerspectiveCamera,
   Scene,
   Vector3,
@@ -33,6 +34,17 @@ import {
   type Material,
   type Object3D,
 } from 'three';
+import { N8AOPostPass } from 'n8ao';
+import {
+  BloomEffect,
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+  SMAAPreset,
+  ToneMappingEffect,
+  ToneMappingMode,
+} from 'postprocessing';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { AssetManager } from '../assets/asset-manager';
@@ -42,10 +54,11 @@ import {
   cappedPixelRatio,
   DEFAULT_EXPOSURE,
   MAX_PIXEL_RATIO,
+  shadowExtent,
   shadowMapSize,
   sharpnessCap,
-  type ShadowQuality,
-  type Sharpness,
+  type Effects,
+  type GraphicsQuality,
 } from './display';
 import { loadCoastEnvironment } from './environment';
 import { dressCar } from './materials/car-paint';
@@ -83,12 +96,21 @@ export function createThreeRenderer(
   assets: AssetManager,
   fov = 58,
 ): Renderer {
-  const renderer = new WebGLRenderer({ canvas, antialias: canvasAntialias(false) });
+  const renderer = new WebGLRenderer({
+    canvas,
+    antialias: canvasAntialias(true),
+    powerPreference: 'high-performance',
+    stencil: false,
+  });
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = ACESFilmicToneMapping;
+  // Tone mapping runs in the composer, after bloom, on the half-float buffer.
+  renderer.toneMapping = NoToneMapping;
   renderer.toneMappingExposure = DEFAULT_EXPOSURE;
+  // The composer renders several passes a frame; the count is reset once per frame instead.
+  renderer.info.autoReset = false;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = PCFSoftShadowMap;
+  // r186 dropped PCFSoftShadowMap; PCF with a radius blurs the edge instead.
+  renderer.shadowMap.type = PCFShadowMap;
   renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio));
   renderer.setClearColor(HORIZON_COLOR, 1);
 
@@ -96,6 +118,31 @@ export function createThreeRenderer(
   scene.fog = new Fog(HORIZON_COLOR, 520, 2400);
 
   const camera = new PerspectiveCamera(fov, 1, 0.3, worldFar);
+  const composer = new EffectComposer(renderer, { frameBufferType: HalfFloatType });
+  composer.addPass(new RenderPass(scene, camera));
+  const occlusion = new N8AOPostPass(scene, camera, 1, 1);
+  // Meters: a curb, a car body, the foot of a wall.
+  occlusion.configuration.aoRadius = 2;
+  occlusion.configuration.distanceFalloff = 1;
+  occlusion.configuration.intensity = 2.5;
+  composer.addPass(occlusion);
+  const bloom = new BloomEffect({
+    luminanceThreshold: 0.9,
+    luminanceSmoothing: 0.2,
+    intensity: 0.4,
+    mipmapBlur: true,
+  });
+  composer.addPass(
+    new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC })),
+  );
+  // After tone mapping: SMAA finds edges in display colors.
+  composer.addPass(new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.HIGH })));
+  const setEffects = (level: Effects) => {
+    occlusion.enabled = level !== 'off';
+    occlusion.configuration.halfRes = level === 'medium';
+    occlusion.setQualityMode(level === 'high' ? 'Medium' : 'Low');
+    bloom.intensity = level === 'off' ? 0 : 0.4;
+  };
   const projected = new Vector3();
   const cameraSpace = new Vector3();
   const ambient = new AmbientLight(0xfff6ea, 0.16);
@@ -105,6 +152,7 @@ export function createThreeRenderer(
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.00035;
   sun.shadow.normalBias = 0.04;
+  sun.shadow.radius = 2;
   scene.add(ambient, skyLight, sun, sun.target);
   const sunController = createSunController(sun);
   sunController.aim(0, 0, 0);
@@ -228,15 +276,18 @@ export function createThreeRenderer(
     setSize(width, height) {
       renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio, pixelCap));
       renderer.setSize(width, height, false);
+      composer.setSize(width, height, false);
       camera.aspect = width / Math.max(height, 1);
       camera.updateProjectionMatrix();
     },
-    setGraphics(quality: { shadows: ShadowQuality; sharpness: Sharpness }) {
+    setGraphics(quality: GraphicsQuality) {
       pixelCap = sharpnessCap(quality.sharpness);
+      setEffects(quality.effects);
       const map = shadowMapSize(quality.shadows);
       renderer.shadowMap.enabled = map > 0;
       sunController.setEnabled(map > 0);
       if (map > 0) sunController.setMapSize(map);
+      sunController.setExtent(shadowExtent(quality.shadows));
       renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio, pixelCap));
     },
     setCamera(position, target) {
@@ -427,13 +478,15 @@ export function createThreeRenderer(
       return calls;
     },
     render() {
-      renderer.render(scene, camera);
+      renderer.info.reset();
+      composer.render();
       calls = renderer.info.render.calls;
     },
     dispose() {
       scene.traverse((object) => {
         if (object instanceof InstancedMesh) object.dispose();
       });
+      composer.dispose();
       renderer.dispose();
       // Browsers cap live WebGL contexts; a menu restart must give this one back now.
       renderer.forceContextLoss();

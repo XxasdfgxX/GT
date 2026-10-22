@@ -185,7 +185,7 @@ function addTree(
     roughness: 0.9,
     metalness: 0,
     emissive: 0,
-    castShadow: false,
+    castShadow: true,
     chunk,
     lod: 'always',
   });
@@ -204,7 +204,7 @@ function addTree(
     roughness: 0.85,
     metalness: 0,
     emissive: 0,
-    castShadow: false,
+    castShadow: true,
     chunk,
     lod: 'always',
   });
@@ -302,7 +302,8 @@ function flat(
     roughness: finish === 'flat' ? 0.7 : 0.9,
     metalness: 0,
     emissive: 0,
-    castShadow: false,
+    // Ground pads lie flat; posts, stalls and parked cars stand up.
+    castShadow: finish === 'flat' || finish === 'concrete',
     chunk,
     lod: 'always' as const,
   };

@@ -41,6 +41,7 @@ describe('start settings', () => {
         volume: 0.2,
         shadows: 'off',
         sharpness: 'low',
+        effects: 'medium',
         admin: true,
         spawn: 'centro',
         colliders: false,
@@ -53,6 +54,7 @@ describe('start settings', () => {
       volume: 0.2,
       shadows: 'off',
       sharpness: 'low',
+      effects: 'medium',
       admin: true,
       spawn: 'centro',
       colliders: false,
@@ -64,7 +66,7 @@ describe('start settings', () => {
     expect(loadSettings(memoryStore('{'))).toEqual(defaultSettings);
   });
 
-  it('fills admin mode when an older save has no spawn fields', () => {
+  it('fills admin mode and effects when an older save has neither', () => {
     const store = memoryStore(
       JSON.stringify({ mouseScale: 0.5, volume: 0.2, shadows: 'off', sharpness: 'low' }),
     );
@@ -73,6 +75,7 @@ describe('start settings', () => {
       volume: 0.2,
       shadows: 'off',
       sharpness: 'low',
+      effects: 'high',
       admin: true,
       spawn: 'centro',
       colliders: false,
