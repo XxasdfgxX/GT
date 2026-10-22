@@ -21,6 +21,13 @@ describe('health bars', () => {
     expect(half.width).toBeCloseTo(full.width / 2);
   });
 
+  it('shows an empty bar instead of NaN for a broken health value', () => {
+    const fill = healthFillLayout(Number.NaN, 0);
+    expect(Number.isFinite(fill.width)).toBe(true);
+    expect(Number.isFinite(fill.x)).toBe(true);
+    expect(fill.width).toBeCloseTo(healthFillLayout(0, 0).width);
+  });
+
   it('stacks the player bar, name, and mark above the head', () => {
     expect(PLAYER_BAR_LIFT).toBeGreaterThan(HEAD_TOP_FROM_CENTER + 0.05);
     expect(PLAYER_TAG_LIFT).toBeGreaterThan(PLAYER_BAR_LIFT);

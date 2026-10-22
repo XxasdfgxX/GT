@@ -25,7 +25,7 @@ export function healthFillLayout(
   hp: number,
   cameraYaw: number,
 ): { width: number; x: number; z: number } {
-  const ratio = Math.max(0, Math.min(1, hp));
+  const ratio = Number.isFinite(hp) ? Math.max(0, Math.min(1, hp)) : 0;
   const width = Math.max(MIN_FILL, FILL_WIDTH * ratio);
   const shift = (width - FILL_WIDTH) / 2;
   return {

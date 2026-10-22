@@ -37,7 +37,8 @@ export function readHud(world: World): HudModel {
     cash = Player.cash[eid] ?? 0;
     heading = compassHeading(CameraRig.yaw[eid] ?? 0);
     driving = Player.mode[eid] === Mode.Driving;
-    const target = driving ? (Player.vehicle[eid] ?? eid) : eid;
+    const ride = Player.vehicle[eid] ?? 0;
+    const target = driving && ride > 0 ? ride : eid;
     x = Transform.px[target] ?? 0;
     z = Transform.pz[target] ?? 0;
     if (!driving) continue;

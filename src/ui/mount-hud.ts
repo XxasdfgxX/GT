@@ -328,8 +328,8 @@ function missionLabel(phase: number, time: number): string {
   return `Entregue  ${formatTime(time)}`;
 }
 
-function formatTime(seconds: number): string {
-  const safe = Math.max(0, seconds);
+export function formatTime(seconds: number): string {
+  const safe = Math.round(Math.max(0, seconds) * 10) / 10;
   const minutes = Math.floor(safe / 60);
   const rest = safe - minutes * 60;
   return `${minutes}:${rest.toFixed(1).padStart(4, '0')}`;

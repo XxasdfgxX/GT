@@ -14,6 +14,7 @@ import { spawnMission } from '../game/features/mission/spawn-mission';
 import { resetRemains } from '../game/features/corpse/remain';
 import { resetRemotes, remotePlayerMark } from '../game/features/net/remotes';
 import { resetNetRide } from '../game/systems/net-ride';
+import { clearBoard } from '../game/play/board-state';
 import { spawnPlayer } from '../game/features/player/spawn-player';
 import { spawnPedCrowd } from '../game/features/pedestrians/crowd';
 import { spawnTrafficPool, syncTrafficShells } from '../game/features/traffic/pool';
@@ -42,6 +43,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
   resetRemotes();
   resetRemains();
   resetNetRide();
+  clearBoard();
   let running = true;
   const cleanups: Array<() => void> = [];
   const stop = () => {

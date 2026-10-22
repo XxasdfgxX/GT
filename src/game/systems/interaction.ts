@@ -18,7 +18,7 @@ import {
 } from '../ecs/components';
 import { players, traffic, vehicles } from '../ecs/queries';
 import { interactPrompt } from '../play/feel';
-import { armBoard } from '../play/board-state';
+import { armBoard, clearBoard } from '../play/board-state';
 import { chaseCameraYaw, yawFromQuat } from './camera-follow';
 import { Mode } from './player-movement';
 import { ejectDriver } from './pedestrians';
@@ -33,7 +33,7 @@ const offset: Vec3 = { x: 0, y: 0, z: 0 };
 
 export function interactionSystem(ctx: GameContext, world: World): void {
   for (const eid of players(world)) {
-    if (Player.mode[eid] === Mode.Boarding) {
+    if (Player.mode[eid] === Mode.Boarding || (Player.health[eid] ?? 0) <= 0) {
       Player.prompt[eid] = 0;
       InputState.interact[eid] = 0;
       continue;
@@ -110,6 +110,22 @@ export function boardVehicle(ctx: GameContext, eid: number, ride: number): void 
 
 export function leaveVehicle(ctx: GameContext, world: World, eid: number): void {
   exitVehicle(ctx, world, eid);
+}
+
+/** Death drops the door walk or the seat. The body is placed by the respawn, not here. */
+export function abandonRide(ctx: GameContext, world: World, eid: number): void {
+  const mode = Player.mode[eid];
+  if (mode === Mode.Boarding) clearBoard();
+  if (mode === Mode.Driving) {
+    const ride = Player.vehicle[eid] ?? 0;
+    if (hasComponent(world, ride, Traffic)) Traffic.mode[ride] = MODE_PARKED;
+    else Vehicle.occupied[ride] = 0;
+    CameraRig.distance[eid] = sim.cameraDistanceFoot;
+    CameraRig.pivot[eid] = sim.cameraPivotFoot;
+    ctx.events.emit('player:exited-vehicle', { vehicle: ride });
+  }
+  Player.mode[eid] = Mode.OnFoot;
+  Player.vehicle[eid] = 0;
 }
 
 function sitDown(ctx: GameContext, eid: number, ride: number): void {
