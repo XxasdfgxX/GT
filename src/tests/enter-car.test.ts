@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createContext } from '../app/create-context';
 import { carBody } from '../content/cars';
 import { buildCostaVerde } from '../content/city';
-import { bairroSpawns, parkedBehind } from '../content/spawns';
+import { bairroSpawns } from '../content/spawns';
+import { sampleHeight } from '../content/map/island-shape';
 import type { GameContext } from '../engine/core/context';
 import { createRapierWorld } from '../engine/physics/rapier-world';
 import type { Renderer } from '../engine/render/renderer';
@@ -41,7 +42,7 @@ describe('entering the spawned car', () => {
     const physics = await createRapierWorld(0);
     const ctx = context(physics);
     const world = createGameWorld();
-    const park = parkedBehind({ x: 0, z: 12 });
+    const park = carSpot(0, 5);
     const ride = spawnVehicle(ctx, world, park, 'aston');
     const player = spawnPlayer(ctx, world, {
       name: 'test',
@@ -85,7 +86,7 @@ function buriedPark(): { x: number; y: number; z: number; yaw: number } {
   for (const home of bairroSpawns(city.graph)) {
     for (let ix = -5; ix <= 5; ix += 1) {
       for (let iz = -5; iz <= 5; iz += 1) {
-        const park = parkedBehind({ x: home.x + ix, z: home.z + iz });
+        const park = carSpot(home.x + ix, home.z + iz - 7);
         for (const box of city.colliders) {
           if (box.hy < 0.4) continue;
           const push = boxExit(
@@ -106,4 +107,9 @@ function buriedPark(): { x: number; y: number; z: number; yaw: number } {
     }
   }
   throw new Error('nenhum spawn de carro enterrado');
+}
+
+/** A car facing south at a fixed spot, the old solo parking place. */
+function carSpot(x: number, z: number): { x: number; y: number; z: number; yaw: number } {
+  return { x, y: sampleHeight(x, z) + 1.5, z, yaw: Math.PI };
 }

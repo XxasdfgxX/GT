@@ -327,9 +327,14 @@ Medido antes e depois com uma sonda sobre `buildCostaVerde()`:
 - [x] `validate-vehicle`: primitiva sem índice conta `POSITION.count / 3`. Os limites passam pela matriz de mundo de cada nó (TRS ou `matrix`, a partir das raízes da cena). Antes, a BMW media 205 × 504 × 255 m e a Ferrari saía com os eixos trocados; agora 2,04 × 2,72 × 4,75 m e 2,24 × 1,21 × 4,57 m.
 - [x] `play.mjs`: só encerra processos `node` nas portas 6969 e 8787; outro programa interrompe com mensagem. Um filho que sai por sinal também derruba o outro.
 
-### Task 4.8: Carro do spawn pode nascer dentro de prédio (aberta)
+### Task 4.8: Carro do spawn nasce fora da rua
 
-- [ ] `parkedBehind` põe o carro 7 m ao sul do jogador, qualquer que seja a rua. Com o spawn agora na calçada, numa rua leste–oeste o carro cai nos lotes. `releaseFromBuildings` deixa o carro onde nasceu de propósito (teste `enter-car`). Correção: estacionar na faixa da rua do spawn, alinhado com ela. Precisa de `besideSidewalk` devolver também a direção da rua.
+**Files:** Modify `src/content/spawns.ts`, `src/app/bootstrap.ts` · Test `src/tests/overlap.test.ts`
+
+- [x] `parkedBehind` (7 m ao sul, virado para o sul, qualquer que fosse a rua) saiu. Nos 54 pontos de partida do solo (ponto solo e cada bairro, com os cantos do sorteio de ±5 m), ele punha o carro fora do asfalto em 48 e dentro de prédio ou carro estacionado em 25.
+- [x] `parkOnStreet(city, jogador, meia-caixa do carro)`: a rua mais próxima com pelo menos 10 m livres de cada nó; encostado no meio-fio do lado do jogador (0,35 m do asfalto); virado no sentido do tráfego daquele lado (mão direita). Desliza pelo meio-fio (0, ±3, ±6 … ±25 m) até não cruzar collider de prédio ou de carro estacionado nem o jogador. Na prática fica a 2,5–2,8 m do jogador.
+- [x] Os testes que usavam `parkedBehind` só como lugar fixo do carro ganharam um `carSpot` local.
+- [x] Testes, nos 54 pontos de partida: o carro inteiro dentro do asfalto, alinhado com a rua e longe dos cruzamentos; sem cruzar prédio, carro estacionado ou o jogador; virado com o tráfego do seu lado.
 
 ---
 
