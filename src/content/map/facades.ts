@@ -79,6 +79,11 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
     const rz = -Math.sin(lot.yaw);
     const top = lot.y + lot.sy;
     const front = lot.sz / 2;
+    // Silhouette: some towers step back for their top three floors, some houses get a clay gable.
+    const setback = lot.kind === 'tower' && lot.floors >= 8 && rng() < 0.3;
+    const gable = lot.kind === 'house' && rng() < 0.4;
+    const lowerFloors = setback ? lot.floors - 3 : lot.floors;
+    const lowerTop = lot.y + lowerFloors * floorH;
     /** A box against the front wall: `along` from the center to the right, `out` from the wall. */
     const onFront = (
       along: number,
@@ -118,10 +123,10 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
         kind: 'box',
         finish,
         sx: lot.sx,
-        sy: lot.sy,
+        sy: lowerTop - lot.y,
         sz: lot.sz,
         x: lot.x,
-        y: lot.y + lot.sy / 2,
+        y: (lot.y + lowerTop) / 2,
         z: lot.z,
         yaw: lot.yaw,
         pitch: 0,
@@ -136,34 +141,76 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
       });
     }
 
-    // Roof: a slab inside a parapet, so the top reads as a roof and not as more wall.
-    batch.add({
-      kind: 'box',
-      finish: 'roof-concrete',
-      sx: lot.sx - 0.3,
-      sy: 0.08,
-      sz: lot.sz - 0.3,
-      x: lot.x,
-      y: top + 0.04,
-      z: lot.z,
-      yaw: lot.yaw,
-      pitch: 0,
-      color: 0xffffff,
-      roughness: 0.9,
-      metalness: 0,
-      emissive: 0,
-      castShadow: false,
-      chunk: lot.chunk,
-      lod: 'near',
-    });
-    const parapet = 0.9;
-    for (const [along, out, sx, sz] of [
-      [0, -0.1, lot.sx, 0.2],
-      [0, -lot.sz + 0.1, lot.sx, 0.2],
-      [-lot.sx / 2 + 0.1, -lot.sz / 2, 0.2, lot.sz],
-      [lot.sx / 2 - 0.1, -lot.sz / 2, 0.2, lot.sz],
-    ] as const) {
-      onFront(along, top + parapet / 2, out, [sx, parapet, sz], plain(finish, tint), true);
+    /** A flat roof: a slab inside a parapet, so the top reads as a roof and not as more wall. */
+    const flatRoof = (width: number, depth: number, y: number, inset: number) => {
+      const parapet = 0.9;
+      onFront(
+        0,
+        y + 0.04,
+        -inset - depth / 2,
+        [width - 0.3, 0.08, depth - 0.3],
+        plain('roof-concrete', 0xffffff, 0.9),
+        false,
+      );
+      for (const [along, out, sx, sz] of [
+        [0, -inset - 0.1, width, 0.2],
+        [0, -inset - depth + 0.1, width, 0.2],
+        [-width / 2 + 0.1, -inset - depth / 2, 0.2, depth],
+        [width / 2 - 0.1, -inset - depth / 2, 0.2, depth],
+      ] as const) {
+        onFront(along, y + parapet / 2, out, [sx, parapet, sz], plain(finish, tint), true);
+      }
+    };
+    if (gable) {
+      // A square box turned 45° along the ridge: its top half is the gable, the rest sits in the walls.
+      const side = (lot.sz / Math.SQRT2) * 1.04;
+      batch.add({
+        kind: 'box',
+        finish: 'roof-clay',
+        sx: lot.sx + 0.4,
+        sy: side,
+        sz: side,
+        x: lot.x,
+        y: lowerTop,
+        z: lot.z,
+        yaw: lot.yaw,
+        pitch: Math.PI / 4,
+        color: 0xffffff,
+        roughness: 0.8,
+        metalness: 0,
+        emissive: 0,
+        castShadow: true,
+        chunk: lot.chunk,
+        lod: 'always',
+      });
+    } else flatRoof(lot.sx, lot.sz, lowerTop, 0);
+    if (setback) {
+      // The top three floors, stepped back on every side, on the roof terrace below.
+      const upperX = Math.max(6, lot.sx - 4);
+      const upperZ = Math.max(6, lot.sz - 3);
+      for (const lod of ['near', 'far'] as const) {
+        batch.add({
+          kind: 'box',
+          finish,
+          sx: upperX,
+          sy: top - lowerTop,
+          sz: upperZ,
+          x: lot.x,
+          y: (lowerTop + top) / 2,
+          z: lot.z,
+          yaw: lot.yaw,
+          pitch: 0,
+          color: tint,
+          roughness: 0.86,
+          metalness: 0,
+          emissive: 0,
+          castShadow: true,
+          chunk: lot.chunk,
+          lod,
+          facade: [floorH, facade[1], 0, facade[3] + 1],
+        });
+      }
+      flatRoof(upperX, upperZ, top, (lot.sz - upperZ) / 2);
     }
 
     const bays = bayCount(lot.sx, style);
@@ -174,7 +221,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
     if (lot.floors > 1 && style !== 'glass-curtain') {
       const deep = style === 'concrete-band' ? 0.35 : 0.12;
       const tall = style === 'concrete-band' ? 0.32 : 0.14;
-      for (let level = 1; level < lot.floors; level += 1) {
+      for (let level = 1; level < lowerFloors; level += 1) {
         onFront(
           0,
           lot.y + level * floorH,
@@ -189,7 +236,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
     // Balconies on homes and towers, lined up with the window bays.
     if ((lot.kind === 'residential' || lot.kind === 'tower') && style !== 'glass-curtain') {
       const share = style === 'concrete-band' ? 0.7 : 0.45;
-      for (let level = 1; level < lot.floors; level += 1) {
+      for (let level = 1; level < lowerFloors; level += 1) {
         for (let bay = 0; bay < bays; bay += 1) {
           if (rng() > share) continue;
           const along = bayCenter(bay);
@@ -210,7 +257,7 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
 
     // Split air conditioners under a few windows: the most Brazilian thing on a wall.
     if (lot.kind !== 'shop' && style !== 'glass-curtain') {
-      for (let level = lot.kind === 'house' ? 0 : 1; level < lot.floors; level += 1) {
+      for (let level = lot.kind === 'house' ? 0 : 1; level < lowerFloors; level += 1) {
         for (let bay = 0; bay < bays; bay += 1) {
           if (rng() > 0.18) continue;
           onFront(
@@ -260,8 +307,8 @@ export function buildFacades(footprints: Footprint[], batch: CityBatcher): ShopD
       doors.push({ x: lot.x + fx * (front + 1.4), z: lot.z + fz * (front + 1.4) });
     }
 
-    // A blue fiberglass water tank on most roofs.
-    if (rng() > 0.35) {
+    // A blue fiberglass water tank on most flat roofs.
+    if (rng() > 0.35 && !gable) {
       batch.add({
         kind: 'cylinder',
         finish: 'flat',

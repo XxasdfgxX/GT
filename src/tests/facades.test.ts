@@ -25,8 +25,24 @@ describe('facades', () => {
       for (let i = 0; i < mesh.count; i += 1) if ((mesh.facade?.[i * 4] ?? 0) > 0) lit += 1;
       return sum + lit;
     }, 0);
-    // A near and a far wall per lot.
-    expect(withWindows).toBe(city.footprints.length * 2);
+    // A near and a far wall per lot, and two more where a tower steps back.
+    expect(withWindows).toBeGreaterThanOrEqual(city.footprints.length * 2);
+    expect(withWindows % 2).toBe(0);
+  });
+});
+
+describe('silhouettes', () => {
+  it('steps some towers back and gives some houses a clay gable', () => {
+    const city = createCity();
+    const gables = city.meshes.filter((mesh) => mesh.finish === 'roof-clay');
+    expect(gables.reduce((sum, mesh) => sum + mesh.count, 0)).toBeGreaterThan(0);
+    const walls = city.meshes.filter((mesh) => mesh.facade);
+    const lit = walls.reduce((sum, mesh) => {
+      let n = 0;
+      for (let i = 0; i < mesh.count; i += 1) if ((mesh.facade?.[i * 4] ?? 0) > 0) n += 1;
+      return sum + n;
+    }, 0);
+    expect(lit).toBeGreaterThan(city.footprints.length * 2);
   });
 });
 
