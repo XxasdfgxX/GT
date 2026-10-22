@@ -2,11 +2,10 @@
 
 import { hasComponent, type World } from 'bitecs';
 import { sedan } from '../../content/vehicles';
-import type { GameContext } from '../../engine/core/context';
+import type { GameContext } from '../context';
 import { enginePlayback } from '../play/feel';
-import { InputState, PhysicsRef, Player, Traffic, Vehicle } from '../ecs/components';
+import { InputState, PhysicsRef, Player, Traffic, Vehicle, Mode } from '../ecs/components';
 import { players, vehicles } from '../ecs/queries';
-import { Mode } from './player-movement';
 
 /** Unoccupied cars stay parked. The one that spawns with you must not roll away. */
 const coast = { throttle: 0, brake: 0, steer: 0, handbrake: true };

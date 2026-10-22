@@ -5,15 +5,22 @@ import { carCatalog } from '../../content/cars';
 import { sim } from '../../content/sim';
 import { trafficCatalog } from '../../content/traffic-catalog';
 import { quatFromYaw } from '../../engine/core/math';
-import type { GameContext } from '../../engine/core/context';
-import { PhysicsRef, Player, Traffic, Transform, Vehicle } from '../ecs/components';
+import type { GameContext } from '../context';
+import {
+  PhysicsRef,
+  Player,
+  Traffic,
+  Transform,
+  Vehicle,
+  Mode,
+  TrafficMode,
+} from '../ecs/components';
 import { SIT_SECONDS, approachPoint, driverDoor, facingYaw } from '../play/board';
 import { clearBoard, currentBoard } from '../play/board-state';
-import { yawFromQuat } from './camera-follow';
-import { boardVehicle } from './interaction';
-import { capsuleFloor, Mode } from './player-movement';
+import { yawFromQuat } from '../play/heading';
+import { boardVehicle } from '../play/seat';
+import { capsuleFloor } from '../play/ground';
 
-const MODE_PLAYER = 3;
 const WALK_LIMIT = 4;
 
 const position = { x: 0, y: 0, z: 0 };
@@ -26,12 +33,6 @@ export interface CarTitle {
   x: number;
   y: number;
   z: number;
-}
-
-export function boardingClip(): 'walk' | 'sit' | null {
-  const job = currentBoard();
-  if (!job) return null;
-  return job.phase === 'sit' ? 'sit' : 'walk';
 }
 
 export function readCarTitle(world: World): CarTitle | null {
@@ -92,7 +93,8 @@ export function boardCarSystem(ctx: GameContext, world: World): void {
   const player = job.player;
   const kind = job.kind;
   clearBoard();
-  if (kind === 'traffic' && hasComponent(world, ride, Traffic)) Traffic.mode[ride] = MODE_PLAYER;
+  if (kind === 'traffic' && hasComponent(world, ride, Traffic))
+    Traffic.mode[ride] = TrafficMode.Player;
   boardVehicle(ctx, player, ride);
 }
 

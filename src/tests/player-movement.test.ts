@@ -1,6 +1,6 @@
 import { addComponent, addEntity, createWorld } from 'bitecs';
 import { describe, expect, it } from 'vitest';
-import type { GameContext } from '../engine/core/context';
+import type { GameContext } from '../game/context';
 import {
   CameraRig,
   InputState,
@@ -9,13 +9,13 @@ import {
   RenderRef,
   Transform,
   Velocity,
+  Mode,
 } from '../game/ecs/components';
 import { CITY_FLOOR } from '../content/map/island-shape';
 import { sim } from '../content/sim';
+import { capsuleFloor } from '../game/play/ground';
 import {
-  Mode,
   applyLocomotion,
-  capsuleFloor,
   computePlanarVelocity,
   playerMovementSystem,
 } from '../game/systems/player-movement';

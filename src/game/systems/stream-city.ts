@@ -1,7 +1,7 @@
 /** Spreads chunk creation across frames and hides districts the player left. */
 
 import type { World } from 'bitecs';
-import type { GameContext } from '../../engine/core/context';
+import type { GameContext } from '../context';
 import { playerFocus } from '../play/player-focus';
 import { streamAround } from '../features/world/spawn-map';
 

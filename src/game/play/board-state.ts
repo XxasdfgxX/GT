@@ -40,3 +40,9 @@ export function currentBoard(): BoardJob | null {
 export function clearBoard(): void {
   job = null;
 }
+
+/** Clip for the body while it walks to the door or sits, or null when not boarding. */
+export function boardingClip(): 'walk' | 'sit' | null {
+  if (!job) return null;
+  return job.phase === 'sit' ? 'sit' : 'walk';
+}

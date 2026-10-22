@@ -11,14 +11,7 @@ import { sampleHeight } from '../../../content/map/island-shape';
 import { STREET_LIFT } from '../../../content/map/road-mesh';
 import { sim } from '../../../content/sim';
 import { trafficCatalog } from '../../../content/traffic-catalog';
-import type {
-  GameContext,
-  NetCar,
-  NetCorpse,
-  NetNpc,
-  NetPickup,
-  NetPlayer,
-} from '../../../engine/core/context';
+import type { GameContext, NetCar, NetCorpse, NetNpc, NetPickup, NetPlayer } from '../../context';
 import { quatFromYaw, writeTransformMatrix } from '../../../engine/core/math';
 import type { ClipKey } from '../../../engine/render/renderer';
 import { HURT_SECONDS } from '../../systems/ped-ai';

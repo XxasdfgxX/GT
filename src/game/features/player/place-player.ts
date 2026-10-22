@@ -1,6 +1,6 @@
 /** Hides or plants the local body. Solo death and server respawn both use this. */
 
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 import { PhysicsRef, Player, RenderRef, Velocity, writePose } from '../../ecs/components';
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };

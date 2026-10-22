@@ -2,7 +2,7 @@
 
 import type { CityMesh } from '../../../content/map/batch';
 import type { CostaVerde } from '../../../content/city';
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 import { quatFromYawPitch } from '../../../engine/core/math';
 import { chunkIndex } from '../../../content/map/batch';
 

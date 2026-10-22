@@ -2,19 +2,13 @@
 
 import { hasComponent, type World } from 'bitecs';
 import { quatFromYaw, type Quat, type Vec3 } from '../../engine/core/math';
-import type { GameContext } from '../../engine/core/context';
-import { sampleHeight } from '../../content/map/island-shape';
+import type { GameContext } from '../context';
 import { sim } from '../../content/sim';
 import { BUMP_SPEED, BODY_REACH, TRIP_SECONDS, circlesOverlap } from '../play/overlap';
 import { punchProfile } from './ped-ai';
-import { InputState, PhysicsRef, Player, Transform, Velocity } from '../ecs/components';
+import { capsuleFloor } from '../play/ground';
+import { InputState, PhysicsRef, Player, Transform, Velocity, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
-
-export const Mode = {
-  OnFoot: 0,
-  Driving: 1,
-  Boarding: 2,
-} as const;
 
 export interface Planar {
   x: number;
@@ -113,10 +107,6 @@ const poseRot: Quat = { x: 0, y: 0, z: 0, w: 1 };
 const facing: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
 /** Capsule center with the feet on the terrain. The drawn street sits just above this. */
-export function capsuleFloor(x: number, z: number): number {
-  return sampleHeight(x, z) + sim.playerRadius + sim.playerHalfHeight;
-}
-
 export function playerMovementSystem(ctx: GameContext, world: World): void {
   const dt = ctx.time.fixedDt;
   for (const eid of players(world)) {

@@ -1,35 +1,23 @@
 /** On foot the middle mouse orbits. In a car the rig locks behind the nose, like a chase cam. */
 
 import type { World } from 'bitecs';
-import { lerp, rotateVec3ByQuat, slerpQuat, type Quat, type Vec3 } from '../../engine/core/math';
-import type { GameContext } from '../../engine/core/context';
+import { lerp, slerpQuat, type Quat, type Vec3 } from '../../engine/core/math';
+import type { GameContext } from '../context';
 import { sampleHeight } from '../../content/map/island-shape';
 import { STREET_LIFT } from '../../content/map/road-mesh';
 import { sim } from '../../content/sim';
-import { CameraRig, InputState, Player, Transform } from '../ecs/components';
+import { CameraRig, InputState, Player, Transform, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
-import { Mode } from './player-movement';
+import { chaseCameraYaw, yawFromQuat } from '../play/heading';
 
 /** Meters of air between the lens and the asphalt, past the near plane. */
 const CAMERA_CLEARANCE = STREET_LIFT + 0.55;
 
 const cameraPos: Vec3 = { x: 0, y: 0, z: 0 };
 const lookAt: Vec3 = { x: 0, y: 0, z: 0 };
-const nose: Vec3 = { x: 0, y: 0, z: 1 };
-const nosed: Vec3 = { x: 0, y: 0, z: 0 };
 const fromRot: Quat = { x: 0, y: 0, z: 0, w: 1 };
 const toRot: Quat = { x: 0, y: 0, z: 0, w: 1 };
 const blendedRot: Quat = { x: 0, y: 0, z: 0, w: 1 };
-
-export function yawFromQuat(rotation: Quat): number {
-  rotateVec3ByQuat(rotation, nose, nosed);
-  return Math.atan2(nosed.x, nosed.z);
-}
-
-/** Camera yaw that sits on the tail, looking along the car's +Z nose. */
-export function chaseCameraYaw(vehicleYaw: number): number {
-  return vehicleYaw + Math.PI;
-}
 
 export function dampAngle(current: number, target: number, blend: number): number {
   return current + shortestAngleDelta(current, target) * blend;
@@ -46,12 +34,6 @@ function shortestAngleDelta(from: number, to: number): number {
 /** Lifts a point that slipped under the drawn street. */
 export function aboveStreet(x: number, y: number, z: number): number {
   return Math.max(y, sampleHeight(x, z) + CAMERA_CLEARANCE);
-}
-
-/** Degrees clockwise from north. Yaw 0 looks south, down the street toward the beach. */
-export function compassHeading(yaw: number): number {
-  const degrees = ((yaw + Math.PI) * 180) / Math.PI;
-  return ((degrees % 360) + 360) % 360;
 }
 
 export function updateCameraLook(ctx: GameContext, world: World): void {

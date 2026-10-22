@@ -1,7 +1,7 @@
 /** Spawns the on-foot capsule a short walk from the car. */
 
 import { addComponent, addEntity, type World } from 'bitecs';
-import type { GameContext } from '../../../engine/core/context';
+import type { GameContext } from '../../context';
 import { STREET_LIFT } from '../../../content/map/road-mesh';
 import { soloSpawn, type BairroSpawn } from '../../../content/spawns';
 import {
@@ -20,8 +20,8 @@ import {
   Transform,
   Velocity,
   writePose,
+  Mode,
 } from '../../ecs/components';
-import { Mode } from '../../systems/player-movement';
 
 export function spawnPlayer(
   ctx: GameContext,

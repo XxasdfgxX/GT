@@ -2,13 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { quatFromYaw } from '../engine/core/math';
 import { CITY_FLOOR } from '../content/map/island-shape';
 import { STREET_LIFT } from '../content/map/road-mesh';
-import {
-  aboveStreet,
-  chaseCameraYaw,
-  compassHeading,
-  dampAngle,
-  yawFromQuat,
-} from '../game/systems/camera-follow';
+import { aboveStreet, dampAngle } from '../game/systems/camera-follow';
+import { chaseCameraYaw, compassHeading, yawFromQuat } from '../game/play/heading';
 import { enginePlayback, interactPrompt, speedKmh, stepMission } from '../game/play/feel';
 import { PromptCode } from '../game/play/prompt';
 import { MissionPhase } from '../game/play/mission';

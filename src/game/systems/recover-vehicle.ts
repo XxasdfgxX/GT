@@ -7,17 +7,15 @@ import { carBody, carCatalog } from '../../content/cars';
 import { sim } from '../../content/sim';
 import { trafficCatalog } from '../../content/traffic-catalog';
 import { sedan } from '../../content/vehicles';
-import type { GameContext } from '../../engine/core/context';
+import type { GameContext } from '../context';
 import { quatFromYaw } from '../../engine/core/math';
-import { CAP, PhysicsRef, Player, Traffic, Vehicle } from '../ecs/components';
+import { CAP, PhysicsRef, Player, Traffic, Vehicle, Mode, TrafficMode } from '../ecs/components';
 import { players, traffic, vehicles } from '../ecs/queries';
 import { circleBoxExit } from '../play/overlap';
 import { tallBoxesNear } from '../play/collider-grid';
-import { yawFromQuat } from './camera-follow';
+import { yawFromQuat } from '../play/heading';
 import { boxExit } from './traffic-ai';
 import { chassisUp, headingYaw, readyToFlip, roofTime } from '../play/upright';
-import { MODE_PLAYER, MODE_WRECK } from './traffic';
-import { Mode } from './player-movement';
 
 const spent = new Float32Array(CAP);
 const pos = { x: 0, y: 0, z: 0 };
@@ -28,7 +26,7 @@ export function recoverVehicles(ctx: GameContext, world: World): void {
   const dt = ctx.time.fixedDt;
   for (const eid of vehicles(world)) recover(ctx, eid, dt, sedan.spawn.y);
   for (const eid of traffic(world)) {
-    if ((Traffic.mode[eid] ?? 0) !== MODE_WRECK) {
+    if ((Traffic.mode[eid] ?? 0) !== TrafficMode.Wreck) {
       spent[eid] = 0;
       continue;
     }
@@ -84,7 +82,7 @@ export function releaseFromBuildings(ctx: GameContext, world: World): void {
     if (push.depth >= BURY_DEPTH) nudge(ctx, body, push.x, push.z);
   }
   for (const eid of traffic(world)) {
-    if ((Traffic.mode[eid] ?? 0) !== MODE_PLAYER) continue;
+    if ((Traffic.mode[eid] ?? 0) !== TrafficMode.Player) continue;
     const body = PhysicsRef.body[eid] ?? 0;
     if (body === 0) continue;
     const spec = trafficCatalog[Traffic.variant[eid] ?? 0];

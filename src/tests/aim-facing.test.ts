@@ -8,9 +8,9 @@ import {
   RenderRef,
   Transform,
   Velocity,
+  Mode,
 } from '../game/ecs/components';
 import { facePlayerToCursor } from '../game/systems/aim-facing';
-import { Mode } from '../game/systems/player-movement';
 
 function plantPlayer(): { world: ReturnType<typeof createWorld>; eid: number } {
   const world = createWorld();

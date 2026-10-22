@@ -1,7 +1,7 @@
 /** Copies the input snapshot into the player. Jump and interact latch until a system clears them. */
 
 import type { World } from 'bitecs';
-import type { GameContext } from '../../engine/core/context';
+import type { GameContext } from '../context';
 import { InputState } from '../ecs/components';
 import { players } from '../ecs/queries';
 

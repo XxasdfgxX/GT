@@ -3,7 +3,7 @@
 import type { AssetManager } from '../engine/assets/asset-manager';
 import type { AudioBus } from '../engine/audio/audio-bus';
 import { EventBus } from '../engine/core/event-bus';
-import type { GameContext, GameEvents, NetLink } from '../engine/core/context';
+import type { GameContext, GameEvents, NetLink } from '../game/context';
 import { createConsoleLogger } from '../engine/core/logger';
 import { createClock } from '../engine/core/time';
 import type { Input } from '../engine/input/input';

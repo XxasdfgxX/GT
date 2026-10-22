@@ -1,14 +1,13 @@
 /** Sends the local pose and applies the server's health, cash, and respawn. */
 
 import type { World } from 'bitecs';
-import type { GameContext } from '../../engine/core/context';
-import { Player, Transform } from '../ecs/components';
+import type { GameContext } from '../context';
+import { Player, Transform, Mode } from '../ecs/components';
 import { players } from '../ecs/queries';
 import { hideBody, showBody } from '../features/player/place-player';
 import { PICKUP_REACH } from '../play/wallet';
-import { yawFromQuat } from './camera-follow';
+import { yawFromQuat } from '../play/heading';
 import { HEAVY_DAMAGE } from './ped-ai';
-import { Mode } from './player-movement';
 
 const POSE_INTERVAL = 1 / 15;
 let poseWait = 0;
