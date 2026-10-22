@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
 import { CITY_FLOOR, onIsland, sampleHeight, terrainSplat } from '../content/map/island-shape';
-import { SIDEWALK_WIDTH } from '../content/map/roads';
-import { rectsOverlap } from '../content/map/blocks';
+import { SIDEWALK_WIDTH, buildRoadGraph } from '../content/map/roads';
+import { PLAZA_SITES, fitPlazas, rectsOverlap } from '../content/map/blocks';
+import { srgbToLinear } from '../engine/core/math';
 
 describe('Costa Verde island', () => {
   const city = createCity();
@@ -170,5 +171,37 @@ describe('terrain splat', () => {
     expect(out[1]).toBeGreaterThan(0.9);
     terrainSplat(0, 0, 0, out, 0);
     expect(out[0]).toBe(1);
+  });
+});
+
+describe('plazas', () => {
+  it('sit inside their blocks, clear of every street and sidewalk', () => {
+    const graph = buildRoadGraph();
+    const plazas = fitPlazas(graph);
+    expect(plazas).toHaveLength(PLAZA_SITES.length);
+    for (const plaza of plazas) {
+      for (const edge of graph.edges) {
+        const a = graph.nodes[edge.a];
+        const b = graph.nodes[edge.b];
+        if (!a || !b) continue;
+        const band = {
+          x: (a.x + b.x) / 2,
+          z: (a.z + b.z) / 2,
+          hx: edge.width / 2 + SIDEWALK_WIDTH,
+          hz: edge.length / 2,
+          yaw: Math.atan2(b.x - a.x, b.z - a.z),
+        };
+        const area = { x: plaza.x, z: plaza.z, hx: plaza.sx / 2, hz: plaza.sz / 2, yaw: 0 };
+        expect(rectsOverlap(area, band)).toBe(false);
+      }
+    }
+  });
+});
+
+describe('city colors', () => {
+  it('are converted from sRGB hex to the linear values instances are read as', () => {
+    expect(srgbToLinear(0)).toBe(0);
+    expect(srgbToLinear(1)).toBeCloseTo(1, 6);
+    expect(srgbToLinear(0.5)).toBeCloseTo(0.214, 3);
   });
 });

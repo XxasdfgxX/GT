@@ -1,7 +1,7 @@
 /** Street furniture along the sidewalk. Parked cars stay on the curb, off the lane. */
 
 import { chunkIndex, type BoxCollider, type CityBatcher, type MeshLod, type Stamp } from './batch';
-import { plazas, plazaGrassArea, type Footprint } from './blocks';
+import { fitPlazas, plazaGrassArea, type Footprint } from './blocks';
 import type { ShopDoor } from './facades';
 import { onIsland, sampleHeight, urbanWeight } from './island-shape';
 import { mulberry32 } from './rng';
@@ -65,7 +65,7 @@ export function buildProps(
     if (door.x * door.x + (door.z - 8) * (door.z - 8) < 16 * 16) continue;
     pois.push({ x: door.x, z: door.z, kind: 'shop' });
   }
-  for (const plaza of plazas) {
+  for (const plaza of fitPlazas(graph)) {
     const y = sampleHeight(plaza.x, plaza.z);
     const chunk = chunkIndex(plaza.x, plaza.z);
     batch.add(
@@ -94,16 +94,12 @@ export function buildProps(
       [-1, 1],
       [1, 1],
     ] as const) {
+      const px = plaza.x + cx * (hx + 1.2);
+      const pz = plaza.z + cz * (hz + 1.2);
+      batch.add(prop(PROPS.planter, px, y + 0.06, pz, 0, 1.6, chunk));
+      // The planter ships empty: a shrub fills it, set into the soil line.
       batch.add(
-        prop(
-          PROPS.planter,
-          plaza.x + cx * (hx + 1.2),
-          y + 0.06,
-          plaza.z + cz * (hz + 1.2),
-          0,
-          1.6,
-          chunk,
-        ),
+        centered(PROPS.shrub, px, y + 0.06 + 0.32 * 1.6, pz, garden() * Math.PI * 2, 2.6, chunk),
       );
     }
     for (let k = 0; k < 10; k += 1) {
@@ -113,7 +109,15 @@ export function buildProps(
       const pz = plaza.z + (north ? hz - 0.6 : -hz + 0.6);
       const look = garden() > 0.5 ? PROPS.shrub : PROPS.fern;
       batch.add(
-        prop(look, px, y + 0.1, pz, garden() * Math.PI * 2, look === PROPS.shrub ? 4 : 1.6, chunk),
+        centered(
+          look,
+          px,
+          y + 0.1,
+          pz,
+          garden() * Math.PI * 2,
+          look === PROPS.shrub ? 4 : 1.6,
+          chunk,
+        ),
       );
     }
     pois.push({ x: plaza.x, z: plaza.z, kind: 'plaza' });
@@ -239,7 +243,7 @@ export function buildProps(
       lod: 'always',
     });
   }
-  return { pois, colliders, trees, grass: plazaGrassArea() };
+  return { pois, colliders, trees, grass: plazaGrassArea(graph) };
 }
 
 function addTree(
@@ -262,8 +266,31 @@ function addTree(
   batch.add(prop(PROPS.tree, x, y, z, kind * Math.PI * 20, 1.3 + size * 0.45, chunk, 'always'));
 }
 
-/** Fern crown offset from its origin, in its own meters: the model is not centered. */
-const FERN_CENTER = { x: 0.455, z: 0.44 };
+/** Where a plant's middle sits from its origin, in its own meters: these models are not centered. */
+const PLANT_CENTERS: Record<string, { x: number; z: number }> = {
+  [PROPS.fern]: { x: 0.455, z: 0.44 },
+  [PROPS.shrub]: { x: 0.27, z: 0 },
+};
+
+/** A plant whose middle, not its origin, lands on (x, z) whatever its yaw and scale. */
+function centered(
+  model: string,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  scale: number,
+  chunk: number,
+  lod: MeshLod = 'near',
+): Stamp {
+  const middle = PLANT_CENTERS[model] ?? { x: 0, z: 0 };
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  // Local x runs along (cos, -sin) and local z along (sin, cos).
+  const ox = (middle.x * cos + middle.z * sin) * scale;
+  const oz = (-middle.x * sin + middle.z * cos) * scale;
+  return prop(model, x - ox, y, z - oz, yaw, scale, chunk, lod);
+}
 
 /** A coconut palm: a leaning, tapering trunk under a fern crown blown up to frond size. */
 function addPalm(
@@ -288,7 +315,8 @@ function addPalm(
       kind: 'cylinder',
       finish: 'flat',
       sx: width,
-      sy: height / segments + 0.05,
+      // Overlapped, so the lean does not open gaps between segments.
+      sy: (height / segments) * 1.25,
       sz: width,
       x: x + dx * Math.sin(lean) * height * along * along,
       y: y + height * along,
@@ -310,14 +338,8 @@ function addPalm(
     [0, 3.2],
     [2.1, 2.7],
   ] as const) {
-    const yaw = heading + turn;
-    const cos = Math.cos(yaw);
-    const sin = Math.sin(yaw);
-    // Local x runs along (cos, -sin) and local z along (sin, cos).
-    const ox = (FERN_CENTER.x * cos + FERN_CENTER.z * sin) * scale;
-    const oz = (-FERN_CENTER.x * sin + FERN_CENTER.z * cos) * scale;
     batch.add(
-      prop(PROPS.fern, topX - ox, y + height - 0.4, topZ - oz, yaw, scale, chunk, 'always'),
+      centered(PROPS.fern, topX, y + height - 0.4, topZ, heading + turn, scale, chunk, 'always'),
     );
   }
 }
@@ -411,7 +433,10 @@ function addShelter(
   for (const along of [-1.6, 1.6]) box(along, 0, 1.2, [1.4, 2.4, 0.08], steel, true);
   box(0, 0.05, 2.45, [1.6, 0.1, 3.6], { color: 0xc4553a, roughness: 0.6, metalness: 0.1 }, true);
   // The bench kit's long axis is its local X; a quarter turn lays it along the street.
-  batch.add(prop(PROPS.bench, x + ox * 0.3, y, z + oz * 0.3, yaw + Math.PI / 2, 0.55, chunk));
+  batch.add({
+    ...prop(PROPS.bench, x + ox * 0.3, y, z + oz * 0.3, yaw + Math.PI / 2, 1, chunk),
+    sx: 0.55,
+  });
   box(2.4, -0.4, 1.4, [0.08, 2.8, 0.08], steel, false);
   box(
     2.4,
@@ -491,7 +516,8 @@ function addBench(
   chunk: number,
 ): void {
   // The seating kit is 4.3 m of modules side by side; scaled, it reads as one long bench.
-  batch.add(prop(PROPS.bench, x, y, z, yaw + Math.PI / 2, 0.6, chunk));
+  // Shortened along its length only: scaled whole, the seat sank to shin height.
+  batch.add({ ...prop(PROPS.bench, x, y, z, yaw + Math.PI / 2, 1, chunk), sx: 0.6 });
 }
 
 function addBin(

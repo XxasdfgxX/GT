@@ -15,6 +15,11 @@ export interface Quat {
 
 export const IDENTITY_QUAT: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
+/** One sRGB channel, 0 to 1, as the linear value the renderer blends with. */
+export function srgbToLinear(channel: number): number {
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+}
+
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }

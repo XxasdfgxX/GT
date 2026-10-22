@@ -1,6 +1,6 @@
 /** Groups scaled unit meshes so one InstancedMesh covers a chunk and a material. */
 
-import { writeTransformMatrix } from '../../engine/core/math';
+import { srgbToLinear, writeTransformMatrix } from '../../engine/core/math';
 import { islandBounds } from './island-shape';
 
 export const CHUNK_METERS = 128;
@@ -138,9 +138,10 @@ export class CityBatcher {
           stamp.sy,
           stamp.sz,
         );
-        colors[i * 3] = ((stamp.color >> 16) & 255) / 255;
-        colors[i * 3 + 1] = ((stamp.color >> 8) & 255) / 255;
-        colors[i * 3 + 2] = (stamp.color & 255) / 255;
+        // Hex colors are sRGB; instance colors are read as linear, so unconverted they washed out.
+        colors[i * 3] = srgbToLinear(((stamp.color >> 16) & 255) / 255);
+        colors[i * 3 + 1] = srgbToLinear(((stamp.color >> 8) & 255) / 255);
+        colors[i * 3 + 2] = srgbToLinear((stamp.color & 255) / 255);
         if (facade && stamp.facade) facade.set(stamp.facade, i * 4);
       }
       meshes.push({
