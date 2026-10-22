@@ -170,8 +170,7 @@ export function buildProps(
       if (onIsland(x, z)) {
         const y = sampleHeight(x, z);
         const chunk = chunkIndex(x, z);
-        batch.add(flat('concrete', 3.2, 2.4, 1.4, x, y + 1.2, z, yaw, 0xe7e1d6, chunk));
-        batch.add(flat('flat', 3.4, 0.12, 1.8, x, y + 2.5, z, yaw, 0xc4553a, chunk));
+        addShelter(batch, x, y, z, yaw, chunk);
         pois.push({ x, z, kind: 'stop' });
       }
     }
@@ -185,7 +184,7 @@ export function buildProps(
     const z = lot.z + fz * (lot.sz / 2 + 2.2);
     if (Math.abs(x) < 8 && z > -4 && z < 20) continue;
     const y = sampleHeight(x, z);
-    batch.add(flat('flat', 1.8, 1.6, 1.2, x, y + 0.8, z, lot.yaw, 0xf2c14e, lot.chunk));
+    addStall(batch, x, y, z, lot.yaw, lot.chunk, lot.seed);
     // Beverage crates stacked beside the stall.
     const rx = Math.cos(lot.yaw);
     const rz = -Math.sin(lot.yaw);
@@ -360,6 +359,127 @@ function addParked(
     pitch: 0,
     chunk,
   });
+}
+
+/**
+ * A bus shelter on the right of a street running along `yaw`: back panel, two side
+ * panels, a roof, the bench and a sign pole. The open side faces the curb.
+ */
+function addShelter(
+  batch: CityBatcher,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  chunk: number,
+): void {
+  // Along the street, and away from it (the street lies to the shelter's left).
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  const ox = Math.cos(yaw);
+  const oz = -Math.sin(yaw);
+  const glass = { color: 0xb8d4dc, roughness: 0.08, metalness: 0.3 };
+  const steel = { color: 0x3a3d40, roughness: 0.45, metalness: 0.6 };
+  /** Sizes are [away, up, along], so local X points away from the street. */
+  const box = (
+    along: number,
+    away: number,
+    height: number,
+    size: [number, number, number],
+    look: { color: number; roughness: number; metalness: number },
+    castShadow: boolean,
+  ) => {
+    batch.add({
+      kind: 'box',
+      finish: 'flat',
+      sx: size[0],
+      sy: size[1],
+      sz: size[2],
+      x: x + fx * along + ox * away,
+      y: y + height,
+      z: z + fz * along + oz * away,
+      yaw,
+      pitch: 0,
+      emissive: 0,
+      chunk,
+      lod: 'near',
+      castShadow,
+      ...look,
+    });
+  };
+  box(0, 0.65, 1.25, [0.06, 2.1, 3.4], glass, false);
+  for (const along of [-1.6, 1.6]) box(along, 0, 1.2, [1.4, 2.4, 0.08], steel, true);
+  box(0, 0.05, 2.45, [1.6, 0.1, 3.6], { color: 0xc4553a, roughness: 0.6, metalness: 0.1 }, true);
+  // The bench kit's long axis is its local X; a quarter turn lays it along the street.
+  batch.add(prop(PROPS.bench, x + ox * 0.3, y, z + oz * 0.3, yaw + Math.PI / 2, 0.55, chunk));
+  box(2.4, -0.4, 1.4, [0.08, 2.8, 0.08], steel, false);
+  box(
+    2.4,
+    -0.4,
+    2.65,
+    [0.5, 0.5, 0.05],
+    { color: 0x2f6d8a, roughness: 0.4, metalness: 0.2 },
+    false,
+  );
+}
+
+const canvasColors = [0xc4553a, 0x2f6d8a, 0x3d7a45, 0xe9c46a];
+
+/** A market stall: a table on four legs under a sloping canvas. */
+function addStall(
+  batch: CityBatcher,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  chunk: number,
+  seed: number,
+): void {
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  const rx = Math.cos(yaw);
+  const rz = -Math.sin(yaw);
+  const wood = { color: 0x8a5a32, roughness: 0.85, metalness: 0 };
+  const part = (
+    side: number,
+    out: number,
+    height: number,
+    size: [number, number, number],
+    look: { color: number; roughness: number; metalness: number },
+    pitch = 0,
+  ) => {
+    batch.add({
+      kind: 'box',
+      finish: 'flat',
+      sx: size[0],
+      sy: size[1],
+      sz: size[2],
+      x: x + rx * side + fx * out,
+      y: y + height,
+      z: z + rz * side + fz * out,
+      yaw,
+      pitch,
+      emissive: 0,
+      castShadow: true,
+      chunk,
+      lod: 'near',
+      ...look,
+    });
+  };
+  part(0, 0, 0.9, [1.9, 0.08, 1.0], wood);
+  for (const side of [-0.85, 0.85]) {
+    for (const out of [-0.42, 0.42]) part(side, out, 1.1, [0.06, 2.2, 0.06], wood);
+  }
+  const canvas = canvasColors[seed % canvasColors.length] ?? 0xc4553a;
+  part(0, 0.1, 2.2, [2.2, 0.04, 1.5], { color: canvas, roughness: 0.9, metalness: 0 }, -0.2);
+  // Fruit on the table: a few bright boxes standing in for produce.
+  for (const [side, tint] of [
+    [-0.55, 0xe07a2a],
+    [0, 0x6aa84f],
+    [0.55, 0xd94141],
+  ] as const) {
+    part(side, 0, 1.02, [0.45, 0.16, 0.6], { color: tint, roughness: 0.7, metalness: 0 });
+  }
 }
 
 function addBench(
