@@ -26,7 +26,9 @@ export type MeshFinish =
 export type MeshLod = 'near' | 'far' | 'always';
 
 export interface Stamp {
-  kind: 'box' | 'cylinder';
+  /** `model` places the glTF at `model`; sx, sy and sz scale it. */
+  kind: 'box' | 'cylinder' | 'model';
+  model?: string;
   finish: MeshFinish;
   sx: number;
   sy: number;
@@ -51,7 +53,9 @@ export interface Stamp {
 export type Facade = readonly [number, number, number, number];
 
 export interface CityMesh {
-  kind: 'box' | 'cylinder';
+  kind: 'box' | 'cylinder' | 'model';
+  /** glTF url when `kind` is `model`. */
+  model?: string;
   finish: MeshFinish;
   roughness: number;
   metalness: number;
@@ -99,6 +103,7 @@ export class CityBatcher {
     for (const stamp of this.stamps) {
       const key = [
         stamp.kind,
+        stamp.model ?? '',
         stamp.finish,
         stamp.chunk,
         stamp.lod,
@@ -140,6 +145,7 @@ export class CityBatcher {
       }
       meshes.push({
         kind: first.kind,
+        ...(first.model ? { model: first.model } : {}),
         finish: first.finish,
         roughness: first.roughness,
         metalness: first.metalness,

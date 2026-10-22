@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
 import { FACADE_BAYS, FACADE_STYLES, bayCount } from '../content/map/facades';
+import { PROPS, PROP_MODELS } from '../content/map/props';
 import { FACADE_WINDOWS } from '../engine/render/materials/facade-shader';
 
 describe('facades', () => {
@@ -25,5 +26,17 @@ describe('facades', () => {
     }, 0);
     // A near and a far wall per lot.
     expect(withWindows).toBe(city.footprints.length * 2);
+  });
+});
+
+describe('street props', () => {
+  it('groups model stamps per chunk and url, all of them preloaded', () => {
+    const city = createCity();
+    const props = city.meshes.filter((mesh) => mesh.kind === 'model');
+    const lamps = props.filter((mesh) => mesh.model === PROPS.lamp);
+    expect(lamps.reduce((sum, mesh) => sum + mesh.count, 0)).toBeGreaterThan(10);
+    const keys = new Set(props.map((mesh) => `${mesh.chunk}|${mesh.model}|${mesh.lod}`));
+    expect(keys.size).toBe(props.length);
+    for (const mesh of props) expect(PROP_MODELS).toContain(mesh.model);
   });
 });

@@ -102,21 +102,14 @@ function ensureChunk(ctx: GameContext, id: number): void {
     mode: 'off',
   };
   for (const mesh of byChunk.get(id) ?? []) {
-    const meshId = ctx.renderer.addInstances({
-      kind: mesh.kind,
-      size: { x: 1, y: 1, z: 1 },
-      color: 0xffffff,
-      count: mesh.count,
-      matrices: mesh.matrices,
-      colors: mesh.colors,
-      unit: true,
-      roughness: mesh.roughness,
-      metalness: mesh.metalness,
-      emissive: mesh.emissive,
-      castShadow: mesh.castShadow,
-      ...(mesh.finish === 'flat' ? {} : { finish: mesh.finish }),
-      ...(mesh.facade ? { facade: mesh.facade } : {}),
-    });
+    const meshId = mesh.model
+      ? ctx.renderer.addModelInstances({
+          url: mesh.model,
+          count: mesh.count,
+          matrices: mesh.matrices,
+          castShadow: mesh.castShadow,
+        })
+      : addBoxes(ctx, mesh);
     record.meshIds.push(meshId);
     if (mesh.lod === 'near') record.near.push(meshId);
     else if (mesh.lod === 'far') record.far.push(meshId);
@@ -171,4 +164,22 @@ export function syncBuildingShells(ctx: GameContext): void {
       ctx.renderer.setMeshVisible(meshId, solid && ctx.debug.showColliders);
     }
   }
+}
+
+function addBoxes(ctx: GameContext, mesh: CityMesh): number {
+  return ctx.renderer.addInstances({
+    kind: mesh.kind === 'cylinder' ? 'cylinder' : 'box',
+    size: { x: 1, y: 1, z: 1 },
+    color: 0xffffff,
+    count: mesh.count,
+    matrices: mesh.matrices,
+    colors: mesh.colors,
+    unit: true,
+    roughness: mesh.roughness,
+    metalness: mesh.metalness,
+    emissive: mesh.emissive,
+    castShadow: mesh.castShadow,
+    ...(mesh.finish === 'flat' ? {} : { finish: mesh.finish }),
+    ...(mesh.facade ? { facade: mesh.facade } : {}),
+  });
 }

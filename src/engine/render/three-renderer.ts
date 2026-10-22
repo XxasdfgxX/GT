@@ -15,6 +15,7 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   LoopOnce,
+  Matrix4,
   LoopRepeat,
   Mesh,
   MeshBasicMaterial,
@@ -47,6 +48,7 @@ import {
 } from 'postprocessing';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { AssetManager } from '../assets/asset-manager';
 import type { Quat, Vec3 } from '../core/math';
 import {
@@ -175,6 +177,8 @@ export function createThreeRenderer(
   const models = new Map<string, CachedModel>();
   const loading = new Map<string, Promise<void>>();
   const loader = new GLTFLoader();
+  // Props from scripts/import-polyhaven-models.mjs are meshopt-compressed.
+  loader.setMeshoptDecoder(MeshoptDecoder);
   let nextId = 1;
   let calls = 0;
   let pixelCap = MAX_PIXEL_RATIO;
@@ -469,6 +473,34 @@ export function createThreeRenderer(
       const id = nextId;
       nextId += 1;
       meshes.set(id, { object: mesh });
+      return id;
+    },
+    addModelInstances(desc) {
+      const cached = models.get(desc.url);
+      if (!cached) throw new Error(`Modelo não carregado: ${desc.url}`);
+      const group = new Group();
+      const node = new Matrix4();
+      const each = new Matrix4();
+      cached.scene.updateMatrixWorld(true);
+      cached.scene.traverse((object) => {
+        if (!(object instanceof Mesh)) return;
+        // Geometry and material stay the cached ones: every copy shares them.
+        const mesh = new InstancedMesh(object.geometry, object.material, desc.count);
+        node.copy(object.matrixWorld);
+        for (let i = 0; i < desc.count; i += 1) {
+          each.fromArray(desc.matrices, i * 16).multiply(node);
+          mesh.setMatrixAt(i, each);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.castShadow = desc.castShadow === true;
+        mesh.receiveShadow = true;
+        mesh.computeBoundingSphere();
+        group.add(mesh);
+      });
+      scene.add(group);
+      const id = nextId;
+      nextId += 1;
+      meshes.set(id, { object: group });
       return id;
     },
     addTerrain(desc) {

@@ -7,6 +7,7 @@ import { createRapierWorld } from '../engine/physics/rapier-world';
 import { createThreeRenderer } from '../engine/render/three-renderer';
 import { buildCostaVerde } from '../content/city';
 import { carBody, starterCar } from '../content/cars';
+import { PROP_MODELS } from '../content/map/props';
 import { carModel, characterModel, citizens, universalAnims } from '../content/models';
 import { sim } from '../content/sim';
 import { bairroSpawns, findSpawn, parkOnStreet, scatterSpawn, soloSpawn } from '../content/spawns';
@@ -144,6 +145,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       carModel,
       universalAnims,
       ...citizens.map((person) => person.url),
+      ...PROP_MODELS,
     ];
     if (!connected) {
       const parkedModel = carBody(parked.id).url;

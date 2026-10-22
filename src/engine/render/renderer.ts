@@ -59,6 +59,15 @@ export interface InstanceBatchDesc {
   facade?: Float32Array;
 }
 
+/** Copies of a loaded glTF, one instanced draw per mesh in it. */
+export interface ModelBatchDesc {
+  url: string;
+  count: number;
+  /** Per-instance transform, length count * 16. */
+  matrices: Float32Array;
+  castShadow?: boolean;
+}
+
 export interface TerrainDesc {
   originX: number;
   originZ: number;
@@ -103,6 +112,8 @@ export interface Renderer extends Disposable {
   addMesh(desc: MeshDesc): number;
   addModel(desc: ModelDesc): number;
   addInstances(desc: InstanceBatchDesc): number;
+  /** The url must be preloaded. */
+  addModelInstances(desc: ModelBatchDesc): number;
   addTerrain(desc: TerrainDesc): number;
   setMeshTransform(id: number, position: Vec3, rotation: Quat): void;
   setMeshVisible(id: number, visible: boolean): void;

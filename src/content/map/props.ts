@@ -1,6 +1,6 @@
 /** Street furniture along the sidewalk. Parked cars stay on the curb, off the lane. */
 
-import { chunkIndex, type BoxCollider, type CityBatcher } from './batch';
+import { chunkIndex, type BoxCollider, type CityBatcher, type MeshLod, type Stamp } from './batch';
 import { plazas, plazaGrassArea, type Footprint } from './blocks';
 import type { ShopDoor } from './facades';
 import { onIsland, sampleHeight, urbanWeight } from './island-shape';
@@ -20,6 +20,24 @@ export interface PropResult {
   grass: number;
 }
 
+/** Street props from scripts/import-polyhaven-models.mjs. All are Poly Haven, CC0. */
+export const PROPS = {
+  lamp: '/assets/props/street-lamp.glb',
+  trashCan: '/assets/props/trash-can.glb',
+  bench: '/assets/props/bench.glb',
+  hydrant: '/assets/props/hydrant.glb',
+  utilityBox: '/assets/props/utility-box.glb',
+  barrier: '/assets/props/barrier.glb',
+  pottedPlant: '/assets/props/potted-plant.glb',
+  shrub: '/assets/props/shrub.glb',
+  planter: '/assets/props/planter.glb',
+  crate: '/assets/props/crate.glb',
+  fern: '/assets/props/fern.glb',
+} as const;
+
+/** Every prop url, for the loader to fetch before the first chunk streams in. */
+export const PROP_MODELS: readonly string[] = Object.values(PROPS);
+
 const carColors = [0xc4553a, 0xf4f1ea, 0x2a2a2a, 0xd5dde4, 0xf2c14e, 0x1f4e79];
 
 export function buildProps(
@@ -29,6 +47,8 @@ export function buildProps(
   batch: CityBatcher,
 ): PropResult {
   const rng = mulberry32(0x5a1e);
+  // New props draw from their own stream, so the parked cars and trees keep their places.
+  const garden = mulberry32(0x9a2d);
   const pois: Poi[] = [];
   const colliders: BoxCollider[] = [];
   let trees = 0;
@@ -56,6 +76,37 @@ export function buildProps(
         chunk,
       ),
     );
+    // Planters at the corners of the lawn, shrubs and ferns along its edge.
+    const hx = plaza.sx * 0.31;
+    const hz = plaza.sz * 0.31;
+    for (const [cx, cz] of [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ] as const) {
+      batch.add(
+        prop(
+          PROPS.planter,
+          plaza.x + cx * (hx + 1.2),
+          y + 0.06,
+          plaza.z + cz * (hz + 1.2),
+          0,
+          1.6,
+          chunk,
+        ),
+      );
+    }
+    for (let k = 0; k < 10; k += 1) {
+      const along = (k + 0.5) / 10;
+      const north = k % 2 === 0;
+      const px = plaza.x - hx + along * hx * 2;
+      const pz = plaza.z + (north ? hz - 0.6 : -hz + 0.6);
+      const look = garden() > 0.5 ? PROPS.shrub : PROPS.fern;
+      batch.add(
+        prop(look, px, y + 0.1, pz, garden() * Math.PI * 2, look === PROPS.shrub ? 4 : 1.6, chunk),
+      );
+    }
     pois.push({ x: plaza.x, z: plaza.z, kind: 'plaza' });
   }
   for (const edge of graph.edges) {
@@ -81,7 +132,7 @@ export function buildProps(
         if (y < 1) continue;
         const chunk = chunkIndex(x, z);
         if (lampSlot) {
-          addLamp(batch, x, y, z, chunk);
+          addLamp(batch, x, y, z, yaw, chunk);
         } else {
           addTree(batch, x, y, z, chunk, rng);
           trees += 1;
@@ -96,7 +147,11 @@ export function buildProps(
         if (edge.kind !== 'street' && rng() > 0.82) {
           addBench(batch, x, y, z, yaw, chunk);
         }
-        if (rng() > 0.9) addBin(batch, x + rx * 0.4, y, z + rz * 0.4, chunk);
+        if (rng() > 0.9) addBin(batch, x + rx * 0.4, y, z + rz * 0.4, yaw, chunk);
+        // A hydrant every 84 m on the side without lamps.
+        if (side === 1 && Math.round((distance - inset) / 12) % 7 === 3) {
+          batch.add(prop(PROPS.hydrant, x - fx * 1.6, y, z - fz * 1.6, yaw, 1, chunk));
+        }
       }
     }
     if (edge.kind !== 'street' && edge.length > 40) {
@@ -122,6 +177,22 @@ export function buildProps(
     if (Math.abs(x) < 8 && z > -4 && z < 20) continue;
     const y = sampleHeight(x, z);
     batch.add(flat('flat', 1.8, 1.6, 1.2, x, y + 0.8, z, lot.yaw, 0xf2c14e, lot.chunk));
+    // Beverage crates stacked beside the stall.
+    const rx = Math.cos(lot.yaw);
+    const rz = -Math.sin(lot.yaw);
+    for (let k = 0; k < 3; k += 1) {
+      batch.add(
+        prop(
+          PROPS.crate,
+          x + rx * 1.4,
+          y + k * 0.35,
+          z + rz * 1.4,
+          lot.yaw + garden() * 0.4,
+          1.3,
+          lot.chunk,
+        ),
+      );
+    }
     pois.push({ x, z, kind: 'stall' });
     stalls += 1;
   }
@@ -138,6 +209,8 @@ export function buildProps(
     if (y < 1) continue;
     const chunk = chunkIndex(node.x, node.z);
     batch.add(flat('flat', 0.16, 4.2, 0.16, node.x + 3, y + 2.1, node.z + 3, 0, 0x222222, chunk));
+    // The traffic-light controller cabinet on the corner.
+    batch.add(prop(PROPS.utilityBox, node.x + 3.8, y, node.z + 3, Math.PI / 4, 1, chunk));
     batch.add({
       kind: 'box',
       finish: 'flat',
@@ -210,27 +283,16 @@ function addTree(
   });
 }
 
-function addLamp(batch: CityBatcher, x: number, y: number, z: number, chunk: number): void {
-  batch.add(flat('flat', 0.14, 4.6, 0.14, x, y + 2.3, z, 0, 0x2a2a2a, chunk));
-  batch.add({
-    kind: 'box',
-    finish: 'flat',
-    sx: 0.45,
-    sy: 0.16,
-    sz: 0.22,
-    x,
-    y: y + 4.7,
-    z,
-    yaw: 0,
-    pitch: 0,
-    color: 0xfff1c9,
-    roughness: 0.3,
-    metalness: 0,
-    emissive: 0xffe2a2,
-    castShadow: false,
-    chunk,
-    lod: 'always',
-  });
+function addLamp(
+  batch: CityBatcher,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  chunk: number,
+): void {
+  // The Poly Haven lamp is 3.9 m; avenues want about 4.6.
+  batch.add(prop(PROPS.lamp, x, y, z, yaw, 1.2, chunk, 'always'));
 }
 
 function addParked(
@@ -268,11 +330,19 @@ function addBench(
   yaw: number,
   chunk: number,
 ): void {
-  batch.add(flat('flat', 1.5, 0.45, 0.45, x, y + 0.4, z, yaw, 0x8a5a32, chunk));
+  // The seating kit is 4.3 m of modules side by side; scaled, it reads as one long bench.
+  batch.add(prop(PROPS.bench, x, y, z, yaw + Math.PI / 2, 0.6, chunk));
 }
 
-function addBin(batch: CityBatcher, x: number, y: number, z: number, chunk: number): void {
-  batch.add(flat('flat', 0.45, 0.8, 0.45, x, y + 0.4, z, 0, 0x2f6b45, chunk));
+function addBin(
+  batch: CityBatcher,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  chunk: number,
+): void {
+  batch.add(prop(PROPS.trashCan, x, y, z, yaw, 0.8, chunk));
 }
 
 function flat(
@@ -306,5 +376,37 @@ function flat(
     castShadow: finish === 'flat' || finish === 'concrete',
     chunk,
     lod: 'always' as const,
+  };
+}
+
+function prop(
+  model: string,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  scale: number,
+  chunk: number,
+  lod: MeshLod = 'near',
+): Stamp {
+  return {
+    kind: 'model',
+    model,
+    finish: 'flat',
+    sx: scale,
+    sy: scale,
+    sz: scale,
+    x,
+    y,
+    z,
+    yaw,
+    pitch: 0,
+    color: 0xffffff,
+    roughness: 1,
+    metalness: 0,
+    emissive: 0,
+    castShadow: true,
+    chunk,
+    lod,
   };
 }
