@@ -69,6 +69,10 @@ export const FOOT_SPEED_LIMIT = sim.sprintSpeed * 1.5;
 export const CAR_SPEED_MARGIN = 1.25;
 /** Seconds of movement a client may bank, so jitter does not clip honest poses. */
 export const REACH_BURST = 0.5;
+/** Meters above the terrain a pose may claim: a jump from a car roof, with slack. */
+export const MAX_AIR = 6;
+/** Meters below the terrain a pose may claim, for curbs and the beach shelf. */
+const MAX_DIP = 1;
 /** Meters past the allowed move that snap the client back to where the server has it. */
 export const SNAP_EXCESS = 5;
 /** One server tick: a swing that ends between ticks is not late. */
@@ -358,12 +362,14 @@ export function leave(room: Room, id: number): void {
 export function pushPose(room: Room, id: number, pose: Pose): void {
   const player = findPlayer(room, id);
   if (!player?.alive) return;
+  // A tripped body stays where it fell until it gets up.
+  if (room.limits && player.down > 0) return;
   const previousX = player.x;
   const previousZ = player.z;
   const reach = room.limits ? spendReach(room, player, pose) : 1;
   player.x = previousX + (pose.x - previousX) * reach;
-  player.y = pose.y;
   player.z = previousZ + (pose.z - previousZ) * reach;
+  player.y = room.limits ? groundedY(player.x, player.z, pose.y) : pose.y;
   player.yaw = pose.yaw;
   const moved = Math.hypot(player.x - previousX, player.z - previousZ);
   if (player.car === 0 && moved > 0.12) {
@@ -388,6 +394,12 @@ export function pushPose(room: Room, id: number, pose: Pose): void {
     }
   }
   steerCar(room, player);
+}
+
+/** Clamps a claimed height to the terrain. Hits test only x and z, so a body in the sky still hits. */
+function groundedY(x: number, z: number, y: number): number {
+  const ground = sampleHeight(x, z);
+  return Math.min(ground + MAX_AIR, Math.max(ground - MAX_DIP, y));
 }
 
 /**

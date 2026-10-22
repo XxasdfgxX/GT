@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import { sampleHeight } from '../content/map/island-shape';
 import { sim } from '../content/sim';
 import { HEAVY_DAMAGE, LIGHT_DAMAGE } from '../game/systems/ped-ai';
 import {
   DEFAULT_ORIGINS,
   MESSAGE_BURST,
   MESSAGE_RATE,
+  clientAddress,
   createBucket,
+  createSocketCounter,
   originAllowed,
 } from '../net/limits';
 import { parseServerMessage } from '../net/protocol';
 import {
   DROP_LIFETIME,
   FOOT_SPEED_LIMIT,
+  MAX_AIR,
   MAX_DROPS,
   NPC_RESPAWN,
   NPC_RESPAWN_CLEAR,
@@ -80,7 +84,46 @@ describe('transport limits', () => {
   });
 });
 
+describe('socket caps', () => {
+  it('lets one address hold only its share, and frees it on close', () => {
+    const counter = createSocketCounter(2, 3);
+    expect(counter.admit('a')).toBe(true);
+    expect(counter.admit('a')).toBe(true);
+    expect(counter.admit('a')).toBe(false);
+    expect(counter.admit('b')).toBe(true);
+    expect(counter.admit('c')).toBe(false);
+    counter.release('a');
+    expect(counter.admit('c')).toBe(true);
+  });
+
+  it('trusts the forwarded address only from the local proxy', () => {
+    expect(clientAddress('127.0.0.1', '203.0.113.9')).toBe('203.0.113.9');
+    expect(clientAddress('::1', 'forged, 203.0.113.9')).toBe('203.0.113.9');
+    expect(clientAddress('198.51.100.4', '203.0.113.9')).toBe('198.51.100.4');
+    expect(clientAddress('127.0.0.1', undefined)).toBe('127.0.0.1');
+  });
+});
+
 describe('pose limits', () => {
+  it('keeps a claimed height near the ground', () => {
+    const live = room();
+    const id = join(live, 'Ana', 'centro') ?? 0;
+    const start = at(live, id);
+    pushPose(live, id, { x: start.x, y: 1e6, z: start.z, yaw: 0 });
+    const self = live.players.find((person) => person.id === id);
+    expect(self?.y).toBeCloseTo(sampleHeight(start.x, start.z) + MAX_AIR, 6);
+  });
+
+  it('holds a tripped player where they fell', () => {
+    const live = room();
+    const id = join(live, 'Ana', 'centro') ?? 0;
+    const start = at(live, id);
+    const self = live.players.find((person) => person.id === id);
+    if (self) self.down = 1;
+    pushPose(live, id, { x: start.x + 3, y: 2, z: start.z, yaw: 0 });
+    expect(at(live, id)).toEqual(start);
+  });
+
   it('turns a teleport into one burst of running and snaps the client back', () => {
     const live = room();
     const id = join(live, 'Ana', 'centro') ?? 0;

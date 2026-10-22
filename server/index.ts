@@ -4,7 +4,16 @@ import { createServer } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { buildRoadGraph } from '../src/content/map/roads';
 import { bairroSpawns } from '../src/content/spawns';
-import { MAX_MESSAGE_BYTES, createBucket, originAllowed } from '../src/net/limits';
+import {
+  HEARTBEAT_SECONDS,
+  MAX_BUFFERED_BYTES,
+  MAX_MESSAGE_BYTES,
+  SLOW_GRACE,
+  clientAddress,
+  createBucket,
+  createSocketCounter,
+  originAllowed,
+} from '../src/net/limits';
 import { parseClientMessage } from '../src/net/protocol';
 import {
   ROOM_DEFS,
@@ -73,7 +82,31 @@ const sockets = new WebSocketServer({
     originAllowed(origin, process.env['BAIRRO_ORIGINS']),
 });
 
+const counter = createSocketCounter();
+/** Cleared on each ping, set again by the pong. */
+const answered = new WeakMap<WebSocket, boolean>();
+/** When a socket first fell behind on reading its state, in seconds. */
+const slowSince = new WeakMap<WebSocket, number>();
+
 sockets.on('connection', (socket, request) => {
+  const forwarded = request.headers['x-forwarded-for'];
+  const address = clientAddress(
+    request.socket.remoteAddress,
+    Array.isArray(forwarded) ? forwarded.join(',') : forwarded,
+  );
+  if (!counter.admit(address)) {
+    send(socket, { type: 'error', message: 'Conexões demais' });
+    socket.close();
+    return;
+  }
+  socket.on('close', () => {
+    counter.release(address);
+  });
+  answered.set(socket, true);
+  socket.on('pong', () => {
+    answered.set(socket, true);
+  });
+
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
   const roomId = url.searchParams.get('room') ?? '';
   const room = rooms.get(roomId);
@@ -134,12 +167,37 @@ setInterval(() => {
     if (room.members.size === 0) continue;
     tick(room.sim, STEP);
     const states = encodeStates(room.sim, room.members.values());
+    const now = performance.now() / 1000;
     for (const [socket, id] of room.members) {
       const state = states.get(id);
-      if (state !== undefined && socket.readyState === WebSocket.OPEN) socket.send(state);
+      if (state === undefined || socket.readyState !== WebSocket.OPEN) continue;
+      // A client that stops reading would grow this buffer without end.
+      if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+        const since = slowSince.get(socket) ?? now;
+        slowSince.set(socket, since);
+        if (now - since > SLOW_GRACE) socket.terminate();
+        continue;
+      }
+      slowSince.delete(socket);
+      socket.send(state);
     }
   }
 }, STEP * 1000);
+
+// A half-open socket never fires close. Without a pong it would hold its slot forever.
+const heartbeat = setInterval(() => {
+  for (const socket of sockets.clients) {
+    if (answered.get(socket) === false) {
+      socket.terminate();
+      continue;
+    }
+    answered.set(socket, false);
+    socket.ping();
+  }
+}, HEARTBEAT_SECONDS * 1000);
+sockets.on('close', () => {
+  clearInterval(heartbeat);
+});
 
 server.listen(PORT, '127.0.0.1', () => {
   console.info(`[bairro] salas em http://127.0.0.1:${PORT}`);

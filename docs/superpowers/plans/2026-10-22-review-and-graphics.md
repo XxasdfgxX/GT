@@ -142,47 +142,47 @@ Today `graphMesh`, `navMesh` and `built` are module state that `start()` never r
 
 **Files:** Modify `src/net/room.ts` (`pushPose`, `steerCar`). Test `src/tests/server-limits.test.ts`
 
-- [ ] In `pushPose`, replace `player.y = pose.y` with a clamp to `[ground - 0.5, ground + MAX_AIR]`, where `ground = sampleHeight(player.x, player.z)`. `MAX_AIR` is about 3 m on foot (jump plus curbs) and about 6 m in a car (ramps, crashes). Put the value in `content/sim.ts`.
-- [ ] `steerCar` copies `player.y`, so it's covered.
-- [ ] Test: send a pose with `y: 1e6`. Expected: stored y is at most ground + `MAX_AIR`.
+- [x] In `pushPose`, replace `player.y = pose.y` with a clamp to `[ground - 0.5, ground + MAX_AIR]`, where `ground = sampleHeight(player.x, player.z)`. `MAX_AIR` is about 3 m on foot (jump plus curbs) and about 6 m in a car (ramps, crashes). Put the value in `content/sim.ts`. _`MAX_AIR` = 6 m for both modes, plus 1 m below the terrain. It lives in `room.ts` with the other limits, and only applies when `room.limits` is on._
+- [x] `steerCar` copies `player.y`, so it's covered.
+- [x] Test: send a pose with `y: 1e6`. Expected: stored y is at most ground + `MAX_AIR`.
 
 ### Task 2.2: A tripped player can't move
 
 **Files:** Modify `src/net/room.ts` (`pushPose`). Test `src/tests/server-limits.test.ts`
 
-- [ ] While `player.down > 0`, ignore x, y, z and yaw from the pose. The server keeps the last position until `down` reaches 0.
-- [ ] Test: trip a player, send a pose 3 m away. Expected: position unchanged until `down` ends.
+- [x] While `player.down > 0`, ignore x, y, z and yaw from the pose. The server keeps the last position until `down` reaches 0.
+- [x] Test: trip a player, send a pose 3 m away. Expected: position unchanged until `down` ends.
 
 ### Task 2.3: Backpressure
 
 **Files:** Modify `server/index.ts`
 
-- [ ] In the tick broadcast, skip `socket.send(state)` when `socket.bufferedAmount > 1_000_000`. If it's still above that after 5 s, `socket.terminate()`.
-- [ ] Put the constants in `src/net/limits.ts` next to the bucket.
-- [ ] Manual: a Node test client that connects and never reads (pause the stream). Expected: the server's RSS stays flat, and the client is dropped after ~5 s.
+- [x] In the tick broadcast, skip `socket.send(state)` when `socket.bufferedAmount > 1_000_000`. If it's still above that after 5 s, `socket.terminate()`. _`SLOW_GRACE` = 5 s._
+- [x] Put the constants in `src/net/limits.ts` next to the bucket.
+- [ ] Manual: a Node test client that connects and never reads (pause the stream). Expected: the server's RSS stays flat, and the client is dropped after ~5 s. _Not run yet._
 
 ### Task 2.4: Heartbeat for half-open sockets
 
 **Files:** Modify `server/index.ts`
 
-- [ ] Standard `ws` pattern: mark `alive = true` on `pong`. Every 10 s, `terminate()` sockets that are still `alive === false`, then set `alive = false` and `ping()`.
-- [ ] `terminate()` fires `close`, so the existing `drop` handler frees the slot and calls `leave`.
-- [ ] Clear the interval on server `close`.
+- [x] Standard `ws` pattern: mark `alive = true` on `pong`. Every 10 s, `terminate()` sockets that are still `alive === false`, then set `alive = false` and `ping()`.
+- [x] `terminate()` fires `close`, so the existing `drop` handler frees the slot and calls `leave`.
+- [x] Clear the interval on server `close`.
 
 ### Task 2.5: Per-IP connection cap
 
 **Files:** Modify `server/index.ts`, `src/net/limits.ts`. Test `src/tests/server-limits.test.ts`
 
-- [ ] Count open sockets per `request.socket.remoteAddress`. Above `MAX_SOCKETS_PER_IP` (4), reply `{ type: 'error', message: 'Conexões demais' }` and close.
-- [ ] Also cap total sockets per process (e.g. 64) to cover spoofed or proxied cases.
-- [ ] Extract the counting into a pure function in `limits.ts` and unit-test it.
+- [x] Count open sockets per `request.socket.remoteAddress`. Above `MAX_SOCKETS_PER_IP` (4), reply `{ type: 'error', message: 'Conexões demais' }` and close. _The cap is 8 per address, not 4, so local testing with several tabs still works. All browsers arrive through the Vite proxy as 127.0.0.1, so `/ws` now has `xfwd: true`. The server trusts `X-Forwarded-For` only from loopback, and takes the last entry (the one the proxy appended). Checked against the real server: the 9th socket gets "Conexões demais"._
+- [x] Also cap total sockets per process (e.g. 64) to cover spoofed or proxied cases.
+- [x] Extract the counting into a pure function in `limits.ts` and unit-test it.
 
 ### Task 2.6: Pickup messages flood the bucket
 
 **Files:** Modify `src/game/systems/net.ts` (`publishNet`). Test a new `src/tests/net-systems.test.ts`
 
-- [ ] Keep a module-level `Map<dropId, sentAt>`. Resend a pickup for the same id only after 300 ms. Clear the map in `resetNet()`.
-- [ ] Test: 10 drops in reach over 20 ticks at 15 Hz. Expected: ≤ 10 × (20 / 4.5) pickups, and the pose message is sent every tick.
+- [x] Keep a module-level `Map<dropId, sentAt>`. Resend a pickup for the same id only after 300 ms. Clear the map in `resetNet()`. _Keyed on a clock that `publishNet` advances. `PICKUP_RETRY` = 0.3 s._
+- [x] Test: 10 drops in reach over 20 ticks at 15 Hz. Expected: ≤ 10 × (20 / 4.5) pickups, and the pose message is sent every tick. _`src/tests/net-systems.test.ts`. Found while writing it: poses go out at about 12 Hz, not 15, because `poseWait` is reset rather than accumulated. That is left as is, because fixing it raises bandwidth by 25% before Phase 3._
 
 ---
 
