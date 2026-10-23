@@ -3,6 +3,7 @@
 // Run: node scripts/measure-hdri.mjs <file.hdr> ...
 
 import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { FloatType } from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 
@@ -56,7 +57,7 @@ for (const file of process.argv.slice(2)) {
   const col = at % width;
   console.log(
     JSON.stringify({
-      file: file.split(/[\/]/).pop(),
+      file: basename(file),
       width,
       height,
       peak: Math.round(best),
