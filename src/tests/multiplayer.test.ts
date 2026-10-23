@@ -37,6 +37,7 @@ import {
 import { parseClientMessage, parseRoomList, parseServerMessage } from '../net/protocol';
 import { roomSocketQuery } from '../net/session';
 import { DAY_START } from '../sim/clock';
+import { trafficShare, walkerShare } from '../sim/city-life';
 import { npcScoreLine, playerScoreLine } from '../ui/score-line';
 
 const spawns = [
@@ -765,5 +766,41 @@ describe('room clock', () => {
       return message?.type === 'state' ? message.clock : -1;
     });
     expect(clocks).toEqual([DAY_START + 3, DAY_START + 3]);
+  });
+});
+
+describe('room population by the hour', () => {
+  /** Room seconds at which the room clock reads `hours`, a day after it opened. */
+  const secondsAt = (hours: number) => 24 * 60 + hours * 60 - DAY_START;
+
+  it('sends walkers home and parks cars at night, and brings them back in the morning', () => {
+    const live = createRoom({
+      id: 'costa-1',
+      name: 'Costa 1',
+      spawns,
+      nodes,
+      edges,
+      rng: () => 0.5,
+      limits: false,
+      npcCount: 10,
+      carCount: 6,
+      maxPlayers: 2,
+    });
+    const run = (seconds: number) => {
+      for (let step = 0; step < seconds * 30; step += 1) tick(live, 1 / 30);
+    };
+    expect(live.cars).toHaveLength(6);
+    live.now = secondsAt(3);
+    live.settleAt = 0;
+    run(20);
+    const out = live.npcs.filter((npc) => npc.alive).length;
+    expect(out).toBe(Math.round(10 * walkerShare(3)));
+    expect(live.cars).toHaveLength(Math.round(6 * trafficShare(3)));
+    live.now = secondsAt(8);
+    live.settleAt = 0;
+    run(20);
+    expect(live.npcs.filter((npc) => npc.alive)).toHaveLength(10);
+    expect(live.cars).toHaveLength(6);
+    expect(new Set(live.cars.map((car) => car.id)).size).toBe(6);
   });
 });

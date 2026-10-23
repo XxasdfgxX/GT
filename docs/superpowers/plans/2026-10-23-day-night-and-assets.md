@@ -117,10 +117,10 @@ Today there's one midday HDRI and a sun that rotates around it. The night (`klop
 
 ## Phase 4 — City life by the hour
 
-- [ ] `nightFactor` (`sim/ped-ai.ts`) takes hours, not the day fraction. Fewer walkers after 22:00, more at 07:00–09:00 and 17:00–19:00.
-- [ ] Fewer traffic cars after midnight (the solo pool size and the server's car target, both from one `trafficShare(hours)` in `sim/`).
-- [ ] Market stalls only open 06:00–14:00. Hide the produce boxes when closed: this needs the stalls to be their own batch, or a visibility flag per chunk.
-- [ ] Test: shares are within range at each hour and never 0, so the streets are never empty.
+- [x] `nightFactor` (`sim/ped-ai.ts`) takes hours, not the day fraction. Fewer walkers after 22:00, more at 07:00–09:00 and 17:00–19:00. _Replaced by `walkerShare(hours)` in `sim/city-life.ts`: full at 08:00 and 17:30, about a fifth at 04:00._
+- [x] Fewer traffic cars after midnight (the solo pool size and the server's car target, both from one `trafficShare(hours)` in `sim/`). _`trafficShare(hours)`. Solo scales the pool target. The server (`room/population.ts`) sends one walker home and parks one car every 0.5 s, only out of every player's sight (60 m) and never a driven car; parked cars keep their slot and id and come back the same way._
+- [-] Market stalls only open 06:00–14:00. Hide the produce boxes when closed: this needs the stalls to be their own batch, or a visibility flag per chunk. _Not done: hiding the stalls needs them in their own batch, for little gain._
+- [x] Test: shares are within range at each hour and never 0, so the streets are never empty. _`city-life.test.ts`, plus a room test that thins at 03:00 and fills again by 08:00._
 
 ---
 

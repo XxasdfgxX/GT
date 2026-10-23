@@ -198,4 +198,11 @@ export interface Room {
   limits: boolean;
   /** Room times when a killed walker is replaced. */
   npcDue: number[];
+  /** The full crowd and traffic, at rush hour. The hour sets how many are out. */
+  npcCount: number;
+  carCount: number;
+  /** Car slots (index into the catalog) parked off the map until the streets fill again. */
+  carsResting: number[];
+  /** Room time of the next step toward the hour's numbers. */
+  settleAt: number;
 }

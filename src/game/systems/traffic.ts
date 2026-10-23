@@ -20,6 +20,8 @@ import {
 } from '../ecs/components';
 import { players, traffic } from '../ecs/queries';
 import { TRAFFIC_POOL } from '../features/traffic/pool';
+import { trafficShare } from '../../sim/city-life';
+import { clockHours } from '../../sim/clock';
 import { bucketCrowd, crowdNear } from '../play/crowd-grid';
 import { attachDriver, ejectDriver, releaseDriver, seatDriver } from '../play/drivers';
 import { circleHitsBox, TRIP_SECONDS } from '../../sim/overlap';
@@ -116,7 +118,9 @@ export function trafficSystem(ctx: GameContext, world: World): void {
   }
   unstick(ctx, world, graph);
   batchCount = 0;
-  const target = Math.round(TRAFFIC_POOL * ctx.debug.trafficDensity);
+  const target = Math.round(
+    TRAFFIC_POOL * ctx.debug.trafficDensity * trafficShare(clockHours(ctx.clock)),
+  );
   let guard = 0;
   while (active < target && guard < 8) {
     guard += 1;
