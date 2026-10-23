@@ -63,7 +63,7 @@ import {
   type Effects,
   type GraphicsQuality,
 } from './display';
-import { loadCoastEnvironment } from './environment';
+import { createSkyMixer } from './sky-mixer';
 import { dressCar } from './materials/car-paint';
 import { MaterialLibrary, TILE_METERS, tileBoxUvs } from './materials/material-library';
 import {
@@ -85,7 +85,8 @@ import type {
   SurfaceFinish,
   TerrainDesc,
 } from './renderer';
-import { FOG_DENSITY, HORIZON_COLOR } from './sky';
+import { FOG_DENSITY, SKIES, SKY_FILL } from './sky';
+import { dayLightAt } from './sun-math';
 import { createSunController } from './sun-controller';
 
 interface CachedModel {
@@ -134,10 +135,11 @@ export function createThreeRenderer(
   // r186 dropped PCFSoftShadowMap; PCF with a radius blurs the edge instead.
   renderer.shadowMap.type = PCFShadowMap;
   renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio));
-  renderer.setClearColor(HORIZON_COLOR, 1);
+  renderer.setClearColor(SKIES.day.horizon, 1);
 
   const scene = new Scene();
-  scene.fog = new FogExp2(HORIZON_COLOR, FOG_DENSITY);
+  const fog = new FogExp2(SKIES.day.horizon, FOG_DENSITY);
+  scene.fog = fog;
 
   const camera = new PerspectiveCamera(fov, 1, 0.3, worldFar);
   const composer = new EffectComposer(renderer, { frameBufferType: HalfFloatType });
@@ -185,7 +187,27 @@ export function createThreeRenderer(
   const worldMaterials = new Map<string, MeshStandardMaterial>();
   let unitBox: BoxGeometry | undefined;
   let unitCylinder: CylinderGeometry | undefined;
-  let dayTime = 0.45;
+  let dayTime = 0.375;
+  let shadowsWanted = true;
+  const sky = createSkyMixer(renderer, assets);
+  /** Sun or moon, fill, fog and sky for `dayTime`. Cheap; the sky re-blends only when it moved. */
+  const applyDay = () => {
+    const light = dayLightAt(dayTime);
+    sunController.setDirection(light.light);
+    sunController.setEnabled(shadowsWanted && light.shadows);
+    sun.color.setHex(light.lightColor);
+    sun.intensity = light.lightIntensity * light.exposure;
+    ambient.intensity = light.ambient * light.exposure;
+    skyLight.intensity = light.hemisphere * light.exposure;
+    scene.environmentIntensity = SKY_FILL * light.exposure;
+    scene.backgroundIntensity = light.exposure;
+    fog.color.setRGB(light.fog[0], light.fog[1], light.fog[2]);
+    fog.density = FOG_DENSITY * light.fogDensityScale;
+    renderer.setClearColor(fog.color, 1);
+    sky.update(light, elapsed);
+    scene.background = sky.background;
+    scene.environment = sky.environment;
+  };
   let water: Water | null = null;
   let elapsed = 0;
 
@@ -383,13 +405,9 @@ export function createThreeRenderer(
   return {
     domElement: canvas,
     prepare() {
-      return Promise.all([loadCoastEnvironment(renderer, scene, assets), materials.load()]).then(
-        () => {
-          ambient.intensity = 0.04;
-          skyLight.intensity = 0.18;
-          sun.intensity = 1.85;
-        },
-      );
+      return Promise.all([sky.load(), materials.load()]).then(() => {
+        applyDay();
+      });
     },
     setSize(width, height) {
       renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio, pixelCap));
@@ -403,7 +421,8 @@ export function createThreeRenderer(
       setEffects(quality.effects);
       const map = shadowMapSize(quality.shadows);
       renderer.shadowMap.enabled = map > 0;
-      sunController.setEnabled(map > 0);
+      shadowsWanted = map > 0;
+      sunController.setEnabled(shadowsWanted && dayLightAt(dayTime).shadows);
       if (map > 0) sunController.setMapSize(map);
       sunController.setExtent(shadowExtent(quality.shadows));
       renderer.setPixelRatio(cappedPixelRatio(window.devicePixelRatio, pixelCap));
@@ -429,7 +448,7 @@ export function createThreeRenderer(
     },
     setTimeOfDay(time) {
       dayTime = time;
-      sunController.setTimeOfDay(time);
+      applyDay();
     },
     timeOfDay() {
       return dayTime;
@@ -646,6 +665,7 @@ export function createThreeRenderer(
         if (object instanceof InstancedMesh) object.dispose();
       });
       composer.dispose();
+      sky.dispose();
       ktx2.dispose();
       renderer.dispose();
       // Browsers cap live WebGL contexts; a menu restart must give this one back now.

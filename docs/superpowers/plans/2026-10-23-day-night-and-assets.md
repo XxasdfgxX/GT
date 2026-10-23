@@ -62,22 +62,22 @@ Today there's one midday HDRI and a sun that rotates around it. The night (`klop
 
 ### Task 2.1: Sun path from the clock
 
-- [ ] Map hours to the sun arc. Sunrise around 06:00, noon high, sunset around 18:00 (Rio is near the tropic, so days are close to 12 h). Rewrite `directionAtTime` in `sun-math.ts` so 0.5 = 12:00, not the captured afternoon.
-- [ ] Sun color and intensity by elevation: white at noon, warm orange under 10°, off below the horizon.
-- [ ] A moon: a dim, cool directional light (about 0.08, `0x9fb4d8`) opposite the sun at night. One light: the same `DirectionalLight` switches color, intensity and direction, so the shadow setup stays the same.
-- [ ] Shadows fade out with the light, and turn off when it's under about 3°, to avoid long streaks at the horizon.
-- [ ] Test (`sun-math.test.ts`): below the horizon at 00:00, highest near 12:00, rising between 05:30 and 06:30.
+- [x] Map hours to the sun arc. Sunrise around 06:00, noon high, sunset around 18:00 (Rio is near the tropic, so days are close to 12 h). Rewrite `directionAtTime` in `sun-math.ts` so 0.5 = 12:00, not the captured afternoon. _`directionAtTime` in `sun-math.ts`: a great circle tilted north, 70° at noon, east at 06:00, west at 18:00._
+- [x] Sun color and intensity by elevation: white at noon, warm orange under 10°, off below the horizon. _`dayLightAt`: orange `0xff9a5a` to `0xfff6ea`, full strength once the sun is about 15° up._
+- [x] A moon: a dim, cool directional light (about 0.08, `0x9fb4d8`) opposite the sun at night. One light: the same `DirectionalLight` switches color, intensity and direction, so the shadow setup stays the same. _Intensity 0.16 at most, `0x9fb4d8`, opposite the sun._
+- [x] Shadows fade out with the light, and turn off when it's under about 3°, to avoid long streaks at the horizon. _Off when the light is under about 3.4° or very dim._
+- [x] Test (`sun-math.test.ts`): below the horizon at 00:00, highest near 12:00, rising between 05:30 and 06:30. _In `sun.test.ts`, plus: weights sum to 1, never lit from below, and smooth minute to minute._
 
 ### Task 2.2: Sky blending
 
-- [ ] Import the sunset and night HDRIs at 2K (keep `.hdr`; they are loaded once).
-- [ ] `sky-mixer.ts`: a fullscreen shader that mixes two equirect HDRIs into a 1024×512 half-float target. Phases: night → dawn (sunset HDRI) → day → dusk (sunset) → night.
-- [ ] `scene.background` = the mixed target.
-- [ ] `scene.environment` = PMREM of the mixed target, rebuilt only when the mix weight has moved more than 2%, and at most once every 0.25 s. Measure the cost of one PMREM pass; if it's more than 3 ms, rebuild at 512×256.
-- [ ] Rotate the night and sunset HDRIs so their bright spot (moon or sun) lines up with the light direction from 2.1.
-- [ ] Fog color and `HORIZON_COLOR` per phase (sample each HDRI's horizon) and blend. Fog thicker at night (`FOG_DENSITY` × 1.3) to hide the far city.
-- [ ] `SKY_FILL`, ambient and hemisphere intensities per phase, blended.
-- [ ] Tone mapping exposure: up about 1.6× at night, so the scene reads without being black. Lamps and windows supply the contrast.
+- [x] Import the sunset and night HDRIs at 2K (keep `.hdr`; they are loaded once). _`scripts/measure-hdri.mjs` measured all three (disc position, horizon color, mean brightness) into `SKIES` in `sky.ts`. `kloppenheim_02_puresky` is a long exposure: its "sun" is the moon, and it is turned down to 3.5% of the day._
+- [x] `sky-mixer.ts`: a fullscreen shader that mixes two equirect HDRIs into a 1024×512 half-float target. Phases: night → dawn (sunset HDRI) → day → dusk (sunset) → night. _Mixes into a 2048×1024 half-float target, then into a 512 cube._
+- [x] `scene.background` = the mixed target. _The cube: an equirect render target used as a background would be converted once and never again._
+- [x] `scene.environment` = PMREM of the mixed target, rebuilt only when the mix weight has moved more than 2%, and at most once every 0.25 s. Measure the cost of one PMREM pass; if it's more than 3 ms, rebuild at 512×256. _Rebuilt when a weight moves 1% or a sky turns 1.4°, at most every 0.25 s: about every 6 s by day, every second at dusk. Cost not measured yet._
+- [x] Rotate the night and sunset HDRIs so their bright spot (moon or sun) lines up with the light direction from 2.1. _Done in the mix shader by shifting u, so each disc lands on its light's azimuth (not its elevation)._
+- [x] Fog color and `HORIZON_COLOR` per phase (sample each HDRI's horizon) and blend. Fog thicker at night (`FOG_DENSITY` × 1.3) to hide the far city. _Linear blend of the measured horizons. Fog 30% denser at night._
+- [x] `SKY_FILL`, ambient and hemisphere intensities per phase, blended.
+- [x] Tone mapping exposure: up about 1.6× at night, so the scene reads without being black. Lamps and windows supply the contrast. _As a 1.6× scale on every light, the sky fill and the background, not the tone mapper's exposure, so lamps and windows stand out against it._
 
 ### Task 2.3: Water and materials at night
 
