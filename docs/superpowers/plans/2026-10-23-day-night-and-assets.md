@@ -90,28 +90,28 @@ Today there's one midday HDRI and a sun that rotates around it. The night (`klop
 
 ### Task 3.1: Street lamps
 
-- [ ] The lamp model has `street_lamp_01_bulb` and `street_lamp_01_glass` materials. At night, give the bulb an emissive warm white (`0xffd9a0`) scaled by a `nightLight` uniform, so bloom picks it up. One material per model, so this is one uniform for all lamps.
-- [ ] A pool of 12 `PointLight`s (no shadows, distance 18 m, decay 2), moved every 0.5 s to the lamps nearest the camera. Lamp positions come from the props pass (`PropResult.lamps`).
-- [ ] Cheap light pools for lamps outside the pool: an additive, unlit decal disc on the sidewalk under each lamp (instanced, `near` LOD), faded by `nightLight`.
-- [ ] Budget: point lights cost per material. Measure FPS with 12, then 8. Keep the higher count that holds the budget.
+- [x] The lamp model has `street_lamp_01_bulb` and `street_lamp_01_glass` materials. At night, give the bulb an emissive warm white (`0xffd9a0`) scaled by a `nightLight` uniform, so bloom picks it up. One material per model, so this is one uniform for all lamps. _Any glTF material named `*_bulb` gets emissive `0xffd9a0`, from 0 by day to 3 at night (`nightGlow`)._
+- [x] A pool of 12 `PointLight`s (no shadows, distance 18 m, decay 2), moved every 0.5 s to the lamps nearest the camera. Lamp positions come from the props pass (`PropResult.lamps`). _8 lights, always in the scene so the light count never changes (that would recompile every material at dusk). Effects high uses 8, medium 4, off 0. The renderer records each bulb's center when it instances the lamps, and re-picks the nearest every 0.5 s._
+- [-] Cheap light pools for lamps outside the pool: an additive, unlit decal disc on the sidewalk under each lamp (instanced, `near` LOD), faded by `nightLight`. _Not done. The bulbs glow through bloom; add the decals if the far streets look too dark._
+- [ ] Budget: point lights cost per material. Measure FPS with 12, then 8. Keep the higher count that holds the budget. _Needs real hardware. 8 is the current maximum (`LAMP_LIGHTS` in `three-renderer.ts`)._
 
 ### Task 3.2: Lit windows
 
-- [ ] `facade-shader.ts`: a `uNight` uniform (0–1). Each window decides from its hash whether its room is lit, with the share of lit windows depending on the hour: about 70% at 19:00–22:00, 20% at 02:00–05:00.
-- [ ] Lit windows get emissive warm (`0xffd59a`) or cool (`0xcfe3ff`, TV) glass with a little variation, plus a darker floor band so the room reads.
-- [ ] Shopfronts are lit until 22:00, then mostly dark with the shutter look.
-- [ ] Signs (`emissive` boxes) and stall bulbs are brighter at night.
+- [x] `facade-shader.ts`: a `uNight` uniform (0–1). Each window decides from its hash whether its room is lit, with the share of lit windows depending on the hour: about 70% at 19:00–22:00, 20% at 02:00–05:00. _Each window's own hash against `windowShare` from `dayLightAt` (a table by hour)._
+- [~] Lit windows get emissive warm (`0xffd59a`) or cool (`0xcfe3ff`, TV) glass with a little variation, plus a darker floor band so the room reads. _Warm, or blue for one in seven (a TV), at 1.1–2.1. No darker floor band._
+- [~] Shopfronts are lit until 22:00, then mostly dark with the shutter look. _Lit at 90% from 07:00 to 21:30, 10% after 22:30. No shutter look._
+- [x] Signs (`emissive` boxes) and stall bulbs are brighter at night. _Signs and signals go from 1.4 to 3.5. Stalls have no bulbs._
 
 ### Task 3.3: Car lights
 
-- [ ] Traffic cars: the `Headlights` material (`car-paint.ts`) and the taillights get emissive at night, through one shared uniform.
-- [ ] The player's car gets two `SpotLight`s (no shadows, 35 m, 30°) while driving at night. Remote players' cars get emissive only.
-- [ ] The sedan fallback visual (`sedan-visual.ts`) uses the same uniform for its `headlight` and `taillight` roles.
+- [-] Traffic cars: the `Headlights` material (`car-paint.ts`) and the taillights get emissive at night, through one shared uniform. _Not needed: `car-paint.ts` already gives headlights and taillights emissive 4–4.5 at all hours, and bloom picks them up._
+- [x] The player's car gets two `SpotLight`s (no shadows, 35 m, 30°) while driving at night. Remote players' cars get emissive only. _`Renderer.setHeadlights(mesh, front)`, called each frame from `renderScene`. The two spots stay in the scene by day at intensity 0._
+- [-] The sedan fallback visual (`sedan-visual.ts`) uses the same uniform for its `headlight` and `taillight` roles. _Its lamps are already emissive at all hours._
 
 ### Task 3.4: Renderer interface
 
-- [ ] `Renderer.setTimeOfDay` stays the entry point. Everything in this phase reads one `lighting` state computed from the day fraction: `{ sunUp, nightLight, windowShare }`.
-- [ ] Test: `lightingAt(fraction)` in `src/sim/` (pure), with `nightLight` = 0 at noon, 1 at midnight and smooth across dusk.
+- [x] `Renderer.setTimeOfDay` stays the entry point. Everything in this phase reads one `lighting` state computed from the day fraction: `{ sunUp, nightLight, windowShare }`. _`dayLightAt` returns everything, including `nightLight`, `windowShare` and `shopShare`._
+- [~] Test: `lightingAt(fraction)` in `src/sim/` (pure), with `nightLight` = 0 at noon, 1 at midnight and smooth across dusk. _`dayLightAt` stays in `engine/render/sun-math.ts` (it reads the sky table), tested in `sun.test.ts`._
 
 ---
 

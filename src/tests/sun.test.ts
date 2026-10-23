@@ -69,4 +69,11 @@ describe('day light', () => {
     const midnight = dayLightAt(at(0));
     expect(midnight.targetU.night).toBeCloseTo(equirectU(midnight.light), 6);
   });
+
+  it('lights most homes in the evening, few before dawn, and closes shops at 22:00', () => {
+    expect(dayLightAt(at(20)).windowShare).toBeCloseTo(0.7, 6);
+    expect(dayLightAt(at(4)).windowShare).toBeLessThan(0.25);
+    expect(dayLightAt(at(20)).shopShare).toBeCloseTo(0.9, 6);
+    expect(dayLightAt(at(23)).shopShare).toBeCloseTo(0.1, 6);
+  });
 });

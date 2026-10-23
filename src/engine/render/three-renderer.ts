@@ -25,7 +25,9 @@ import {
   NoToneMapping,
   PCFShadowMap,
   PerspectiveCamera,
+  PointLight,
   Scene,
+  SpotLight,
   Vector3,
   SkinnedMesh,
   SRGBColorSpace,
@@ -104,6 +106,13 @@ interface MeshRecord {
 
 const worldFar = 2800;
 
+/** Point lights that follow the street lamps nearest the camera at night, per effects level. */
+const LAMP_LIGHTS: Record<Effects, number> = { off: 0, medium: 4, high: 8 };
+const LAMP_POOL = 8;
+/** Candela: about 1 lux on the pavement under a 4.6 m lamp. */
+const LAMP_POWER = 18;
+const HEADLIGHT_POWER = 60;
+
 /** Ground finishes seen in long runs, which get a second, wider sample against tiling. */
 const BROKEN_UP: ReadonlySet<SurfaceFinish> = new Set([
   'asphalt',
@@ -166,6 +175,9 @@ export function createThreeRenderer(
     occlusion.configuration.halfRes = level === 'medium';
     occlusion.setQualityMode(level === 'high' ? 'Medium' : 'Low');
     bloom.intensity = level === 'off' ? 0 : 0.4;
+    lampsInUse = LAMP_LIGHTS[level];
+    nearest.length = 0;
+    lampsPlacedAt = -Infinity;
   };
   const projected = new Vector3();
   const cameraSpace = new Vector3();
@@ -188,6 +200,27 @@ export function createThreeRenderer(
   let unitBox: BoxGeometry | undefined;
   let unitCylinder: CylinderGeometry | undefined;
   let dayTime = 0.375;
+  // Read by the facade shader: windows and shopfronts light up after dark.
+  const night = { value: 0 };
+  const windowShare = { value: 0 };
+  const shopShare = { value: 0 };
+  /** Emissive intensity by day and by night, for bulbs and signs. */
+  const nightGlow = new Map<MeshStandardMaterial, [number, number]>();
+  /** Bulb centers of each instanced lamp batch, as x, y, z triples. */
+  const glows = new Map<number, Float32Array>();
+  // A fixed set of lights: changing how many there are recompiles every material.
+  const lampPool = Array.from({ length: LAMP_POOL }, () => new PointLight(0xffd9a0, 0, 22, 2));
+  let lampsInUse = LAMP_LIGHTS.high;
+  let lampsPlacedAt = -Infinity;
+  const nearest: { distance: number; x: number; y: number; z: number }[] = [];
+  const beams = [1, -1].map((side) => {
+    const beam = new SpotLight(0xfff1d0, 0, 45, 0.45, 0.5, 1.5);
+    beam.castShadow = false;
+    return { side, beam };
+  });
+  let beamsOn = false;
+  scene.add(...lampPool);
+  for (const { beam } of beams) scene.add(beam, beam.target);
   let shadowsWanted = true;
   const sky = createSkyMixer(renderer, assets);
   /** Sun or moon, fill, fog and sky for `dayTime`. Cheap; the sky re-blends only when it moved. */
@@ -207,7 +240,46 @@ export function createThreeRenderer(
     sky.update(light, elapsed);
     scene.background = sky.background;
     scene.environment = sky.environment;
+    night.value = light.nightLight;
+    windowShare.value = light.windowShare;
+    shopShare.value = light.shopShare;
+    for (const [material, [day, dark]] of nightGlow) {
+      material.emissiveIntensity = day + (dark - day) * light.nightLight;
+    }
+    for (const { beam } of beams) beam.intensity = beamsOn ? HEADLIGHT_POWER * light.nightLight : 0;
   };
+
+  /** Every half second after dark, the lamp lights move to the lamps nearest the camera. */
+  const placeLampLights = () => {
+    const power = LAMP_POWER * night.value;
+    if (power > 0 && elapsed - lampsPlacedAt >= 0.5) {
+      lampsPlacedAt = elapsed;
+      nearest.length = 0;
+      const eye = camera.position;
+      for (const [id, centers] of glows) {
+        if (!meshes.get(id)?.object.visible) continue;
+        for (let i = 0; i < centers.length; i += 3) {
+          const x = centers[i] ?? 0;
+          const z = centers[i + 2] ?? 0;
+          const distance = (x - eye.x) ** 2 + (z - eye.z) ** 2;
+          const worst = nearest[nearest.length - 1]?.distance ?? Infinity;
+          if (nearest.length >= lampsInUse && distance >= worst) continue;
+          let at = nearest.length;
+          while (at > 0 && (nearest[at - 1]?.distance ?? 0) > distance) at -= 1;
+          nearest.splice(at, 0, { distance, x, y: centers[i + 1] ?? 0, z });
+          if (nearest.length > lampsInUse) nearest.pop();
+        }
+      }
+      nearest.forEach((spot, index) => {
+        // Just under the bulb, so the light falls out of the lantern onto the street.
+        lampPool[index]?.position.set(spot.x, spot.y - 0.3, spot.z);
+      });
+    }
+    lampPool.forEach((lamp, index) => {
+      lamp.intensity = index < nearest.length ? power : 0;
+    });
+  };
+
   let water: Water | null = null;
   let elapsed = 0;
 
@@ -269,6 +341,8 @@ export function createThreeRenderer(
           emissiveIntensity: desc.emissive ? 1.4 : 0,
         }),
       );
+      // Signs and signals read brighter against the dark.
+      if (desc.emissive) nightGlow.set(material, [1.4, 3.5]);
       worldMaterials.set(key, material);
       return material;
     }
@@ -320,6 +394,9 @@ export function createThreeRenderer(
         );
       }
       if (!wall) return;
+      shader.uniforms.uNight = night;
+      shader.uniforms.uWindowShare = windowShare;
+      shader.uniforms.uShopShare = shopShare;
       shader.vertexShader = shader.vertexShader.replace(
         '#include <common>',
         `#include <common>\n${facadeVertexHead}`,
@@ -453,6 +530,20 @@ export function createThreeRenderer(
     timeOfDay() {
       return dayTime;
     },
+    setHeadlights(id, front) {
+      const car = id !== 0 && front ? meshes.get(id)?.object : undefined;
+      beamsOn = car !== undefined;
+      for (const { side, beam } of beams) {
+        // Parked on the scene when off: the light count never changes.
+        const holder = car ?? scene;
+        if (beam.parent !== holder) holder.add(beam, beam.target);
+        if (car && front) {
+          beam.position.set(front.x * side, front.y, front.z);
+          beam.target.position.set(front.x * side * 1.4, front.y - 1.2, front.z + 18);
+        }
+        beam.intensity = beamsOn ? HEADLIGHT_POWER * night.value : 0;
+      }
+    },
     preloadModel(url) {
       const pending = loading.get(url);
       if (pending) return pending;
@@ -470,6 +561,11 @@ export function createThreeRenderer(
               material.transparent = false;
               material.alphaTest = 0.5;
               material.depthWrite = true;
+            }
+            // The lamp's bulb: dark by day, lit after dusk.
+            if (material instanceof MeshStandardMaterial && material.name.endsWith('_bulb')) {
+              material.emissive.setHex(0xffd9a0);
+              nightGlow.set(material, [0, 3]);
             }
             const slots: unknown[] = Object.values(material as object);
             for (const value of slots) if (isTexture(value)) textures.add(value);
@@ -558,6 +654,8 @@ export function createThreeRenderer(
       const group = new Group();
       const node = new Matrix4();
       const each = new Matrix4();
+      const bulb = new Vector3();
+      let centers: Float32Array | null = null;
       cached.scene.updateMatrixWorld(true);
       cached.scene.traverse((object) => {
         if (!(object instanceof Mesh)) return;
@@ -577,11 +675,25 @@ export function createThreeRenderer(
         mesh.receiveShadow = true;
         mesh.computeBoundingSphere();
         group.add(mesh);
+        const material: unknown = object.material;
+        const shape: unknown = object.geometry;
+        const lit = material instanceof MeshStandardMaterial && nightGlow.has(material);
+        if (lit && shape instanceof BufferGeometry && !centers) {
+          // Where each copy's bulb is, for the lamp lights to find.
+          shape.computeBoundingBox();
+          centers = new Float32Array(desc.count * 3);
+          for (let i = 0; i < desc.count; i += 1) {
+            shape.boundingBox?.getCenter(bulb);
+            bulb.applyMatrix4(node).applyMatrix4(each.fromArray(desc.matrices, i * 16));
+            centers.set([bulb.x, bulb.y, bulb.z], i * 3);
+          }
+        }
       });
       scene.add(group);
       const id = nextId;
       nextId += 1;
       meshes.set(id, { object: group });
+      if (centers) glows.set(id, centers);
       return id;
     },
     addTerrain(desc) {
@@ -656,6 +768,7 @@ export function createThreeRenderer(
       return calls;
     },
     render() {
+      placeLampLights();
       renderer.info.reset();
       composer.render();
       calls = renderer.info.render.calls;

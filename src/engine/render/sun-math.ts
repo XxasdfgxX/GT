@@ -39,6 +39,41 @@ export interface DayLight {
   fogDensityScale: number;
   /** 0 by day, 1 at night: lamps, windows and headlights. */
   nightLight: number;
+  /** Share of homes with a light on: most in the evening, few before dawn. */
+  windowShare: number;
+  /** Share of shopfronts still lit: open until 22:00. */
+  shopShare: number;
+}
+
+/** Hours and shares, wrapping at midnight. */
+const HOMES_LIT = [
+  [0, 0.45],
+  [2, 0.25],
+  [5, 0.2],
+  [6.5, 0.35],
+  [8, 0.15],
+  [17, 0.3],
+  [19, 0.7],
+  [22, 0.7],
+  [24, 0.45],
+] as const;
+
+const SHOPS_LIT = [
+  [0, 0.1],
+  [6, 0.1],
+  [7, 0.9],
+  [21.5, 0.9],
+  [22.5, 0.1],
+  [24, 0.1],
+] as const;
+
+function along(table: readonly (readonly [number, number])[], hours: number): number {
+  for (let i = 1; i < table.length; i += 1) {
+    const [h1, v1] = table[i] ?? [24, 0];
+    const [h0, v0] = table[i - 1] ?? [0, 0];
+    if (hours <= h1) return v0 + ((v1 - v0) * (hours - h0)) / Math.max(1e-6, h1 - h0);
+  }
+  return table[table.length - 1]?.[1] ?? 0;
 }
 
 export function wrapDay(time: number): number {
@@ -118,6 +153,8 @@ export function dayLightAt(time: number): DayLight {
     fog,
     fogDensityScale: 1 + 0.3 * night,
     nightLight: 1 - smoothstep(-0.12, 0.08, height),
+    windowShare: along(HOMES_LIT, wrapDay(time) * 24),
+    shopShare: along(SHOPS_LIT, wrapDay(time) * 24),
   };
 }
 

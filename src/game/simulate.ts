@@ -3,7 +3,7 @@
 import type { World } from 'bitecs';
 import { sim } from '../content/sim';
 import type { GameContext } from './context';
-import { CameraRig } from './ecs/components';
+import { CameraRig, Mode, Player, RenderRef } from './ecs/components';
 import { players } from './ecs/queries';
 import { animatePlayer } from './systems/animate-player';
 import { updateCameraLook, placeCamera } from './systems/camera-follow';
@@ -101,6 +101,20 @@ export function renderScene(ctx: GameContext, world: World, frameDt: number): vo
   );
   pushInterpolatedTransforms(ctx, world);
   animatePlayer(ctx, world);
+  aimHeadlights(ctx, world);
   ctx.renderer.tick(frameDt);
   ctx.renderer.render();
+}
+
+/** The right headlamp in a car's own frame, +z ahead; the renderer mirrors the left. */
+const HEADLAMP = { x: 0.62, y: 0.05, z: 2 };
+
+/** Beams on the car the player drives. The renderer keeps them dark by day. */
+function aimHeadlights(ctx: GameContext, world: World): void {
+  for (const eid of players(world)) {
+    const driving = Player.mode[eid] === Mode.Driving;
+    const mesh = driving ? (RenderRef.mesh[Player.vehicle[eid] ?? 0] ?? 0) : 0;
+    ctx.renderer.setHeadlights(mesh, mesh !== 0 ? HEADLAMP : null);
+    return;
+  }
 }
