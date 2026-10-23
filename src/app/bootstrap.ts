@@ -41,6 +41,7 @@ import { isMenuChord } from '../ui/menu-key';
 import { mountHud } from '../ui/mount-hud';
 import { createQuadNav } from '../engine/nav/quad-graph-nav';
 import { createContext } from './create-context';
+import { advanceClock, formatClock } from '../sim/clock';
 import { runFrame } from './loop';
 
 let session: { stop: () => void } | null = null;
@@ -283,6 +284,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
             const state = context.net?.state() ?? null;
             hud.setOffline(context.net !== null && !context.net.connected());
             hud.setPlay(readHud(world), state?.players ?? []);
+            hud.setClock(formatClock(context.clock));
             const title = readCarTitle(world);
             if (!title) hud.setCarTitle('', '', 0, 0, false);
             else {
@@ -316,6 +318,9 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
             if (context.input.snapshot().debugOverlay) {
               context.debug.showGraph = !context.debug.showGraph;
             }
+            // F6 and Shift+F6 move the hour in solo play; a room keeps the server's.
+            const skip = context.input.snapshot().timeSkip;
+            if (skip !== 0 && !context.net) advanceClock(context.clock, skip * 60);
           },
         });
         failures = 0;

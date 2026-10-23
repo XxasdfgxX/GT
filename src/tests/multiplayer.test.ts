@@ -22,6 +22,7 @@ import {
   ROOM_DEFS,
   ROOM_NPCS,
   createRoom,
+  encodeStates,
   join,
   type Room,
   leave,
@@ -35,6 +36,7 @@ import {
 } from '../net/room';
 import { parseClientMessage, parseRoomList, parseServerMessage } from '../net/protocol';
 import { roomSocketQuery } from '../net/session';
+import { DAY_START } from '../sim/clock';
 import { npcScoreLine, playerScoreLine } from '../ui/score-line';
 
 const spawns = [
@@ -745,5 +747,23 @@ describe('protocol', () => {
       { id: 'costa-1', name: 'Costa 1', players: 2, max: 16 },
     ]);
     expect(parseRoomList([{ id: 1 }])).toEqual([]);
+  });
+});
+
+describe('room clock', () => {
+  it('starts at 09:00, runs with the room, and is the same for every member', () => {
+    const live = room();
+    const ana = join(live, 'Ana', 'centro');
+    const bia = join(live, 'Bia', 'sul');
+    if (ana === null || bia === null) throw new Error('room full');
+    expect(snapshot(live, ana).clock).toBe(DAY_START);
+    for (let step = 0; step < 90; step += 1) tick(live, 1 / 30);
+    expect(snapshot(live, ana).clock).toBeCloseTo(DAY_START + 3, 2);
+    const wire = encodeStates(live, [ana, bia]);
+    const clocks = [ana, bia].map((id) => {
+      const message = parseServerMessage(wire.get(id) ?? '');
+      return message?.type === 'state' ? message.clock : -1;
+    });
+    expect(clocks).toEqual([DAY_START + 3, DAY_START + 3]);
   });
 });

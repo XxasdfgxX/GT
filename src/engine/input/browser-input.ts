@@ -28,6 +28,7 @@ const EMPTY: InputSnapshot = {
   debugToggle: false,
   debugOverlay: false,
   scoreToggle: false,
+  timeSkip: 0,
 };
 
 export function createBrowserInput(target: HTMLElement): Input {
@@ -175,6 +176,11 @@ export function createBrowserInput(target: HTMLElement): Input {
       snapshot.debugToggle = pressed.has('F3');
       snapshot.debugOverlay = pressed.has('F4');
       snapshot.scoreToggle = pressed.has('KeyH');
+      snapshot.timeSkip = pressed.has('F6')
+        ? keys.has('ShiftLeft') || keys.has('ShiftRight')
+          ? -1
+          : 1
+        : 0;
       return snapshot;
     },
     reset,
@@ -216,6 +222,7 @@ function isGameKey(code: string): boolean {
     code === 'Space' ||
     code === 'F3' ||
     code === 'F4' ||
+    code === 'F6' ||
     code === 'KeyH' ||
     code === 'KeyW' ||
     code === 'KeyA' ||

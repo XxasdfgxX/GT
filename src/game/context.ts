@@ -1,5 +1,6 @@
 /** Dependency bag passed into every system. No service is reached through a global. */
 
+import type { GameClock } from '../sim/clock';
 import type { AssetManager } from '../engine/assets/asset-manager';
 import type { AudioBus } from '../engine/audio/audio-bus';
 import type { Input } from '../engine/input/input';
@@ -112,6 +113,8 @@ export interface NetSnapshot {
   pickups: readonly NetPickup[];
   corpses: readonly NetCorpse[];
   roster: readonly NetRosterEntry[];
+  /** The room's time of day, in minutes since midnight. */
+  clock: number;
 }
 
 export interface NetLink {
@@ -129,6 +132,8 @@ export interface NetLink {
 
 export interface GameContext {
   readonly time: Clock;
+  /** Time of day. Solo play runs it in the fixed step; a room sets it from the server. */
+  readonly clock: GameClock;
   readonly events: EventBus<GameEvents>;
   readonly log: Logger;
   readonly input: Input;

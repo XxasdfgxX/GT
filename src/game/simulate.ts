@@ -28,6 +28,7 @@ import { trafficSystem } from './systems/traffic';
 import { applyNetState, publishNet } from './systems/net';
 import { cashSystem } from './systems/cash';
 import { syncRemotes } from './features/net/remotes';
+import { advanceClock, dayFraction } from '../sim/clock';
 
 export function sampleInput(ctx: GameContext, world: World): void {
   sampleInputSystem(ctx, world);
@@ -38,6 +39,8 @@ export function updateLook(ctx: GameContext, world: World): void {
 }
 
 export function fixedStep(ctx: GameContext, world: World): void {
+  // A room's clock comes with its state; solo play runs its own, and pause stops it.
+  if (!ctx.net) advanceClock(ctx.clock, ctx.time.fixedDt);
   applyNetState(ctx, world);
   streamCitySystem(ctx, world);
   if (ctx.net) netRideSystem(ctx, world);
@@ -63,6 +66,7 @@ export function fixedStep(ctx: GameContext, world: World): void {
 }
 
 export function renderScene(ctx: GameContext, world: World, frameDt: number): void {
+  ctx.renderer.setTimeOfDay(dayFraction(ctx.clock));
   const state = ctx.net?.state();
   if (state) {
     let cameraYaw = 0;

@@ -26,6 +26,7 @@ export function resetNet(): void {
 export function applyNetState(ctx: GameContext, world: World): void {
   const state = ctx.net?.state() ?? null;
   if (!state) return;
+  ctx.clock.minutes = state.clock;
   for (const eid of players(world)) {
     if ((state.self.down ?? 0) > (Player.trip[eid] ?? 0)) Player.trip[eid] = state.self.down;
     Player.health[eid] = state.self.health;
