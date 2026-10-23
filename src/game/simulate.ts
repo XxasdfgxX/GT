@@ -3,7 +3,7 @@
 import type { World } from 'bitecs';
 import { sim } from '../content/sim';
 import type { GameContext } from './context';
-import { CameraRig } from './ecs/components';
+import { CameraRig, Mode, Player, RenderRef } from './ecs/components';
 import { players } from './ecs/queries';
 import { animatePlayer } from './systems/animate-player';
 import { updateCameraLook, placeCamera } from './systems/camera-follow';
@@ -27,7 +27,9 @@ import { recoverVehicles, releaseFromBuildings } from './systems/recover-vehicle
 import { trafficSystem } from './systems/traffic';
 import { applyNetState, publishNet } from './systems/net';
 import { cashSystem } from './systems/cash';
+import { parkedCarSystem } from './features/vehicles/parked-cars';
 import { syncRemotes } from './features/net/remotes';
+import { advanceClock, dayFraction } from '../sim/clock';
 
 export function sampleInput(ctx: GameContext, world: World): void {
   sampleInputSystem(ctx, world);
@@ -38,6 +40,8 @@ export function updateLook(ctx: GameContext, world: World): void {
 }
 
 export function fixedStep(ctx: GameContext, world: World): void {
+  // A room's clock comes with its state; solo play runs its own, and pause stops it.
+  if (!ctx.net) advanceClock(ctx.clock, ctx.time.fixedDt);
   applyNetState(ctx, world);
   streamCitySystem(ctx, world);
   if (ctx.net) netRideSystem(ctx, world);
@@ -50,6 +54,7 @@ export function fixedStep(ctx: GameContext, world: World): void {
     trafficSystem(ctx, world);
     pedestrianSystem(ctx, world);
     cashSystem(ctx, world);
+    parkedCarSystem(ctx, world);
   }
   ctx.physics.step(ctx.time.fixedDt);
   recoverVehicles(ctx, world);
@@ -63,6 +68,7 @@ export function fixedStep(ctx: GameContext, world: World): void {
 }
 
 export function renderScene(ctx: GameContext, world: World, frameDt: number): void {
+  ctx.renderer.setTimeOfDay(dayFraction(ctx.clock));
   const state = ctx.net?.state();
   if (state) {
     let cameraYaw = 0;
@@ -97,6 +103,20 @@ export function renderScene(ctx: GameContext, world: World, frameDt: number): vo
   );
   pushInterpolatedTransforms(ctx, world);
   animatePlayer(ctx, world);
+  aimHeadlights(ctx, world);
   ctx.renderer.tick(frameDt);
   ctx.renderer.render();
+}
+
+/** The right headlamp in a car's own frame, +z ahead; the renderer mirrors the left. */
+const HEADLAMP = { x: 0.62, y: 0.05, z: 2 };
+
+/** Beams on the car the player drives. The renderer keeps them dark by day. */
+function aimHeadlights(ctx: GameContext, world: World): void {
+  for (const eid of players(world)) {
+    const driving = Player.mode[eid] === Mode.Driving;
+    const mesh = driving ? (RenderRef.mesh[Player.vehicle[eid] ?? 0] ?? 0) : 0;
+    ctx.renderer.setHeadlights(mesh, mesh !== 0 ? HEADLAMP : null);
+    return;
+  }
 }

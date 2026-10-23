@@ -9,6 +9,7 @@ import type {
   RosterEntry,
   SelfView,
 } from '../protocol';
+import { clockAt } from '../../sim/clock';
 import { findPlayer } from './roster';
 import type { Room } from './types';
 
@@ -20,6 +21,8 @@ export interface RoomSnapshot {
   pickups: PickupView[];
   corpses: CorpseView[];
   roster: RosterEntry[];
+  /** Time of day, in minutes since midnight. */
+  clock: number;
 }
 
 export type SharedViews = Omit<RoomSnapshot, 'self' | 'players'>;
@@ -139,6 +142,7 @@ export function otherPlayers(room: Room, id: number): PlayerView[] {
 
 export function sharedViews(room: Room): SharedViews {
   return {
+    clock: Math.round(clockAt(room.now) * 100) / 100,
     roster: room.players.map((person) => ({
       id: person.id,
       name: person.name,

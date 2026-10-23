@@ -6,7 +6,6 @@ import {
   canCross,
   healthBarVisible,
   hurtRemaining,
-  nightFactor,
   punchHits,
   punchProfile,
   shouldFlee,
@@ -19,12 +18,6 @@ describe('pedestrians', () => {
     expect(shouldFlee(4, 1, true)).toBe(true);
     expect(canCross(true)).toBe(false);
     expect(canCross(false)).toBe(true);
-  });
-
-  it('thins the crowd at night', () => {
-    expect(nightFactor(0.5)).toBe(1);
-    expect(nightFactor(0.1)).toBeLessThan(1);
-    expect(nightFactor(0.9)).toBeLessThan(1);
   });
 
   it('hits someone in front and misses someone behind', () => {

@@ -65,8 +65,6 @@ export interface ModelBatchDesc {
   count: number;
   /** Per-instance transform, length count * 16. */
   matrices: Float32Array;
-  /** Per-instance rgb for the body paint (metallic, off the wheels). Other parts keep theirs. */
-  paint?: Float32Array;
   castShadow?: boolean;
 }
 
@@ -108,6 +106,11 @@ export interface Renderer extends Disposable {
   /** Pixel position on the canvas. `behind` is true when the point is behind the camera. */
   project(point: Vec3): { x: number; y: number; behind: boolean };
   setTimeOfDay(time: number): void;
+  /**
+   * Headlight beams on one car model at night, or none (id 0). `front` is the right lamp in
+   * the car's own frame, +z ahead; the left one mirrors it.
+   */
+  setHeadlights(id: number, front: Vec3 | null): void;
   timeOfDay(): number;
   prepare(): Promise<void>;
   preloadModel(url: string): Promise<void>;

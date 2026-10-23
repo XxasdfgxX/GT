@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCity } from '../content/city';
 import { chunkIndex } from '../content/map/batch';
 import { FACADE_BAYS, FACADE_STYLES, bayCount } from '../content/map/facades';
-import { PAINTED_MODELS, PROPS, PROP_MODELS } from '../content/map/props';
+import { PROPS, PROP_MODELS } from '../content/map/props';
 import type { CityMesh } from '../content/map/batch';
 import type { RoadGraph } from '../content/map/roads';
 import { carModel } from '../content/models';
@@ -60,17 +60,11 @@ describe('street props', () => {
     for (const mesh of props) expect(PROP_MODELS).toContain(mesh.model);
   });
 
-  it('parks car models with their own paint, and paints nothing else', () => {
+  it('leaves curbside spots for real cars instead of drawing parked ones', () => {
     const city = createCity();
-    const parked = city.meshes.filter((mesh) => mesh.model === carModel);
-    expect(parked.reduce((sum, mesh) => sum + mesh.count, 0)).toBeGreaterThan(5);
-    const colors = new Set<string>();
-    for (const mesh of parked) {
-      for (let i = 0; i < mesh.count; i += 1)
-        colors.add(mesh.colors.slice(i * 3, i * 3 + 3).join());
-    }
-    expect(colors.size).toBeGreaterThan(1);
-    expect([...PAINTED_MODELS]).toEqual([carModel]);
+    expect(city.meshes.some((mesh) => mesh.model === carModel)).toBe(false);
+    expect(city.parkedSpots.length).toBeGreaterThan(20);
+    for (const spot of city.parkedSpots) expect(Number.isFinite(spot.y)).toBe(true);
   });
 
   it('gives street furniture bodies of its own, apart from the walker colliders', () => {

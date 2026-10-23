@@ -1,5 +1,7 @@
 /** JSON messages between the browser and the room server. */
 
+import { DAY_START, wrapMinutes } from '../sim/clock';
+
 export interface RoomInfo {
   id: string;
   name: string;
@@ -142,6 +144,8 @@ export interface StateMsg {
   pickups: PickupView[];
   corpses: CorpseView[];
   roster: RosterEntry[];
+  /** Time of day, in minutes since midnight. */
+  clock: number;
 }
 
 export interface ErrorMsg {
@@ -320,6 +324,7 @@ function parseState(value: Record<string, unknown>): StateMsg | null {
     pickups,
     corpses: parseCorpses(value.corpses),
     roster,
+    clock: wrapMinutes(num(value.clock) ?? DAY_START),
   };
 }
 

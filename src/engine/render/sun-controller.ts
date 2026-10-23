@@ -1,14 +1,14 @@
 /** One directional sun. The shadow frustum follows a focus point and snaps to texels. */
 
 import { OrthographicCamera, Vector3, type DirectionalLight } from 'three';
-import { directionAtTime, snapToTexel, wrapDay } from './sun-math';
+import { snapToTexel, type SunVector } from './sun-math';
 
 // Far enough that a tower on the sun side of a 90 m extent still lands in the shadow volume.
 const lightDistance = 200;
 
 export interface SunController {
-  setTimeOfDay(time: number): void;
-  timeOfDay(): number;
+  /** Toward the light, unit length: the sun by day, the moon by night. */
+  setDirection(direction: SunVector): void;
   aim(x: number, y: number, z: number): void;
   setMapSize(size: number): void;
   setExtent(extent: number): void;
@@ -16,15 +16,13 @@ export interface SunController {
 }
 
 export function createSunController(sun: DirectionalLight): SunController {
-  const direction = new Vector3();
+  const direction = new Vector3(0, 1, 0);
   const focus = new Vector3();
   const snapped = new Vector3();
-  let time = 0.5;
   let extent = 36;
   let mapSize = sun.shadow.mapSize.x;
 
   const place = () => {
-    directionAtTime(time, direction);
     const shadowCam = sun.shadow.camera;
     if (!(shadowCam instanceof OrthographicCamera)) return;
     shadowCam.left = -extent;
@@ -53,11 +51,8 @@ export function createSunController(sun: DirectionalLight): SunController {
   };
 
   return {
-    setTimeOfDay(next) {
-      time = wrapDay(next);
-    },
-    timeOfDay() {
-      return time;
+    setDirection(next) {
+      direction.set(next.x, next.y, next.z);
     },
     aim(x, y, z) {
       focus.set(x, y, z);

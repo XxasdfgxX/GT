@@ -7,7 +7,8 @@ import { onIsland, sampleHeight, urbanWeight } from './island-shape';
 import { mulberry32 } from './rng';
 import { STREET_LIFT } from './road-mesh';
 import { SIDEWALK_WIDTH, type RoadGraph } from './roads';
-import { carModel } from '../models';
+import type { ParkedSpot } from '../spawns';
+import { sedan } from '../vehicles';
 
 export interface Poi {
   x: number;
@@ -17,7 +18,8 @@ export interface Poi {
 
 export interface PropResult {
   pois: Poi[];
-  colliders: BoxCollider[];
+  /** Curbside spots where the game parks real, enterable cars. */
+  parked: ParkedSpot[];
   /** Street furniture the player and cars bump into. Walkers pass: they steer by the sidewalk. */
   solids: BoxCollider[];
   trees: number;
@@ -40,16 +42,8 @@ export const PROPS = {
   tree: '/assets/props/tree.glb',
 } as const;
 
-/** Parked cars: the same body as the traffic, painted per instance. */
-const PARKED_CAR = carModel;
-
 /** Every prop url, for the loader to fetch before the first chunk streams in. */
-export const PROP_MODELS: readonly string[] = [...Object.values(PROPS), PARKED_CAR];
-
-/** Models whose body paint takes each stamp's color. Metal on the others keeps its own. */
-export const PAINTED_MODELS: ReadonlySet<string | undefined> = new Set([PARKED_CAR]);
-
-const carColors = [0xc4553a, 0xf4f1ea, 0x2a2a2a, 0xd5dde4, 0xf2c14e, 0x1f4e79];
+export const PROP_MODELS: readonly string[] = Object.values(PROPS);
 
 export function buildProps(
   graph: RoadGraph,
@@ -62,7 +56,7 @@ export function buildProps(
   const garden = mulberry32(0x9a2d);
   const dressing = mulberry32(0x7c41);
   const pois: Poi[] = [];
-  const colliders: BoxCollider[] = [];
+  const parked: ParkedSpot[] = [];
   const solids: BoxCollider[] = [];
   let trees = 0;
   for (const door of doors) {
@@ -237,7 +231,7 @@ export function buildProps(
           const cx = a.x + fx * distance + rx * side * curb;
           const cz = a.z + fz * distance + rz * side * curb;
           if (Math.abs(cx) < 8 && cz > -6 && cz < 22) continue;
-          addParked(batch, colliders, cx, sampleHeight(cx, cz), cz, yaw, chunk, rng);
+          addParked(parked, cx, cz, yaw, rng);
         }
         if (edge.kind !== 'street' && rng() > 0.82) {
           addBench(batch, x, y, z, yaw, chunk);
@@ -336,7 +330,7 @@ export function buildProps(
       lod: 'always',
     });
   }
-  return { pois, colliders, solids, trees, grass: plazaGrassArea(graph) };
+  return { pois, parked, solids, trees, grass: plazaGrassArea(graph) };
 }
 
 function addTree(
@@ -450,30 +444,16 @@ function addLamp(
 }
 
 function addParked(
-  batch: CityBatcher,
-  colliders: BoxCollider[],
+  parked: ParkedSpot[],
   x: number,
-  y: number,
   z: number,
   yaw: number,
-  chunk: number,
   rng: () => number,
 ): void {
-  const color = carColors[Math.floor(rng() * carColors.length)] ?? 0xf4f1ea;
-  const scale = 0.85 + rng() * 0.2;
-  // The traffic body: its origin is the tires, so it sits on the lifted street.
-  batch.add({ ...prop(PARKED_CAR, x, y + STREET_LIFT, z, yaw, scale, chunk), color });
-  colliders.push({
-    x,
-    y: y + 0.7,
-    z,
-    hx: 0.85 * scale,
-    hy: 0.7,
-    hz: 2.05 * scale,
-    yaw,
-    pitch: 0,
-    chunk,
-  });
+  // The paint and size draws stay, so the trees and benches after them keep their places.
+  rng();
+  rng();
+  parked.push({ x, y: sampleHeight(x, z) + sedan.spawn.y, z, yaw });
 }
 
 /**

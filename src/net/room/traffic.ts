@@ -14,7 +14,7 @@ import {
   steppedAlong,
   yieldToPedestrian,
 } from '../../sim/traffic-ai';
-import { hitsBuilding, roomBuildingPush } from './npc';
+import { hitsBuilding, playerWithin, roomBuildingPush } from './npc';
 import { findCar, findPlayer } from './roster';
 import type { Car, Guy, RoadSpan, Room, WalkEdge, WalkNode } from './types';
 
@@ -111,10 +111,11 @@ export function toRoad(nodes: Map<number, WalkNode>, edge: WalkEdge): RoadSpan[]
   ];
 }
 
-export function spawnCar(room: Room, index: number): void {
-  if (room.roads.length === 0) return;
+/** Puts car slot `index` on a random lane, `clearOfPlayers` meters from everyone. False if no lane fit. */
+export function spawnCar(room: Room, index: number, clearOfPlayers = 0): boolean {
+  if (room.roads.length === 0) return false;
   const spec = trafficCatalog[index % trafficCatalog.length];
-  if (!spec) return;
+  if (!spec) return false;
   const gap = spec.length + 2;
   let chosen: Car | undefined;
   for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -140,13 +141,15 @@ export function spawnCar(room: Room, index: number): void {
       hitAt: new Map(),
     };
     placeCar(room, car);
+    if (clearOfPlayers > 0 && playerWithin(room, car.x, car.z, clearOfPlayers)) continue;
     chosen = car;
     if (!carInsideAnother(room, car)) break;
   }
-  if (!chosen) return;
+  if (!chosen) return false;
   chosen.prevX = chosen.x;
   chosen.prevZ = chosen.z;
   room.cars.push(chosen);
+  return true;
 }
 
 export function carInsideAnother(room: Room, car: Car): boolean {

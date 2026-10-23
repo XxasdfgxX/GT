@@ -41,6 +41,7 @@ function snapshot(seat: number, cars: NetCar[], alive = true): NetSnapshot {
     pickups: [],
     corpses: [],
     roster: [],
+    clock: 9 * 60,
   };
 }
 
