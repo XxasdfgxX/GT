@@ -304,20 +304,6 @@ export function createThreeRenderer(
   };
 
   /** Body paint gets a white copy, so each instance's color shows true; null for anything else. */
-  const whitePaint = new Map<Material, MeshStandardMaterial>();
-  const paintFor = (object: Object3D, source: unknown) => {
-    if (!(source instanceof MeshStandardMaterial) || source.metalness < 0.4 || onWheel(object)) {
-      return null;
-    }
-    let white = whitePaint.get(source);
-    if (!white) {
-      white = assets.track(source.clone());
-      white.color.set(0xffffff);
-      whitePaint.set(source, white);
-    }
-    return white;
-  };
-
   const sharedUnit = (kind: 'box' | 'cylinder') => {
     if (kind === 'cylinder') {
       unitCylinder ??= assets.track(new CylinderGeometry(0.5, 0.5, 1, 7));
@@ -660,11 +646,7 @@ export function createThreeRenderer(
       cached.scene.traverse((object) => {
         if (!(object instanceof Mesh)) return;
         // Geometry and material stay the cached ones: every copy shares them.
-        const painted = desc.paint ? paintFor(object, object.material) : null;
-        const mesh = new InstancedMesh(object.geometry, painted ?? object.material, desc.count);
-        if (painted && desc.paint) {
-          mesh.instanceColor = new InstancedBufferAttribute(desc.paint.slice(0, desc.count * 3), 3);
-        }
+        const mesh = new InstancedMesh(object.geometry, object.material, desc.count);
         node.copy(object.matrixWorld);
         for (let i = 0; i < desc.count; i += 1) {
           each.fromArray(desc.matrices, i * 16).multiply(node);

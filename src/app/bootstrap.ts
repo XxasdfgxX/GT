@@ -26,6 +26,11 @@ import {
 } from '../game/features/traffic/pool';
 import { spawnVehicle } from '../game/features/vehicles/spawn-vehicle';
 import { resetDebugView } from '../game/features/world/debug-graph';
+import {
+  resetParkedCars,
+  rollParkedModels,
+  spawnParkedCars,
+} from '../game/features/vehicles/parked-cars';
 import { spawnMap, streamAround, syncBuildingShells } from '../game/features/world/spawn-map';
 import { readCarTitle } from '../game/systems/board-car';
 import { readHud } from '../game/play/read-hud';
@@ -53,6 +58,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
   resetNetRide();
   resetNet();
   resetCrowd();
+  resetParkedCars();
   resetTrafficPool();
   resetDebugView();
   clearBoard();
@@ -148,11 +154,15 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
       ...citizens.map((person) => person.url),
       ...PROP_MODELS,
     ];
+    // Solo games park a fresh mix of every drivable car along the curbs.
+    const curbside = connected ? [] : rollParkedModels();
     if (!connected) {
-      const parkedModel = carBody(parked.id).url;
-      if (parkedModel !== carModel) urls.push(parkedModel);
+      for (const id of [parked.id, ...curbside]) urls.push(carBody(id).url);
     }
-    await Promise.all([renderer.prepare(), ...[...urls].map((url) => renderer.preloadModel(url))]);
+    await Promise.all([
+      renderer.prepare(),
+      ...[...new Set(urls)].map((url) => renderer.preloadModel(url)),
+    ]);
     if (!running) return;
     const world = createGameWorld();
     spawnMap(ctx, city);
@@ -162,6 +172,7 @@ export async function start(root: HTMLElement, launch: LaunchChoice): Promise<vo
     if (!connected) {
       const spot = parkOnStreet(city, at, carBody(parked.id).halfExtents);
       spawnVehicle(ctx, world, spot, parked.id);
+      spawnParkedCars(ctx, world, at, curbside, city.parkedSpots);
       spawnTrafficPool(ctx, world);
       spawnPedCrowd(ctx, world);
     }

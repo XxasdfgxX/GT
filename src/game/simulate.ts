@@ -27,6 +27,7 @@ import { recoverVehicles, releaseFromBuildings } from './systems/recover-vehicle
 import { trafficSystem } from './systems/traffic';
 import { applyNetState, publishNet } from './systems/net';
 import { cashSystem } from './systems/cash';
+import { parkedCarSystem } from './features/vehicles/parked-cars';
 import { syncRemotes } from './features/net/remotes';
 import { advanceClock, dayFraction } from '../sim/clock';
 
@@ -53,6 +54,7 @@ export function fixedStep(ctx: GameContext, world: World): void {
     trafficSystem(ctx, world);
     pedestrianSystem(ctx, world);
     cashSystem(ctx, world);
+    parkedCarSystem(ctx, world);
   }
   ctx.physics.step(ctx.time.fixedDt);
   recoverVehicles(ctx, world);

@@ -65,8 +65,6 @@ export interface ModelBatchDesc {
   count: number;
   /** Per-instance transform, length count * 16. */
   matrices: Float32Array;
-  /** Per-instance rgb for the body paint (metallic, off the wheels). Other parts keep theirs. */
-  paint?: Float32Array;
   castShadow?: boolean;
 }
 
