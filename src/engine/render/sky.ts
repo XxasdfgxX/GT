@@ -1,15 +1,47 @@
-/** Partly cloudy midday HDRI. The sun vector is the disc centroid, already unit length. */
+/**
+ * The three Poly Haven skies the day blends between. Each was measured with
+ * scripts/measure-hdri.mjs: `u` and `elevation` place its sun (the moon at night) in
+ * three's equirect layout, and `horizon` is the sRGB mean just above the horizon.
+ */
 
-export const COAST_HDRI_URL = '/assets/hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr';
+export interface SkyImage {
+  url: string;
+  /** Equirect u of the bright disc: atan2(z, x) / 2π + 0.5. */
+  u: number;
+  /** Degrees above the horizon of the bright disc. */
+  elevation: number;
+  /** Brightness against the day sky, applied in the mix. Each capture has its own exposure. */
+  gain: number;
+  horizon: number;
+}
 
-export const HDRI_SUN = {
-  x: 0.55435,
-  y: 0.74175,
-  z: 0.37749,
-} as const;
+export const SKIES = {
+  day: {
+    url: '/assets/hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr',
+    u: 0.5951,
+    elevation: 47.9,
+    gain: 1,
+    horizon: 0xb0b6c6,
+  },
+  // Its sun sits behind cloud on the horizon: the glow, not a disc.
+  sunset: {
+    url: '/assets/hdri/kloppenheim_06_puresky_2k.hdr',
+    u: 0.613,
+    elevation: 4.7,
+    gain: 0.55,
+    horizon: 0xffeddc,
+  },
+  // A long exposure of a moonlit night: bright as captured, so it is turned well down.
+  night: {
+    url: '/assets/hdri/kloppenheim_02_puresky_2k.hdr',
+    u: 0.5989,
+    elevation: 17,
+    gain: 0.035,
+    horizon: 0xa2aebb,
+  },
+} as const satisfies Record<string, SkyImage>;
 
-/** sRGB color sampled on the HDRI equator. */
-export const HORIZON_COLOR = 0xacb2c2;
+export type SkyName = keyof typeof SKIES;
 
 /** Exponential haze: about 12% at 520 m, half at 1.2 km, nearly opaque at 2.4 km. */
 export const FOG_DENSITY = 0.0007;
@@ -19,7 +51,3 @@ export const FOG_DENSITY = 0.0007;
  * walls in shade get nearly all their light from it.
  */
 export const SKY_FILL = 1.5;
-
-export function hdriSunLength(): number {
-  return Math.hypot(HDRI_SUN.x, HDRI_SUN.y, HDRI_SUN.z);
-}

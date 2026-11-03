@@ -26,6 +26,8 @@ export interface InputSnapshot {
   debugToggle: boolean;
   debugOverlay: boolean;
   scoreToggle: boolean;
+  /** Debug: +1 for F6, -1 for Shift+F6, an hour each. */
+  timeSkip: number;
 }
 
 export interface Input extends Disposable {

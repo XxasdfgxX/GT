@@ -21,7 +21,9 @@ import { freshBody, idlePedestrian } from '../play/drivers';
 import { BODY_REACH, circlesOverlap } from '../../sim/overlap';
 import { playerFocus } from '../play/player-focus';
 import type { World } from 'bitecs';
-import { canCross, hurtRemaining, nightFactor, PedState, shouldFlee } from '../../sim/ped-ai';
+import { walkerShare } from '../../sim/city-life';
+import { clockHours } from '../../sim/clock';
+import { canCross, hurtRemaining, PedState, shouldFlee } from '../../sim/ped-ai';
 import { connectPunch, fight, STUCK_SECONDS } from './ped-fight';
 import { carClose, ramPedestrians } from './ped-ramming';
 import { insideCross, shove, slide } from './ped-shove';
@@ -102,7 +104,7 @@ export function pedestrianSystem(ctx: GameContext, world: World): void {
   pz = foot.z;
   const target = Math.min(
     120,
-    Math.round(100 * ctx.debug.pedDensity * nightFactor(ctx.renderer.timeOfDay())),
+    Math.round(100 * ctx.debug.pedDensity * walkerShare(clockHours(ctx.clock))),
   );
   let guard = 0;
   while (active < target && guard < 4) {

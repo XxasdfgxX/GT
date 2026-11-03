@@ -30,6 +30,8 @@ export interface Hud {
   setLocked(locked: boolean): void;
   setAim(x: number, y: number, visible: boolean): void;
   setPlay(model: HudModel, peers?: readonly WorldPoint[]): void;
+  /** Time of day as `HH:MM`. */
+  setClock(text: string): void;
   setCarTitle(name: string, detail: string, x: number, y: number, visible: boolean): void;
   setPresence(presence: Presence | null): void;
   /** Shows that the room dropped. The scene keeps its last state behind the notice. */
@@ -93,6 +95,9 @@ export function mountHud(
   healthFill.className = 'health-fill';
   healthTrack.append(healthFill);
   vitals.append(healthLabel, healthTrack);
+
+  const clock = document.createElement('p');
+  clock.className = 'clock';
 
   const cash = document.createElement('p');
   cash.className = 'cash';
@@ -165,7 +170,7 @@ export function mountHud(
   });
   pedLabel.append(pedSlider);
   const hintKeys = document.createElement('div');
-  hintKeys.textContent = 'F3 painel · F4 ruas e navmesh';
+  hintKeys.textContent = 'F3 painel · F4 ruas e navmesh · F6 / Shift+F6 hora';
   panel.append(fps, draws, bodies, agents, trafficLabel, pedLabel, hintKeys);
 
   const aimCursor = document.createElement('div');
@@ -176,6 +181,7 @@ export function mountHud(
     offline,
     radar,
     vitals,
+    clock,
     cash,
     board,
     tags,
@@ -191,6 +197,7 @@ export function mountHud(
     offline,
     radar,
     vitals,
+    clock,
     cash,
     board,
     tags,
@@ -262,6 +269,9 @@ export function mountHud(
       healthFill.style.width = `${health * 100}%`;
       healthFill.dataset.level = health < 0.25 ? 'low' : health < 0.55 ? 'mid' : 'high';
       setText(cash, formatCash(model.cash));
+    },
+    setClock(text) {
+      setText(clock, text);
     },
     setOffline(lost) {
       if (offline.hidden === !lost) return;

@@ -11,6 +11,7 @@ import type { PhysicsWorld } from '../engine/physics/physics-world';
 import type { NavMesh } from '../engine/nav/nav-mesh';
 import type { Renderer } from '../engine/render/renderer';
 import { sim } from '../content/sim';
+import { createGameClock } from '../sim/clock';
 
 export interface Services {
   input: Input;
@@ -26,6 +27,7 @@ export interface Services {
 export function createContext(services: Services): GameContext {
   return {
     time: createClock(sim.fixedDt),
+    clock: createGameClock(),
     events: new EventBus<GameEvents>(),
     log: createConsoleLogger(),
     input: services.input,

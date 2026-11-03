@@ -2,6 +2,7 @@
 
 import { provoked, ram, replaceFallen, revive } from './combat';
 import { chase, walk } from './npc';
+import { settlePopulation } from './population';
 import { driveCar } from './traffic';
 import type { Room } from './types';
 
@@ -15,6 +16,7 @@ export function tick(room: Room, dt: number): void {
     room.drops = room.drops.filter((drop) => drop.expires > room.now);
   }
   replaceFallen(room);
+  settlePopulation(room);
   for (const player of room.players) {
     player.down = Math.max(0, player.down - dt);
     if (player.alive) continue;

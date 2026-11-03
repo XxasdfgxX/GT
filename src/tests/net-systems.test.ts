@@ -114,6 +114,7 @@ describe('applying the room state', () => {
       pickups: [],
       corpses: [],
       roster: [],
+      clock: 9 * 60,
     };
   }
 

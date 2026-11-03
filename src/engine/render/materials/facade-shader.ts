@@ -52,6 +52,11 @@ varying vec3 vWallLocal;
 varying vec3 vWallSize;
 varying vec3 vWallNormal;
 
+// Night (0-1), and the share of homes and of shopfronts with a light on.
+uniform float uNight;
+uniform float uWindowShare;
+uniform float uShopShare;
+
 float wallHash(vec3 p) {
   return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
 }
@@ -106,6 +111,12 @@ if (vFacade.x > 0.0 && abs(vWallNormal.y) < 0.5) {
     diffuseColor.rgb = mix(frame, glass, inGlass);
     roughnessFactor = mix(0.45, 0.05, inGlass);
     wallGlass = inGlass;
+    // A room is lit or not for the whole night: its own hash against the hour's share.
+    bool shop = level < 0.5 && vFacade.z > 0.5;
+    float lit = step(fract(n * 13.7), shop ? uShopShare : uWindowShare) * uNight * inGlass;
+    // Most rooms warm, one in seven the cold blue of a television.
+    vec3 lamp = mix(vec3(1.0, 0.7, 0.4), vec3(0.62, 0.78, 1.0), step(0.86, fract(n * 31.0)));
+    totalEmissiveRadiance += lamp * (shop ? 2.2 : 1.1 + fract(n * 3.1)) * lit;
   }
   // Homes get a 1 m by 2.1 m front door in the middle bay instead of its window.
   if (level < 0.5 && abs(vFacade.z) < 0.5 && vWallNormal.z > 0.5 && abs(bay - floor(bays * 0.5)) < 0.5) {

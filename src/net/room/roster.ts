@@ -58,11 +58,14 @@ export function createRoom(options: {
     now: 0,
     limits: options.limits ?? true,
     npcDue: [],
+    npcCount: options.npcCount ?? ROOM_NPCS,
+    carCount: options.carCount ?? ROOM_CARS,
+    carsResting: [],
+    settleAt: 0,
   };
-  const count = options.npcCount ?? ROOM_NPCS;
-  for (let i = 0; i < count; i += 1) spawnNpc(room);
-  const cars = options.carCount ?? (room.roads.length > 0 ? ROOM_CARS : 0);
-  for (let i = 0; i < cars; i += 1) spawnCar(room, i);
+  if (room.roads.length === 0) room.carCount = 0;
+  for (let i = 0; i < room.npcCount; i += 1) spawnNpc(room);
+  for (let i = 0; i < room.carCount; i += 1) spawnCar(room, i);
   return room;
 }
 

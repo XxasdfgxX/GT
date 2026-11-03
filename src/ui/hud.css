@@ -652,9 +652,25 @@ canvas {
   line-height: 1;
 }
 
-.cash {
+.clock {
   position: absolute;
   top: 16px;
+  right: 16px;
+  margin: 0;
+  color: #fff;
+  font:
+    700 26px/1 system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+  pointer-events: none;
+}
+
+/* Under the clock, as in the games this follows. */
+.cash {
+  position: absolute;
+  top: 50px;
   right: 16px;
   margin: 0;
   color: #fff;

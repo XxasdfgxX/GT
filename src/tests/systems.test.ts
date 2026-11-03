@@ -194,6 +194,8 @@ describe('crowd', () => {
   it('wakes walkers near the player and sends idle ones on errands', async () => {
     const { physics, ctx, world } = await scene();
     ctx.debug.pedDensity = 0.3;
+    // Rush hour: the whole crowd is out.
+    ctx.clock.minutes = 8 * 60;
     spawnTrafficPool(ctx, world);
     spawnPedCrowd(ctx, world);
     spawnPlayer(ctx, world, { name: 't', x: -94.7, y: 3, z: -33.1 });

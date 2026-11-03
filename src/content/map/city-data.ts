@@ -13,6 +13,7 @@ import {
   urbanZones,
 } from './island-shape';
 import { buildProps, type Poi } from './props';
+import type { ParkedSpot } from '../spawns';
 import { buildRoadMeshes, type WalkQuad } from './road-mesh';
 import { buildRoadGraph, type RoadGraph } from './roads';
 
@@ -39,6 +40,8 @@ export interface CostaVerde {
   colliders: BoxCollider[];
   /** Street furniture: physics bodies only, so walkers keep their sidewalk paths. */
   streetProps: BoxCollider[];
+  /** Curbside spots for the real parked cars. */
+  parkedSpots: ParkedSpot[];
   graph: RoadGraph;
   walks: WalkQuad[];
   footprints: Footprint[];
@@ -59,7 +62,7 @@ export function createCity(): CostaVerde {
   const lots = buildFootprints(graph);
   const doors = buildFacades(lots.footprints, batch);
   const props = buildProps(graph, doors, lots.footprints, batch);
-  colliders.push(...lots.colliders, ...props.colliders);
+  colliders.push(...lots.colliders);
   addSeawall(batch, colliders);
   const terrain = buildTerrain();
   const urbanArea = urbanZones.reduce((sum, zone) => sum + zone.sx * zone.sz, 0);
@@ -79,6 +82,7 @@ export function createCity(): CostaVerde {
     meshes: batch.build(),
     colliders,
     streetProps: props.solids,
+    parkedSpots: props.parked,
     graph,
     walks,
     footprints: lots.footprints,

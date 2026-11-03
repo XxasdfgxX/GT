@@ -37,11 +37,6 @@ export function healthBarVisible(timer: number): boolean {
   return timer > 0;
 }
 
-export function nightFactor(timeOfDay: number): number {
-  if (timeOfDay < 0.22 || timeOfDay > 0.8) return 0.45;
-  return 1;
-}
-
 export function shouldFlee(carSpeed: number, distance: number, touching: boolean): boolean {
   if (touching && carSpeed > 2) return true;
   return carSpeed > 7 && distance < 8;
